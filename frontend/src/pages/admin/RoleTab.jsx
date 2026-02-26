@@ -38,7 +38,7 @@ export default function RoleTab() {
     try {
       const [rolesRes, seedRes] = await Promise.all([
         api.get('/api/admin/roles'),
-        api.get('/api/admin/seed-permissions'),
+        api.post('/api/admin/seed-permissions'),
       ]);
       setRolesData(rolesRes.data);
       setAllPerms(seedRes.data.all_permissions || []);

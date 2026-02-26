@@ -9,7 +9,8 @@ const api = axios.create({
 
 // --- Request interceptor: add Bearer token ---
 api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState?.()?.accessToken;
+  const store = getAuthStore();
+  const token = store?.getState?.()?.accessToken;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -55,21 +56,22 @@ api.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      const refreshToken = useAuthStore.getState?.()?.refreshToken;
+      const store = getAuthStore();
+      const refreshToken = store?.getState?.()?.refreshToken;
       if (!refreshToken) throw new Error('No refresh token');
 
       const { data } = await axios.post(`${API_URL}/api/auth/refresh`, {
         refresh_token: refreshToken,
       });
 
-      useAuthStore.getState?.()?.setTokens(data.access_token, data.refresh_token);
+      store.getState?.()?.setTokens(data.access_token, data.refresh_token);
       processQueue(null, data.access_token);
 
       originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
       return api(originalRequest);
     } catch (refreshError) {
       processQueue(refreshError, null);
-      useAuthStore.getState?.()?.logout();
+      getAuthStore()?.getState?.()?.logout();
       window.location.href = '/login';
       return Promise.reject(refreshError);
     } finally {
@@ -78,10 +80,13 @@ api.interceptors.response.use(
   }
 );
 
-// Lazy import to avoid circular dependency
-let useAuthStore;
-import('../stores/authStore').then((mod) => {
-  useAuthStore = mod.default;
-});
+// Store registry — authStore registers itself to break circular dependency
+let _authStore = null;
+export function registerAuthStore(store) {
+  _authStore = store;
+}
+function getAuthStore() {
+  return _authStore;
+}
 
 export default api;

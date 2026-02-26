@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Table, Button, App, Tag, Select, Popconfirm, Tooltip } from 'antd';
+import { Table, Button, App, Tag, Select, Tooltip } from 'antd';
 import { RefreshCw } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
@@ -83,21 +83,14 @@ export default function UserTab() {
           return <Tag color={cfg.color}>{cfg.label}</Tag>;
         }
         return (
-          <Popconfirm
-            title="เปลี่ยนบทบาท?"
-            description={`เปลี่ยนบทบาทของ "${record.full_name}"`}
-            onConfirm={() => {}}
-            disabled
-          >
-            <Select
-              value={role}
-              size="small"
-              style={{ width: 140 }}
-              loading={changingRole === record.id}
-              onChange={(newRole) => handleRoleChange(record.id, newRole, record.full_name)}
-              options={ROLE_OPTIONS}
-            />
-          </Popconfirm>
+          <Select
+            value={role}
+            size="small"
+            style={{ width: 140 }}
+            loading={changingRole === record.id}
+            onChange={(newRole) => handleRoleChange(record.id, newRole, record.full_name)}
+            options={ROLE_OPTIONS}
+          />
         );
       },
     },

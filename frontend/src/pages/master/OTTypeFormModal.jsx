@@ -80,7 +80,7 @@ export default function OTTypeFormModal({ open, editItem, onClose, onSuccess }) 
 
           <Form.Item name="max_ceiling" label="เพดานสูงสุด (Max Ceiling)"
             rules={[{ required: true, message: 'กรุณากรอกเพดานสูงสุด' }]}
-            extra={<Text type="secondary" style={{ fontSize: 12 }}>BR#24 — ต้อง >= Factor</Text>}
+            extra={<Text type="secondary" style={{ fontSize: 12 }}>{'BR#24 — ต้อง >= Factor'}</Text>}
           >
             <InputNumber min={0.01} step={0.25} style={{ width: '100%' }} prefix="x" />
           </Form.Item>

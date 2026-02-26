@@ -1,5 +1,8 @@
 import { create } from 'zustand';
-import api from '../services/api';
+import axios from 'axios';
+import api, { registerAuthStore } from '../services/api';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const useAuthStore = create((set, get) => ({
   // State
@@ -18,7 +21,8 @@ const useAuthStore = create((set, get) => ({
   login: async (email, password) => {
     set({ isLoading: true });
     try {
-      const { data } = await api.post('/api/auth/login', { email, password });
+      // Use axios directly — login doesn't need auth interceptor
+      const { data } = await axios.post(`${API_URL}/api/auth/login`, { email, password });
       set({
         accessToken: data.access_token,
         refreshToken: data.refresh_token,
@@ -71,5 +75,8 @@ const useAuthStore = create((set, get) => ({
     return perms.some((p) => current.includes(p));
   },
 }));
+
+// Register store with api.js to break circular dependency
+registerAuthStore(useAuthStore);
 
 export default useAuthStore;

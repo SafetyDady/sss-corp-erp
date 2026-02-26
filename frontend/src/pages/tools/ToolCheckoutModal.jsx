@@ -20,7 +20,7 @@ export default function ToolCheckoutModal({ open, tool, onClose, onSuccess }) {
         api.get('/api/work-orders', { params: { limit: 200, offset: 0 } }),
       ]).then(([empRes, woRes]) => {
         setEmployees((empRes.data.items || []).filter((e) => e.is_active));
-        setWorkOrders((woRes.data.items || []).filter((w) => w.status === 'IN_PROGRESS'));
+        setWorkOrders((woRes.data.items || []).filter((w) => w.status === 'OPEN'));
       }).catch(() => {});
     }
   }, [open, tool]);

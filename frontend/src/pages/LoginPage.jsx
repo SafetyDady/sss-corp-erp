@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button, Card, Form, Input, Typography, App } from 'antd';
 import { Lock, Mail } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
@@ -7,14 +9,31 @@ const { Title, Text } = Typography;
 
 export default function LoginPage() {
   const [form] = Form.useForm();
+  const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
   const isLoading = useAuthStore((s) => s.isLoading);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { message } = App.useApp();
 
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
+
   const onFinish = async (values) => {
-    const result = await login(values.email, values.password);
-    if (!result.success) {
-      message.error(result.error);
+    try {
+      const result = await login(values.email, values.password);
+      if (result.success) {
+        navigate('/', { replace: true });
+      } else {
+        message.error(result.error || 'เข้าสู่ระบบไม่สำเร็จ');
+      }
+    } catch (err) {
+      const errMsg = err?.message || JSON.stringify(err) || 'Unknown error';
+      try { message.error(errMsg); } catch (_) { /* fallback below */ }
+      window.alert('เกิดข้อผิดพลาด: ' + errMsg);
     }
   };
 
@@ -33,9 +52,11 @@ export default function LoginPage() {
           width: 400,
           borderRadius: 16,
           background: COLORS.card,
+          backgroundColor: COLORS.card,
           border: `1px solid ${COLORS.border}`,
           boxShadow: '0 25px 50px -12px rgba(0,0,0,0.7)',
         }}
+        styles={{ body: { background: COLORS.card } }}
       >
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <Title level={3} style={{ margin: 0, color: COLORS.text }}>
@@ -44,7 +65,7 @@ export default function LoginPage() {
           <Text style={{ color: COLORS.textSecondary }}>{'\u0E40\u0E02\u0E49\u0E32\u0E2A\u0E39\u0E48\u0E23\u0E30\u0E1A\u0E1A'}</Text>
         </div>
 
-        <Form form={form} onFinish={onFinish} layout="vertical" size="large">
+        <Form form={form} onFinish={onFinish} onFinishFailed={(errorInfo) => { console.error('Form validation failed:', errorInfo); message.warning('กรุณากรอกข้อมูลให้ครบ'); }} layout="vertical" size="large">
           <Form.Item
             name="email"
             rules={[

@@ -21,8 +21,8 @@ export default function PayrollFormModal({ open, onClose, onSuccess }) {
         period_end: values.period_end.format('YYYY-MM-DD'),
         note: values.note || undefined,
       };
-      await api.post('/api/hr/payroll/run', payload);
-      message.success('สร้าง Payroll Run สำเร็จ — กดปุ่ม ▶ เพื่อประมวลผล');
+      await api.post('/api/hr/payroll', payload);
+      message.success('สร้าง Payroll Run สำเร็จ — กดปุ่มประมวลผลเพื่อรัน');
       onSuccess();
     } catch (err) {
       if (err.response) {
