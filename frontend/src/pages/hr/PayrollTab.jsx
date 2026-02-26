@@ -42,7 +42,7 @@ export default function PayrollTab() {
   const handleExecute = async (id) => {
     setActionLoading(id);
     try {
-      await api.post(`/api/hr/payroll/${id}/execute`);
+      await api.post('/api/hr/payroll/run', null, { params: { payroll_id: id } });
       message.success('ประมวลผล Payroll สำเร็จ');
       fetchData();
     } catch (err) {
@@ -52,13 +52,16 @@ export default function PayrollTab() {
     }
   };
 
-  const handleExport = () => {
+  const [exportLoading, setExportLoading] = useState(false);
+
+  const handleExport = async () => {
+    setExportLoading(true);
     try {
-      if (!data.length) { message.warning('ไม่มีข้อมูลให้ Export'); return; }
-      const headers = ['ID', 'Period Start', 'Period End', 'Status', 'Total Amount'];
-      const rows = data.map((r) => [r.id, r.period_start, r.period_end, r.status, r.total_amount || '']);
-      const csv = [headers, ...rows].map((row) => row.join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const response = await api.get('/api/hr/payroll/export', {
+        responseType: 'blob',
+        params: { limit: 500, offset: 0 },
+      });
+      const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -67,9 +70,11 @@ export default function PayrollTab() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      message.success('Export CSV สำเร็จ (client-side)');
+      message.success('Export CSV สำเร็จ');
     } catch (err) {
-      message.error('ไม่สามารถ Export ได้');
+      message.error(err.response?.data?.detail || 'ไม่สามารถ Export ได้');
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -164,7 +169,7 @@ export default function PayrollTab() {
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 12 }}>
         {can('hr.payroll.export') && (
           <Tooltip title="Export Payroll เป็น CSV">
-            <Button icon={<Download size={14} />} onClick={handleExport}>Export CSV</Button>
+            <Button icon={<Download size={14} />} loading={exportLoading} onClick={handleExport}>Export CSV</Button>
           </Tooltip>
         )}
         {can('hr.payroll.create') && (

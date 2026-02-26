@@ -25,10 +25,13 @@ Endpoints (from CLAUDE.md):
   GET    /api/hr/payroll/export               hr.payroll.export
 """
 
+import csv
+import io
 from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import DEFAULT_ORG_ID
@@ -379,3 +382,42 @@ async def api_execute_payroll(
     """Execute payroll run (BR#26: uses only FINAL timesheets)."""
     user_id = UUID(token["sub"])
     return await execute_payroll(db, payroll_id, executed_by=user_id)
+
+
+@hr_router.get(
+    "/payroll/export",
+    dependencies=[Depends(require("hr.payroll.export"))],
+)
+async def api_export_payroll(
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(default=100, le=500),
+    offset: int = Query(default=0, ge=0),
+):
+    """Export payroll runs as CSV."""
+    items, total = await list_payroll_runs(db, limit=limit, offset=offset)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "ID", "Period Start", "Period End", "Status",
+        "Employee Count", "Total Amount", "Executed By",
+        "Executed At", "Note", "Created At",
+    ])
+    for pr in items:
+        writer.writerow([
+            str(pr.id),
+            str(pr.period_start),
+            str(pr.period_end),
+            pr.status.value if hasattr(pr.status, 'value') else str(pr.status),
+            pr.employee_count,
+            f"{pr.total_amount:.2f}",
+            str(pr.executed_by) if pr.executed_by else "",
+            str(pr.executed_at) if pr.executed_at else "",
+            pr.note or "",
+            str(pr.created_at),
+        ])
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=payroll_export.csv"},
+    )
