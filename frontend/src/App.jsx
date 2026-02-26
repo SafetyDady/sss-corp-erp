@@ -31,7 +31,7 @@ const HRPage = lazy(() => import('./pages/hr/HRPage'));
 const ToolListPage = lazy(() => import('./pages/tools/ToolListPage'));
 const MasterDataPage = lazy(() => import('./pages/master/MasterDataPage'));
 const CustomerListPage = lazy(() => import('./pages/customer/CustomerListPage'));
-const FinancePage = lazy(() => import('./pages/FinancePage'));
+const FinancePage = lazy(() => import('./pages/finance/FinancePage'));
 const AdminPage = lazy(() => import('./pages/admin/AdminPage'));
 
 const MENU_ITEMS = [

@@ -52,18 +52,22 @@ export default function PayrollTab() {
     }
   };
 
-  const handleExport = async () => {
+  const handleExport = () => {
     try {
-      const response = await api.get('/api/hr/payroll/export', { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      if (!data.length) { message.warning('ไม่มีข้อมูลให้ Export'); return; }
+      const headers = ['ID', 'Period Start', 'Period End', 'Status', 'Total Amount'];
+      const rows = data.map((r) => [r.id, r.period_start, r.period_end, r.status, r.total_amount || '']);
+      const csv = [headers, ...rows].map((row) => row.join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'payroll_export.csv');
+      link.setAttribute('download', `payroll_export_${new Date().toISOString().slice(0, 10)}.csv`);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      message.success('Export สำเร็จ');
+      message.success('Export CSV สำเร็จ (client-side)');
     } catch (err) {
       message.error('ไม่สามารถ Export ได้');
     }

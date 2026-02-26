@@ -20,15 +20,13 @@ export default function FinancePage() {
     setLoading(true);
     try {
       const params = {};
-      if (dateRange[0]) params.start_date = dateRange[0].format('YYYY-MM-DD');
-      if (dateRange[1]) params.end_date = dateRange[1].format('YYYY-MM-DD');
+      if (dateRange[0]) params.period_start = dateRange[0].format('YYYY-MM-DD');
+      if (dateRange[1]) params.period_end = dateRange[1].format('YYYY-MM-DD');
 
-      const [summaryRes, costRes] = await Promise.all([
-        api.get('/api/finance/summary', { params }),
-        api.get('/api/finance/cost-breakdown', { params }),
-      ]);
-      setSummary(summaryRes.data);
-      setCostBreakdown(costRes.data.items || []);
+      const res = await api.get('/api/finance/reports', { params });
+      const data = res.data;
+      setSummary(data);
+      setCostBreakdown(data.cost_centers || data.items || []);
     } catch (err) {
       message.error(err.response?.data?.detail || 'ไม่สามารถโหลดข้อมูลการเงินได้');
     } finally {
@@ -41,10 +39,10 @@ export default function FinancePage() {
   const handleExportCSV = async () => {
     try {
       const params = {};
-      if (dateRange[0]) params.start_date = dateRange[0].format('YYYY-MM-DD');
-      if (dateRange[1]) params.end_date = dateRange[1].format('YYYY-MM-DD');
+      if (dateRange[0]) params.period_start = dateRange[0].format('YYYY-MM-DD');
+      if (dateRange[1]) params.period_end = dateRange[1].format('YYYY-MM-DD');
 
-      const response = await api.get('/api/finance/export', { params, responseType: 'blob' });
+      const response = await api.get('/api/finance/reports/export', { params, responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
