@@ -696,13 +696,13 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] Payroll create + execute (aggregates FINAL timesheets)
 - [x] Leave: create + approve/reject
 
-### Phase 3 — Business Flow + Frontend 🔲
-- [ ] Customer: CRUD + export
-- [ ] Purchasing: PO → approve → GR → RECEIVE
-- [ ] Sales Orders + Invoicing
-- [ ] Finance Reports + export
+### Phase 3 — Business Flow + Frontend 🟡
+- [x] Customer: CRUD (5 endpoints)
+- [x] Purchasing: PO → approve → GR → RECEIVE movements (7 endpoints)
+- [x] Sales Orders: CRUD + approve (6 endpoints)
+- [x] Finance Reports: summary + CSV export (2 endpoints)
+- [x] Admin Panel: roles/permissions/users/audit-log (6 endpoints, BR#31-33)
 - [ ] Full React Frontend for all modules
-- [ ] Admin Panel: manage roles/permissions
 
 ### Phase 4 — Multi-tenant + Production 🔲
 - [ ] Multi-tenant: org_id filtering + Setup Wizard

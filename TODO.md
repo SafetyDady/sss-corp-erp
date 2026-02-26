@@ -201,33 +201,43 @@
 
 ---
 
-## Phase 3 — Business Flow + Frontend 🔲
+## Phase 3 — Business Flow + Frontend 🟡
 
-### 3.1 Purchasing
+### 3.0 Customer ✅
 
-- [ ] Model: `PurchaseOrder`, `PurchaseOrderLine`, `GoodsReceipt`
-- [ ] Schema: PO CRUD + approve schemas
-- [ ] Service: PO → GR → RECEIVE flow
-- [ ] API: purchasing.po.* endpoints
-- [ ] Migration
-- [ ] Test
+- [x] Model: `Customer` (code, name, contact_name, email, phone, address, tax_id)
+- [x] Schema: CustomerCreate/Update/Response/ListResponse
+- [x] Service: Customer CRUD (code unique per org)
+- [x] API: `GET/POST /api/customers` + `GET/PUT/DELETE /api/customers/{id}`
+- [x] Permissions: `customer.customer.*` (5)
 
-### 3.2 Sales
+### 3.1 Purchasing ✅
 
-- [ ] Model: `SalesOrder`, `SalesOrderLine`, `Invoice`
-- [ ] Schema: SO CRUD + approve schemas
-- [ ] Service: Sales order + invoicing
-- [ ] API: sales.order.* endpoints
-- [ ] Migration
-- [ ] Test
+- [x] Model: `PurchaseOrder` (po_number auto, status DRAFT/SUBMITTED/APPROVED/RECEIVED/CANCELLED)
+- [x] Model: `PurchaseOrderLine` (po_id, product_id, quantity, unit_cost, received_qty)
+- [x] Schema: PO CRUD + approve + GoodsReceiptLine schemas
+- [x] Service: PO CRUD + approve + goods receipt → creates RECEIVE movements
+- [x] API: `GET/POST /api/purchasing/po` + `GET/PUT/DELETE /api/purchasing/po/{id}`
+- [x] API: `POST /api/purchasing/po/{id}/approve` + `POST /api/purchasing/po/{id}/receive`
+- [x] Permissions: `purchasing.po.*` (6)
 
-### 3.3 Finance Reports
+### 3.2 Sales ✅
 
-- [ ] Service: Report generation (finance.report.read/export)
-- [ ] API: Finance report endpoints
-- [ ] Test
+- [x] Model: `SalesOrder` (so_number auto, customer_id FK, status DRAFT/SUBMITTED/APPROVED/INVOICED/CANCELLED)
+- [x] Model: `SalesOrderLine` (so_id, product_id, quantity, unit_price)
+- [x] Schema: SO CRUD + approve schemas
+- [x] Service: SO CRUD + approve
+- [x] API: `GET/POST /api/sales/orders` + `GET/PUT/DELETE /api/sales/orders/{id}`
+- [x] API: `POST /api/sales/orders/{id}/approve`
+- [x] Permissions: `sales.order.*` (6)
 
-### 3.4 React Frontend — All Modules
+### 3.3 Finance Reports ✅
+
+- [x] API: `GET /api/finance/reports` — finance.report.read (aggregated summary)
+- [x] API: `GET /api/finance/reports/export` — finance.report.export (CSV download)
+- [x] Period filtering: `?period_start=&period_end=`
+
+### 3.4 React Frontend — All Modules 🔲
 
 - [ ] Inventory page: Product list + CRUD modal + stock movement log
 - [ ] Warehouse page: Warehouse + location management
@@ -239,12 +249,16 @@
 - [ ] Sales page: SO list + invoicing
 - [ ] Finance page: Reports + export
 - [ ] Admin page: User management + role/permission editor
+- [ ] Customer page: Customer list + CRUD
 
-### 3.5 Admin Panel
+### 3.5 Admin Panel ✅
 
-- [ ] API: `GET /api/admin/roles` + `PUT /api/admin/roles/{role}/permissions`
-- [ ] API: `GET /api/admin/users` + `PATCH /api/admin/users/{id}/role`
-- [ ] API: `GET /api/admin/audit-log`
+- [x] API: `GET /api/admin/roles` — admin.role.read (list roles + permissions)
+- [x] API: `PUT /api/admin/roles/{role}/permissions` — admin.role.update (BR#32/BR#33 validation)
+- [x] API: `GET /api/admin/users` — admin.user.read
+- [x] API: `PATCH /api/admin/users/{id}/role` — admin.user.update (BR#31: owner can't demote self)
+- [x] API: `GET /api/admin/audit-log` — admin.role.read
+- [x] API: `POST /api/admin/seed-permissions` — admin.role.update
 - [ ] Frontend: Admin settings UI
 
 ---

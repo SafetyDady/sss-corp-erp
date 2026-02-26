@@ -5,6 +5,9 @@ from app.models.workorder import WorkOrder, WOStatus
 from app.models.master import CostCenter, CostElement, OTType
 from app.models.hr import Employee, Timesheet, TimesheetStatus, Leave, LeaveStatus, PayrollRun, PayrollStatus
 from app.models.tools import Tool, ToolStatus, ToolCheckout
+from app.models.customer import Customer
+from app.models.purchasing import PurchaseOrder, PurchaseOrderLine, POStatus
+from app.models.sales import SalesOrder, SalesOrderLine, SOStatus
 
 __all__ = [
     "User",
@@ -30,4 +33,11 @@ __all__ = [
     "Tool",
     "ToolStatus",
     "ToolCheckout",
+    "Customer",
+    "PurchaseOrder",
+    "PurchaseOrderLine",
+    "POStatus",
+    "SalesOrder",
+    "SalesOrderLine",
+    "SOStatus",
 ]
