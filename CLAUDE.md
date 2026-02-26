@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-02-26 v2
+> อัปเดตล่าสุด: 2026-02-26 v3 (Frontend 100% complete)
 
 ---
 
@@ -696,13 +696,16 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] Payroll create + execute (aggregates FINAL timesheets)
 - [x] Leave: create + approve/reject
 
-### Phase 3 — Business Flow + Frontend 🟡
+### Phase 3 — Business Flow + Frontend ✅
 - [x] Customer: CRUD (5 endpoints)
 - [x] Purchasing: PO → approve → GR → RECEIVE movements (7 endpoints)
 - [x] Sales Orders: CRUD + approve (6 endpoints)
 - [x] Finance Reports: summary + CSV export (2 endpoints)
 - [x] Admin Panel: roles/permissions/users/audit-log (6 endpoints, BR#31-33)
-- [ ] Full React Frontend for all modules
+- [x] Full React Frontend for all modules (54 files, Batch 1-7 complete)
+- [x] Backend: `GET /api/hr/payroll/export` endpoint implemented (CSV StreamingResponse)
+- [x] UI_GUIDELINES.md v4 synced with all frontend files
+- [x] Route wiring verified + API path fixes applied
 
 ### Phase 4 — Multi-tenant + Production 🔲
 - [ ] Multi-tenant: org_id filtering + Setup Wizard
@@ -767,4 +770,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v3 (v2 — complete)*
+*End of CLAUDE.md — SSS Corp ERP v3 (Phase 0-3 complete, Phase 4 remaining)*

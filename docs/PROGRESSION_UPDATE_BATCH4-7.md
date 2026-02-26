@@ -80,8 +80,32 @@
 
 ---
 
+## การแก้ไขเพิ่มเติม (Post-Batch Fixes)
+
+### Route Wiring + API Path Verification ✅
+| ไฟล์ | ปัญหา | การแก้ไข |
+|------|--------|----------|
+| `App.jsx` | FinancePage import path ผิด | `./pages/FinancePage` → `./pages/finance/FinancePage` |
+| `FinancePage.jsx` | API paths ไม่ตรงกับ backend | `/api/finance/summary` → `/api/finance/reports`, query params แก้ |
+| `PayrollTab.jsx` | เรียก export endpoint ที่ยังไม่มี | เปลี่ยนเป็น server-side export ผ่าน `GET /api/hr/payroll/export` |
+| `PayrollTab.jsx` | Execute path ไม่ตรง | `/api/hr/payroll/${id}/execute` → `/api/hr/payroll/run` |
+
+### Backend Enhancement ✅
+| ไฟล์ | สิ่งที่เพิ่ม |
+|------|----------|
+| `backend/app/api/hr.py` | Implement `GET /api/hr/payroll/export` — CSV StreamingResponse, permission `hr.payroll.export` |
+
+### Documentation Update ✅
+| ไฟล์ | สิ่งที่อัปเดต |
+|------|----------|
+| `UI_GUIDELINES.md` | v4 — synced กับ frontend ทั้ง 54 ไฟล์ |
+| `TODO.md` | Batch 4-7 เป็น ✅ + เพิ่ม payroll/export + Phase 3 ✅ |
+| `CLAUDE.md` | v3 — Phase 3 ✅ + payroll/export + frontend 100% |
+| `README.md` | อัปเดตโครงสร้าง + ตารางโมดูล + สถานะ |
+
+---
+
 ## สิ่งที่ต้องทำต่อ
 
-1. **App.jsx Route Wiring** — ตรวจสอบว่า routes ใน App.jsx ชี้ไปยัง page components ใหม่ถูกต้อง
-2. **Integration Testing** — ทดสอบกับ backend จริง (API endpoints)
-3. **Phase 4** — Multi-tenant + Production deployment
+1. **Integration Testing** — ทดสอบกับ backend จริง (API endpoints)
+2. **Phase 4** — Multi-tenant + Production deployment

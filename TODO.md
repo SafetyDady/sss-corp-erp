@@ -1,7 +1,7 @@
 # TODO.md — SSS Corp ERP Implementation Tracker
 
 > อ้างอิง: `CLAUDE.md` → Implementation Phases + Business Rules
-> อัปเดตล่าสุด: 2026-02-26 (Frontend Batch 1-3 done)
+> อัปเดตล่าสุด: 2026-02-26 (Frontend Batch 1-7 done — 100%)
 
 ---
 
@@ -189,6 +189,7 @@
 - [x] API: `GET /api/hr/payroll` — hr.payroll.read
 - [x] API: `POST /api/hr/payroll` — hr.payroll.create
 - [x] API: `POST /api/hr/payroll/run` — hr.payroll.execute
+- [x] API: `GET /api/hr/payroll/export` — hr.payroll.export (CSV StreamingResponse) ← เพิ่มใหม่
 
 ### 2.7 Leave ✅
 
@@ -201,7 +202,7 @@
 
 ---
 
-## Phase 3 — Business Flow + Frontend 🟡
+## Phase 3 — Business Flow + Frontend ✅
 
 ### 3.0 Customer ✅
 
@@ -237,13 +238,13 @@
 - [x] API: `GET /api/finance/reports/export` — finance.report.export (CSV download)
 - [x] Period filtering: `?period_start=&period_end=`
 
-### 3.4 React Frontend — All Modules 🟡 (60% complete)
+### 3.4 React Frontend — All Modules ✅ (100% complete — 54 files)
 
-**Batch 1 — Foundation ✅**
+**Batch 1 — Foundation ✅ (11 files)**
 - [x] Install `lucide-react`, remove `@ant-design/icons` usage
 - [x] `src/utils/constants.js` — COLORS + ANT_THEME_TOKEN (dark Cyan theme)
 - [x] `src/utils/formatters.js` — formatCurrency/Date/DateTime/Number
-- [x] `src/components/StatusBadge.jsx` — 27 statuses
+- [x] `src/components/StatusBadge.jsx` — 28 statuses
 - [x] `src/components/EmptyState.jsx` — Lucide Inbox icon
 - [x] `src/components/PageHeader.jsx` — title + subtitle + actions
 - [x] `src/components/SearchInput.jsx` — debounced 300ms
@@ -252,7 +253,7 @@
 - [x] `src/pages/LoginPage.jsx` — fixed: Lucide icons, dark card colors
 - [x] `src/pages/DashboardPage.jsx` — fixed: no emoji, real API stat cards
 
-**Batch 2 — Inventory + Warehouse + Customers ✅**
+**Batch 2 — Inventory + Warehouse + Customers ✅ (10 files)**
 - [x] `pages/inventory/ProductListPage.jsx` — table + search + CRUD modal
 - [x] `pages/inventory/ProductFormModal.jsx` — create/edit product
 - [x] `pages/inventory/MovementListPage.jsx` — movements table + reverse + type filter
@@ -264,7 +265,7 @@
 - [x] `pages/customer/CustomerListPage.jsx` — table + CRUD modal
 - [x] `pages/customer/CustomerFormModal.jsx` — create/edit customer
 
-**Batch 3 — Work Orders + Purchasing + Sales ✅**
+**Batch 3 — Work Orders + Purchasing + Sales ✅ (9 files)**
 - [x] `pages/workorder/WorkOrderListPage.jsx` — table + Open/Close actions + status filter
 - [x] `pages/workorder/WorkOrderFormModal.jsx` — create/edit WO
 - [x] `pages/workorder/WorkOrderDetailPage.jsx` — detail + Job Costing 4 cards + total
@@ -275,33 +276,43 @@
 - [x] `pages/sales/SOFormModal.jsx` — create SO with dynamic line items + customer select
 - [x] `pages/sales/SODetailPage.jsx` — detail + lines
 
-**Batch 4 — HR Module 🔲**
-- [ ] `pages/hr/HRPage.jsx` — tab container (Employees/Timesheet/Leave/Payroll)
-- [ ] `pages/hr/EmployeeListTab.jsx` + `EmployeeFormModal.jsx`
-- [ ] `pages/hr/TimesheetListTab.jsx` + `TimesheetFormModal.jsx` — approve/final/unlock actions
-- [ ] `pages/hr/LeaveListTab.jsx` + `LeaveFormModal.jsx` — approve/reject
-- [ ] `pages/hr/PayrollListTab.jsx` + `PayrollRunModal.jsx` — execute/export
+**Batch 4 — HR Module ✅ (9 files)**
+- [x] `pages/hr/HRPage.jsx` — tab container (พนักงาน/Timesheet/ลาหยุด/Payroll) — RBAC-aware
+- [x] `pages/hr/EmployeeTab.jsx` — Employee list CRUD, monospace codes, Tag positions
+- [x] `pages/hr/EmployeeFormModal.jsx` — create/edit form, cost center select, currency formatter
+- [x] `pages/hr/TimesheetTab.jsx` — approval workflow (DRAFT→SUBMITTED→APPROVED→FINAL)
+- [x] `pages/hr/TimesheetFormModal.jsx` — conditional OT type, overlap/lock error handling
+- [x] `pages/hr/LeaveTab.jsx` — approve/reject, color-coded leave types
+- [x] `pages/hr/LeaveFormModal.jsx` — date validation, sick leave hint
+- [x] `pages/hr/PayrollTab.jsx` — summary stat cards, execute, server-side CSV export
+- [x] `pages/hr/PayrollFormModal.jsx` — period date validation
 
-**Batch 5 — Admin + Master Data 🔲**
-- [ ] `pages/master/MasterDataPage.jsx` — tabs: Cost Centers, Cost Elements, OT Types
-- [ ] `pages/master/CostCenterTab.jsx` + FormModal — with overhead_rate
-- [ ] `pages/master/CostElementTab.jsx` + FormModal
-- [ ] `pages/master/OTTypeTab.jsx` + FormModal — factor + max ceiling
-- [ ] `pages/admin/AdminPage.jsx` — tabs: Roles, Users, Audit Log
-- [ ] `pages/admin/RolePermissionTab.jsx` — permission matrix (5 roles × 89 perms)
-- [ ] `pages/admin/UserListTab.jsx` — role change
-- [ ] `pages/admin/AuditLogTab.jsx` — read-only
+**Batch 5 — Admin + Master Data ✅ (11 files)**
+- [x] `pages/admin/AdminPage.jsx` — 3 tabs (Users/Roles/Audit Log) — RBAC-aware
+- [x] `pages/admin/UserTab.jsx` — inline role change Select, BR#31 protection
+- [x] `pages/admin/RoleTab.jsx` — 5 roles, grouped permission checkboxes, owner locked
+- [x] `pages/admin/AuditLogTab.jsx` — audit log with refresh
+- [x] `pages/master/MasterDataPage.jsx` — 3 tabs (Cost Centers/Cost Elements/OT Types)
+- [x] `pages/master/CostCenterTab.jsx` + `CostCenterFormModal.jsx` — overhead rate (BR#30)
+- [x] `pages/master/CostElementTab.jsx` + `CostElementFormModal.jsx` — CRUD
+- [x] `pages/master/OTTypeTab.jsx` + `OTTypeFormModal.jsx` — BR#24 validation (ceiling >= factor)
 
-**Batch 6 — Tools Module 🔲**
-- [ ] `pages/tools/ToolListPage.jsx` — table + check-in/out actions
-- [ ] `pages/tools/ToolFormModal.jsx` — create/edit tool
-- [ ] `pages/tools/ToolCheckoutModal.jsx` — employee + WO select
-- [ ] `pages/tools/ToolHistoryDrawer.jsx` — checkout history
+**Batch 6 — Tools Module ✅ (3 files)**
+- [x] `pages/tools/ToolListPage.jsx` — table + checkout/checkin + history timeline modal
+- [x] `pages/tools/ToolFormModal.jsx` — create/edit tool, rate_per_hour (BR#28)
+- [x] `pages/tools/ToolCheckoutModal.jsx` — employee + WO select, cost hint
 
-**Batch 7 — Finance 🔲**
-- [ ] `pages/FinancePage.jsx` — summary cards + date filter + CSV export
+**Batch 7 — Finance ✅ (1 file)**
+- [x] `pages/finance/FinancePage.jsx` — summary cards + cost breakdown + date filter + CSV export
 
-### 3.5 Admin Panel ✅ (Backend)
+### 3.6 Route Wiring + API Path Verification ✅
+- [x] App.jsx — all 17 routes wired to actual page components
+- [x] FinancePage import path fixed (`./pages/finance/FinancePage`)
+- [x] Finance API paths fixed (`/api/finance/reports`, `/api/finance/reports/export`)
+- [x] PayrollTab — server-side export via `GET /api/hr/payroll/export`
+- [x] PayrollTab — execute path fixed to `POST /api/hr/payroll/run`
+
+### 3.5 Admin Panel ✅ (Backend + Frontend)
 
 - [x] API: `GET /api/admin/roles` — admin.role.read (list roles + permissions)
 - [x] API: `PUT /api/admin/roles/{role}/permissions` — admin.role.update (BR#32/BR#33 validation)
@@ -309,7 +320,7 @@
 - [x] API: `PATCH /api/admin/users/{id}/role` — admin.user.update (BR#31: owner can't demote self)
 - [x] API: `GET /api/admin/audit-log` — admin.role.read
 - [x] API: `POST /api/admin/seed-permissions` — admin.role.update
-- [ ] Frontend: Admin settings UI (see Batch 5 above)
+- [x] Frontend: Admin settings UI (AdminPage + UserTab + RoleTab + AuditLogTab) ✅
 
 ---
 
@@ -325,4 +336,4 @@
 
 ---
 
-*Last updated: 2026-02-26*
+*Last updated: 2026-02-26 — Frontend 100% complete (54 files, Batch 1-7)*
