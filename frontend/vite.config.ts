@@ -8,7 +8,20 @@ export default defineConfig({
     port: 5173,
     watch: {
       usePolling: true,
-      interval: 1000,
+      interval: 500,
     },
+  },
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-router-dom',
+      'antd',
+      'axios',
+      'zustand',
+      'zustand/middleware',
+      'dayjs',
+      'lucide-react',
+    ],
   },
 })
