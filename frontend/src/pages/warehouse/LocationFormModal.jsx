@@ -1,0 +1,74 @@
+import { useEffect, useState } from 'react';
+import { Modal, Form, Input, Select, App } from 'antd';
+import api from '../../services/api';
+
+export default function LocationFormModal({ open, editItem, warehouses, onClose, onSuccess }) {
+  const [form] = Form.useForm();
+  const [loading, setLoading] = useState(false);
+  const { message } = App.useApp();
+
+  useEffect(() => {
+    if (open) {
+      form.resetFields();
+      if (editItem) form.setFieldsValue(editItem);
+    }
+  }, [open, editItem]);
+
+  const onFinish = async (values) => {
+    setLoading(true);
+    try {
+      if (editItem) {
+        await api.put(`/api/warehouse/locations/${editItem.id}`, values);
+      } else {
+        await api.post('/api/warehouse/locations', values);
+      }
+      message.success('\u0E1A\u0E31\u0E19\u0E17\u0E36\u0E01\u0E2A\u0E33\u0E40\u0E23\u0E47\u0E08');
+      onSuccess();
+    } catch (err) {
+      message.error(err.response?.data?.detail || '\u0E40\u0E01\u0E34\u0E14\u0E02\u0E49\u0E2D\u0E1C\u0E34\u0E14\u0E1E\u0E25\u0E32\u0E14');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={editItem ? '\u0E41\u0E01\u0E49\u0E44\u0E02\u0E15\u0E33\u0E41\u0E2B\u0E19\u0E48\u0E07' : '\u0E40\u0E1E\u0E34\u0E48\u0E21\u0E15\u0E33\u0E41\u0E2B\u0E19\u0E48\u0E07'}
+      open={open}
+      onCancel={onClose}
+      onOk={() => form.submit()}
+      confirmLoading={loading}
+      destroyOnClose
+    >
+      <Form form={form} layout="vertical" onFinish={onFinish}>
+        <Form.Item name="warehouse_id" label={'\u0E04\u0E25\u0E31\u0E07'}
+          rules={[{ required: true, message: '\u0E01\u0E23\u0E38\u0E13\u0E32\u0E40\u0E25\u0E37\u0E2D\u0E01\u0E04\u0E25\u0E31\u0E07' }]}>
+          <Select
+            options={warehouses.map((w) => ({ value: w.id, label: w.name }))}
+            placeholder={'\u0E40\u0E25\u0E37\u0E2D\u0E01\u0E04\u0E25\u0E31\u0E07'}
+          />
+        </Form.Item>
+        <Form.Item name="code" label={'\u0E23\u0E2B\u0E31\u0E2A\u0E15\u0E33\u0E41\u0E2B\u0E19\u0E48\u0E07'}
+          rules={[{ required: true, message: '\u0E01\u0E23\u0E38\u0E13\u0E32\u0E01\u0E23\u0E2D\u0E01\u0E23\u0E2B\u0E31\u0E2A' }]}>
+          <Input />
+        </Form.Item>
+        <Form.Item name="name" label={'\u0E0A\u0E37\u0E48\u0E2D\u0E15\u0E33\u0E41\u0E2B\u0E19\u0E48\u0E07'}
+          rules={[{ required: true, message: '\u0E01\u0E23\u0E38\u0E13\u0E32\u0E01\u0E23\u0E2D\u0E01\u0E0A\u0E37\u0E48\u0E2D' }]}>
+          <Input />
+        </Form.Item>
+        <Form.Item name="zone_type" label="Zone Type"
+          rules={[{ required: true, message: '\u0E01\u0E23\u0E38\u0E13\u0E32\u0E40\u0E25\u0E37\u0E2D\u0E01 Zone Type' }]}>
+          <Select options={[
+            { value: 'RECEIVING', label: 'RECEIVING' },
+            { value: 'STORAGE', label: 'STORAGE' },
+            { value: 'SHIPPING', label: 'SHIPPING' },
+            { value: 'QUALITY', label: 'QUALITY' },
+          ]} />
+        </Form.Item>
+        <Form.Item name="description" label={'\u0E23\u0E32\u0E22\u0E25\u0E30\u0E40\u0E2D\u0E35\u0E22\u0E14'}>
+          <Input.TextArea rows={2} />
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
+}

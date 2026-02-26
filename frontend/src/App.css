@@ -1,0 +1,86 @@
+body {
+  margin: 0;
+  background: #0a0a0f;
+}
+
+/* Scrollbar dark theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a0f;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a3a;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a4a;
+}
+
+/* Ant Design dark overrides */
+.ant-layout-sider {
+  background: #0d0d14 !important;
+}
+
+.ant-menu-dark {
+  background: transparent !important;
+}
+
+.ant-menu-dark .ant-menu-item-selected {
+  background: #06b6d418 !important;
+}
+
+.ant-menu-dark .ant-menu-item:hover {
+  background: #1a1a26 !important;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th,
+.ant-table-wrapper .ant-table-thead > tr > td {
+  background: #111118 !important;
+  border-bottom-color: #22222f !important;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #94a3b8 !important;
+}
+
+.ant-table-wrapper .ant-table-tbody > tr > td {
+  border-bottom-color: #22222f !important;
+}
+
+.ant-table-wrapper .ant-table-tbody > tr:hover > td {
+  background: #1a1a24 !important;
+}
+
+.ant-modal .ant-modal-content {
+  background: #1e1e2a !important;
+}
+
+.ant-modal .ant-modal-header {
+  background: #1e1e2a !important;
+}
+
+/* Sidebar collapse toggle */
+.sidebar-toggle {
+  position: absolute;
+  bottom: 70px;
+  right: -12px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #16161f;
+  border: 1px solid #2a2a3a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  color: #94a3b8;
+  transition: all 0.2s;
+}
+.sidebar-toggle:hover {
+  background: #1e1e2a;
+  color: #06b6d4;
+}
