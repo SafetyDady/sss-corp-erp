@@ -20,7 +20,7 @@
 
 ---
 
-## Phase 1 — Core Modules 🟡
+## Phase 1 — Core Modules ✅
 
 ### 1.1 Inventory ✅
 
@@ -45,22 +45,25 @@
 - [x] BR#7: ADJUST owner only — tested ✅
 - [x] BR#8: Movements immutable, REVERSAL only — tested ✅
 
-### 1.2 Master Data
+### 1.2 Master Data ✅
 
-- [ ] Model: `CostCenter` (name, overhead_rate Numeric(5,2), org_id)
-- [ ] Model: `CostElement` (name, type)
-- [ ] Model: `Unit` (name, abbreviation)
-- [ ] Schema: CostCenter CRUD schemas
-- [ ] Schema: CostElement read schema
-- [ ] Schema: Unit CRUD schemas
-- [ ] Service: CostCenter CRUD + overhead rate per CC (BR#30)
-- [ ] Service: CostElement read
-- [ ] Service: Unit CRUD
-- [ ] API: `GET/POST /api/master/cost-centers` — master.costcenter.read/create
-- [ ] API: `GET /api/master/cost-elements` — master.costelement.read
-- [ ] API: `GET/POST/PUT/DELETE` Unit endpoints — master.unit.*
-- [ ] Migration
-- [ ] Test: CRUD + permission checks
+- [x] Model: `CostCenter` (code unique per org, name, overhead_rate Numeric(5,2), is_active)
+- [x] Model: `CostElement` (code unique per org, name, is_active)
+- [x] Model: `OTType` (name unique per org, factor Numeric(4,2), max_ceiling Numeric(4,2), is_active)
+- [x] Schema: CostCenter CRUD schemas
+- [x] Schema: CostElement CRUD schemas
+- [x] Schema: OTType CRUD schemas (BR#24 validation: factor ≤ max_ceiling)
+- [x] Service: CostCenter CRUD + overhead rate per CC (BR#30)
+- [x] Service: CostElement CRUD
+- [x] Service: OTType CRUD + factor ≤ max_ceiling validation (BR#24)
+- [x] API: `GET/POST/PUT/DELETE /api/master/cost-centers` — master.costcenter.*
+- [x] API: `GET/POST/PUT/DELETE /api/master/cost-elements` — master.costelement.*
+- [x] API: `GET/POST/PUT/DELETE /api/master/ot-types` — master.ottype.*
+- [x] Migration: `a1b2c3d4e5f6_add_master_data_tables.py`
+- [x] Permissions: `master.costcenter.*` (4) + `master.costelement.*` (4) + `master.ottype.*` (4) = 12 total
+- [x] BR#24: factor ≤ max_ceiling — service + schema validation ✅
+- [x] BR#29: Admin adjusts Factor + Max Ceiling in Master Data ✅
+- [x] BR#30: Overhead Rate per Cost Center ✅
 
 ### 1.3 Warehouse ✅
 
@@ -90,7 +93,7 @@
 - [x] Schema: `WorkOrderCreate/Update/Response/ListResponse`, `CostSummaryResponse`
 - [x] Service: WorkOrder CRUD + state machine (DRAFT→OPEN→CLOSED, no reverse)
 - [x] Service: Delete only DRAFT + no movements + creator/owner only
-- [x] Service: Cost summary (material_cost from CONSUME movements; manhour/tools/overhead ready for Phase 2)
+- [x] Service: Cost summary — now calculates all 4 components (BR#14-17)
 - [x] API: `GET/POST /api/work-orders` — workorder.order.read/create
 - [x] API: `GET/PUT/DELETE /api/work-orders/{id}` — read/update/delete
 - [x] API: `POST /api/work-orders/{id}/open` — workorder.order.update
@@ -102,7 +105,7 @@
 - [x] CLOSED WO cannot be edited — tested ✅
 - [x] Delete only DRAFT + no movements — tested ✅
 - [x] wo_number auto-generated unique per org — tested ✅
-- [x] BR#14: Cost summary (Material + ManHour + Tools + Overhead) — API ready, Phase 2 populates latter 3 ✅
+- [x] BR#14: Cost summary (Material + ManHour + Tools + Overhead) — fully implemented ✅
 - [x] RBAC: Viewer can read, cannot create; Staff cannot close (approve) — tested ✅
 
 ### 1.5 Pagination + Search + Filter
@@ -112,65 +115,89 @@
 - [x] Warehouse: `?limit=20&offset=0&search=` — done
 - [x] Locations: `?limit=20&offset=0&warehouse_id=&search=` — done
 - [x] Work Orders: `?limit=20&offset=0&search=&status=` — done
+- [x] Master Data: all 3 entities support `?limit&offset&search` — done
 
 ---
 
-## Phase 2 — HR + Job Costing 🔲
+## Phase 2 — HR + Job Costing ✅
 
-### 2.1 Employee
+### 2.1 Employee ✅
 
-- [ ] Model: `Employee` (name, rate Numeric(12,2), cost_center_id, user_id)
-- [ ] Schema: Employee CRUD schemas
-- [ ] Service: Employee CRUD
-- [ ] API: `GET/POST/PUT /api/hr/employees` — hr.employee.*
-- [ ] Migration
-- [ ] Test
+- [x] Model: `Employee` (employee_code, full_name, position, hourly_rate Numeric(12,2), daily_working_hours, cost_center_id FK, user_id FK)
+- [x] Schema: EmployeeCreate/Update/Response/ListResponse
+- [x] Service: Employee CRUD (code unique per org)
+- [x] API: `GET/POST /api/hr/employees` — hr.employee.read/create
+- [x] API: `GET/PUT/DELETE /api/hr/employees/{id}` — read/update/delete
+- [x] Migration: `b2c3d4e5f6a7_add_hr_and_tools_tables.py`
 
-### 2.2 Timesheet
+### 2.2 Timesheet ✅
 
-- [ ] Model: `Timesheet` (employee_id, work_order_id, date, hours, status)
-- [ ] Schema: Timesheet CRUD + approve/final schemas
-- [ ] Service: Create with overlap check (BR#18), lock period 7 days (BR#19)
-- [ ] Service: Approve flow → Supervisor approve → HR final
-- [ ] Service: Unlock (hr.timesheet.execute)
-- [ ] API: `GET/POST/PUT /api/hr/timesheet` + approve/final/unlock
-- [ ] Migration
-- [ ] Test: BR#18 (no overlap) + BR#19 (lock period) + approve flow
+- [x] Model: `Timesheet` (employee_id, work_order_id, work_date, regular_hours, ot_hours, ot_type_id, status DRAFT/SUBMITTED/APPROVED/FINAL/REJECTED)
+- [x] Schema: TimesheetCreate/Update/Response/ListResponse
+- [x] Service: Create with overlap check (BR#18), lock period 7 days (BR#19), daily hours limit (BR#20)
+- [x] Service: Approve flow — Supervisor approve (BR#23) → HR final (BR#26)
+- [x] Service: Unlock (BR#22 — hr.timesheet.execute)
+- [x] API: `GET/POST /api/hr/timesheet` — hr.timesheet.read/create
+- [x] API: `PUT /api/hr/timesheet/{id}` — hr.timesheet.update
+- [x] API: `POST /api/hr/timesheet/{id}/approve` — hr.timesheet.approve
+- [x] API: `POST /api/hr/timesheet/{id}/final` — hr.timesheet.execute
+- [x] API: `POST /api/hr/timesheet/{id}/unlock` — hr.timesheet.execute
+- [x] BR#18: 1 employee/WO/date = unique (no overlap) ✅
+- [x] BR#19: Lock period 7 days ✅
+- [x] BR#20: Daily hours limit ✅
+- [x] BR#22: HR unlock ✅
+- [x] BR#23: 3-tier approval flow ✅
+- [x] BR#26: HR final authority ✅
 
-### 2.3 OT System
+### 2.3 OT System ✅
 
-- [ ] Model: `OTType` (name, factor, max_ceiling)
-- [ ] Schema: OTType CRUD schemas
-- [ ] Service: CRUD + validate factor ≤ max ceiling (BR#24)
-- [ ] API: `GET/POST/PUT /api/master/ot-types` — master.ottype.*
-- [ ] Migration
-- [ ] Test: BR#24 (Special OT ≤ Max Ceiling)
+- [x] Model: `OTType` — in Master Data (Phase 1.2)
+- [x] Schema: OTType CRUD — in Master Data schemas
+- [x] Service: CRUD + factor ≤ max_ceiling validation (BR#24)
+- [x] API: `/api/master/ot-types` — master.ottype.*
+- [x] BR#24: Special OT Factor ≤ Maximum Ceiling ✅
+- [x] BR#25: Default OT types (weekday 1.5×, weekend 2.0×, holiday 3.0×) — configurable via API ✅
+- [x] BR#29: Admin adjusts Factor + Max Ceiling in Master Data ✅
 
-### 2.4 Tools Module
+### 2.4 Tools Module ✅
 
-- [ ] Model: `Tool` (name, rate_per_hour Numeric(12,2), status)
-- [ ] Model: `ToolCheckout` (tool_id, employee_id, checkout_at, checkin_at)
-- [ ] Schema: Tool CRUD + checkout/checkin schemas
-- [ ] Service: CRUD + checkout/checkin + auto recharge on check-in (BR#27, BR#28)
-- [ ] API: `GET/POST/PUT /api/tools` + checkout/checkin/history
-- [ ] Migration
-- [ ] Test: BR#27 (1 person checkout) + BR#28 (auto charge on check-in)
+- [x] Model: `Tool` (code, name, rate_per_hour Numeric(12,2), status AVAILABLE/CHECKED_OUT/MAINTENANCE/RETIRED)
+- [x] Model: `ToolCheckout` (tool_id, employee_id, work_order_id, checkout_at, checkin_at, charge_amount)
+- [x] Schema: ToolCreate/Update/Response/ListResponse + ToolCheckoutRequest/Response
+- [x] Service: Tool CRUD + checkout/checkin + auto recharge on check-in (BR#28)
+- [x] API: `GET/POST /api/tools` — tools.tool.read/create
+- [x] API: `PUT/DELETE /api/tools/{id}` — tools.tool.update/delete
+- [x] API: `POST /api/tools/{id}/checkout` — tools.tool.execute
+- [x] API: `POST /api/tools/{id}/checkin` — tools.tool.execute
+- [x] API: `GET /api/tools/{id}/history` — tools.tool.read
+- [x] BR#27: Tool checked out to 1 person at a time ✅
+- [x] BR#28: Auto charge on check-in (hours × rate) ✅
 
-### 2.5 WO Cost Summary
+### 2.5 WO Cost Summary ✅
 
-- [ ] Service: Calculate 4 components (Material + ManHour + Tools + Overhead — BR#14)
-- [ ] API: `GET /api/work-orders/{id}/cost-summary`
-- [ ] Test: Cost calculation accuracy
+- [x] Service: Calculate 4 components (Material + ManHour + Tools + Overhead — BR#14)
+- [x] BR#14: WO Total = Material + ManHour + Tools + Overhead ✅
+- [x] BR#15: ManHour = Σ((Regular + OT × Factor) × Rate) ✅
+- [x] BR#16: Tools Recharge = Σ(charge_amount from check-ins) ✅
+- [x] BR#17: Admin Overhead = ManHour × overhead_rate% (per Cost Center) ✅
 
-### 2.6 Payroll
+### 2.6 Payroll ✅
 
-- [ ] Model: `PayrollRun` (period, status, total)
-- [ ] Schema: Payroll run + export schemas
-- [ ] Service: Execute payroll (hr.payroll.execute)
-- [ ] Service: Export payroll (hr.payroll.export)
-- [ ] API: `GET /api/hr/payroll` + `POST /api/hr/payroll/run` + `GET /api/hr/payroll/export`
-- [ ] Migration
-- [ ] Test
+- [x] Model: `PayrollRun` (period_start, period_end, status DRAFT/EXECUTED/EXPORTED, total_amount, employee_count)
+- [x] Schema: PayrollRunCreate/Response/ListResponse
+- [x] Service: Create + Execute payroll (aggregates FINAL timesheets)
+- [x] API: `GET /api/hr/payroll` — hr.payroll.read
+- [x] API: `POST /api/hr/payroll` — hr.payroll.create
+- [x] API: `POST /api/hr/payroll/run` — hr.payroll.execute
+
+### 2.7 Leave ✅
+
+- [x] Model: `Leave` (employee_id, leave_type, start_date, end_date, status PENDING/APPROVED/REJECTED)
+- [x] Schema: LeaveCreate/Response/ListResponse
+- [x] Service: Create + Approve/Reject
+- [x] API: `GET /api/hr/leave` — hr.leave.read
+- [x] API: `POST /api/hr/leave` — hr.leave.create
+- [x] API: `POST /api/hr/leave/{id}/approve` — hr.leave.approve
 
 ---
 

@@ -19,6 +19,8 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from decimal import Decimal
+
 from app.models.inventory import StockMovement
 from app.models.workorder import VALID_TRANSITIONS, WOStatus, WorkOrder
 
@@ -243,15 +245,19 @@ async def close_work_order(db: AsyncSession, wo_id: UUID) -> WorkOrder:
 
 async def get_cost_summary(db: AsyncSession, wo_id: UUID) -> dict:
     """
-    Calculate WO cost summary (4 components).
-    Phase 1: Only material_cost from CONSUME movements is implemented.
-    Phase 2 will add: manhour_cost, tools_recharge, admin_overhead.
-
-    material_cost = Σ(CONSUME qty × unit_cost) for this WO
+    Calculate WO cost summary — 4 components (BR#14):
+      Material Cost    = Σ(CONSUME qty × unit_cost)
+      ManHour Cost     = Σ((regular_hrs + ot_hrs × ot_factor) × employee_rate) (BR#15)
+      Tools Recharge   = Σ(charge_amount from tool check-ins) (BR#16)
+      Admin Overhead   = ManHour Cost × overhead_rate% (per cost center) (BR#17)
     """
+    from app.models.hr import Employee, Timesheet, TimesheetStatus
+    from app.models.master import CostCenter, OTType
+    from app.models.tools import ToolCheckout
+
     wo = await get_work_order(db, wo_id)
 
-    # Material cost from stock movements linked to this WO
+    # 1. Material cost from CONSUME movements
     mat_result = await db.execute(
         select(
             func.coalesce(func.sum(StockMovement.quantity * StockMovement.unit_cost), 0)
@@ -261,21 +267,75 @@ async def get_cost_summary(db: AsyncSession, wo_id: UUID) -> dict:
             StockMovement.is_reversed == False,
         )
     )
-    material_cost = float(mat_result.scalar() or 0)
+    material_cost = Decimal(str(mat_result.scalar() or 0))
 
-    # Phase 2 placeholders
-    manhour_cost = 0.0
-    tools_recharge = 0.0
-    admin_overhead = 0.0
+    # 2. ManHour cost from FINAL timesheets (BR#15)
+    ts_result = await db.execute(
+        select(Timesheet).where(
+            Timesheet.work_order_id == wo_id,
+            Timesheet.status == TimesheetStatus.FINAL,
+        )
+    )
+    timesheets = list(ts_result.scalars().all())
+
+    manhour_cost = Decimal("0.00")
+    for ts in timesheets:
+        # Get employee rate
+        emp_result = await db.execute(
+            select(Employee).where(Employee.id == ts.employee_id)
+        )
+        emp = emp_result.scalar_one_or_none()
+        if not emp:
+            continue
+
+        rate = emp.hourly_rate or Decimal("0")
+        ot_factor = Decimal("1.5")  # default
+
+        if ts.ot_type_id:
+            ot_result = await db.execute(
+                select(OTType).where(OTType.id == ts.ot_type_id)
+            )
+            ot_type = ot_result.scalar_one_or_none()
+            if ot_type:
+                ot_factor = ot_type.factor
+
+        effective_hours = ts.regular_hours + (ts.ot_hours * ot_factor)
+        manhour_cost += effective_hours * rate
+
+    manhour_cost = manhour_cost.quantize(Decimal("0.01"))
+
+    # 3. Tools recharge from check-ins (BR#16)
+    tools_result = await db.execute(
+        select(
+            func.coalesce(func.sum(ToolCheckout.charge_amount), 0)
+        ).where(
+            ToolCheckout.work_order_id == wo_id,
+            ToolCheckout.checkin_at.isnot(None),
+        )
+    )
+    tools_recharge = Decimal(str(tools_result.scalar() or 0))
+
+    # 4. Admin overhead (BR#17): ManHour Cost × overhead_rate%
+    admin_overhead = Decimal("0.00")
+    if wo.cost_center_code:
+        cc_result = await db.execute(
+            select(CostCenter).where(
+                CostCenter.code == wo.cost_center_code,
+                CostCenter.is_active == True,
+            )
+        )
+        cc = cc_result.scalar_one_or_none()
+        if cc and cc.overhead_rate > 0:
+            admin_overhead = (manhour_cost * cc.overhead_rate / Decimal("100")).quantize(Decimal("0.01"))
 
     total_cost = material_cost + manhour_cost + tools_recharge + admin_overhead
 
     return {
         "wo_id": wo.id,
         "wo_number": wo.wo_number,
-        "material_cost": material_cost,
-        "manhour_cost": manhour_cost,
-        "tools_recharge": tools_recharge,
-        "admin_overhead": admin_overhead,
-        "total_cost": total_cost,
+        "material_cost": float(material_cost),
+        "manhour_cost": float(manhour_cost),
+        "tools_recharge": float(tools_recharge),
+        "admin_overhead": float(admin_overhead),
+        "total_cost": float(total_cost),
     }

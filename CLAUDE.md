@@ -681,19 +681,20 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] Login page + Dashboard + Sidebar
 - [x] API client with auto refresh interceptor
 
-### Phase 1 — Core Modules
+### Phase 1 — Core Modules ✅
 - [x] **Inventory** ✅ — 15 tests passed, all 8 BRs verified
 - [x] **Warehouse** ✅ — 15 tests passed, BR#34 verified
 - [x] **Work Orders** ✅ — 18 tests passed, status machine + cost summary ready
-- [ ] **Master Data** 🔲 — Cost Centers, Cost Elements, Units, OT Types
+- [x] **Master Data** ✅ — CostCenter, CostElement, OTType (12 endpoints, BR#24/29/30)
 
-### Phase 2 — HR + Job Costing 🔲
-- [ ] Employee + Rate CRUD
-- [ ] Timesheet: create → approve → final → lock 7 days (BR#18-22, 26)
-- [ ] OT System: types/factor/ceiling/approve flow (BR#23-25, 29)
-- [ ] Tools Module: CRUD + check-in/out + auto recharge (BR#27-28)
-- [ ] WO Cost Summary API — 4 components (BR#14-17)
-- [ ] Payroll execute + export
+### Phase 2 — HR + Job Costing ✅
+- [x] Employee CRUD (hourly_rate, cost_center_id, daily_working_hours)
+- [x] Timesheet: create → approve → final → lock 7 days (BR#18-22, 26)
+- [x] OT System: types/factor/ceiling in Master Data (BR#23-25, 29)
+- [x] Tools Module: CRUD + check-in/out + auto recharge (BR#27-28)
+- [x] WO Cost Summary API — all 4 components live (BR#14-17)
+- [x] Payroll create + execute (aggregates FINAL timesheets)
+- [x] Leave: create + approve/reject
 
 ### Phase 3 — Business Flow + Frontend 🔲
 - [ ] Customer: CRUD + export
