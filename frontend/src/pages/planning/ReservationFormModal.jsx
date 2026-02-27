@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Modal, Form, Select, DatePicker, InputNumber, App } from 'antd';
+import { Modal, Form, Select, DatePicker, InputNumber, App, Alert } from 'antd';
 import api from '../../services/api';
 
 const { RangePicker } = DatePicker;
@@ -8,6 +8,7 @@ export default function ReservationFormModal({ open, type, onClose, onSuccess })
   const [form] = Form.useForm();
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [workOrders, setWorkOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [tools, setTools] = useState([]);
@@ -17,6 +18,7 @@ export default function ReservationFormModal({ open, type, onClose, onSuccess })
   useEffect(() => {
     if (open) {
       form.resetFields();
+      setSubmitError('');
 
       const requests = [
         api.get('/api/work-orders', { params: { limit: 500, offset: 0, status: 'OPEN' } }),
@@ -66,7 +68,9 @@ export default function ReservationFormModal({ open, type, onClose, onSuccess })
       onSuccess();
     } catch (err) {
       if (err.response) {
-        message.error(err.response?.data?.detail || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
+        const errMsg = err.response?.data?.detail || 'เกิดข้อผิดพลาด กรุณาลองใหม่';
+        setSubmitError(errMsg);
+        message.error(errMsg);
       }
     } finally {
       setLoading(false);
@@ -85,6 +89,9 @@ export default function ReservationFormModal({ open, type, onClose, onSuccess })
       width={520}
       destroyOnHidden
     >
+      {submitError && (
+        <Alert type="error" showIcon message={submitError} closable onClose={() => setSubmitError('')} style={{ marginBottom: 12 }} />
+      )}
       <Form form={form} layout="vertical">
         <Form.Item
           name="work_order_id"

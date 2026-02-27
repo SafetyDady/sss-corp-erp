@@ -169,8 +169,9 @@ async def update_daily_report(
     *,
     body,
     user_id: UUID,
+    org_id: Optional[UUID] = None,
 ) -> DailyWorkReport:
-    report = await _get_report_or_404(db, report_id)
+    report = await _get_report_or_404(db, report_id, org_id=org_id)
 
     # BR#54: Only DRAFT or REJECTED can be edited
     if report.status not in (ReportStatus.DRAFT, ReportStatus.REJECTED):
@@ -230,8 +231,9 @@ async def submit_daily_report(
     report_id: UUID,
     *,
     user_id: UUID,
+    org_id: Optional[UUID] = None,
 ) -> DailyWorkReport:
-    report = await _get_report_or_404(db, report_id)
+    report = await _get_report_or_404(db, report_id, org_id=org_id)
 
     if report.status != ReportStatus.DRAFT:
         raise HTTPException(
@@ -257,7 +259,7 @@ async def approve_daily_report(
     approver_id: UUID,
     org_id: UUID,
 ) -> DailyWorkReport:
-    report = await _get_report_or_404(db, report_id)
+    report = await _get_report_or_404(db, report_id, org_id=org_id)
 
     if report.status != ReportStatus.SUBMITTED:
         raise HTTPException(
@@ -303,8 +305,9 @@ async def reject_daily_report(
     *,
     approver_id: UUID,
     reason: str,
+    org_id: Optional[UUID] = None,
 ) -> DailyWorkReport:
-    report = await _get_report_or_404(db, report_id)
+    report = await _get_report_or_404(db, report_id, org_id=org_id)
 
     if report.status != ReportStatus.SUBMITTED:
         raise HTTPException(
@@ -330,6 +333,7 @@ async def list_daily_reports(
     *,
     org_id: UUID,
     employee_id: Optional[UUID] = None,
+    employee_ids: Optional[list[UUID]] = None,
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
     report_status: Optional[str] = None,
@@ -354,6 +358,10 @@ async def list_daily_reports(
     if employee_id:
         query = query.where(DailyWorkReport.employee_id == employee_id)
         count_query = count_query.where(DailyWorkReport.employee_id == employee_id)
+    elif employee_ids:
+        # INC-1: Supervisor department-level filtering
+        query = query.where(DailyWorkReport.employee_id.in_(employee_ids))
+        count_query = count_query.where(DailyWorkReport.employee_id.in_(employee_ids))
     if date_from:
         query = query.where(DailyWorkReport.report_date >= date_from)
         count_query = count_query.where(DailyWorkReport.report_date >= date_from)
@@ -374,14 +382,15 @@ async def list_daily_reports(
     result = await db.execute(query)
     rows = result.all()
 
+    # OBS-1 fix: Batch-load lines for all reports in 1 query (avoid N+1)
+    report_ids = [row[0].id for row in rows]
+    all_lines = await _batch_load_report_lines(db, report_ids) if report_ids else {}
+
     items = []
     for row in rows:
         report = row[0]
         emp_name = row[1]
         emp_code = row[2]
-
-        # Load lines with WO/OT joins
-        lines = await _load_report_lines(db, report.id)
 
         items.append({
             "id": report.id,
@@ -397,7 +406,7 @@ async def list_daily_reports(
             "approved_by": report.approved_by,
             "approved_at": report.approved_at,
             "reject_reason": report.reject_reason,
-            "lines": lines,
+            "lines": all_lines.get(report.id, []),
             "created_at": report.created_at,
             "updated_at": report.updated_at,
         })
@@ -408,9 +417,11 @@ async def list_daily_reports(
 async def get_daily_report(
     db: AsyncSession,
     report_id: UUID,
+    *,
+    org_id: Optional[UUID] = None,
 ) -> dict:
     """Get single report with joins."""
-    result = await db.execute(
+    q = (
         select(
             DailyWorkReport,
             Employee.full_name.label("employee_name"),
@@ -419,6 +430,9 @@ async def get_daily_report(
         .join(Employee, DailyWorkReport.employee_id == Employee.id)
         .where(DailyWorkReport.id == report_id)
     )
+    if org_id:
+        q = q.where(DailyWorkReport.org_id == org_id)
+    result = await db.execute(q)
     row = result.first()
     if not row:
         raise HTTPException(status_code=404, detail="Report not found")
@@ -450,10 +464,11 @@ async def get_daily_report(
 # INTERNAL HELPERS
 # ============================================================
 
-async def _get_report_or_404(db: AsyncSession, report_id: UUID) -> DailyWorkReport:
-    result = await db.execute(
-        select(DailyWorkReport).where(DailyWorkReport.id == report_id)
-    )
+async def _get_report_or_404(db: AsyncSession, report_id: UUID, *, org_id: Optional[UUID] = None) -> DailyWorkReport:
+    q = select(DailyWorkReport).where(DailyWorkReport.id == report_id)
+    if org_id:
+        q = q.where(DailyWorkReport.org_id == org_id)
+    result = await db.execute(q)
     report = result.scalar_one_or_none()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
@@ -492,6 +507,43 @@ async def _load_report_lines(db: AsyncSession, report_id: UUID) -> list[dict]:
     ]
 
 
+async def _batch_load_report_lines(
+    db: AsyncSession, report_ids: list[UUID]
+) -> dict[UUID, list[dict]]:
+    """Batch-load lines for multiple reports in a single query (OBS-1 fix)."""
+    if not report_ids:
+        return {}
+    result = await db.execute(
+        select(
+            DailyWorkReportLine,
+            WorkOrder.wo_number.label("wo_number"),
+            OTType.name.label("ot_type_name"),
+        )
+        .outerjoin(WorkOrder, DailyWorkReportLine.work_order_id == WorkOrder.id)
+        .outerjoin(OTType, DailyWorkReportLine.ot_type_id == OTType.id)
+        .where(DailyWorkReportLine.report_id.in_(report_ids))
+        .order_by(DailyWorkReportLine.report_id, DailyWorkReportLine.start_time)
+    )
+    rows = result.all()
+
+    grouped: dict[UUID, list[dict]] = {rid: [] for rid in report_ids}
+    for row in rows:
+        line = row[0]
+        grouped.setdefault(line.report_id, []).append({
+            "id": line.id,
+            "line_type": line.line_type,
+            "start_time": line.start_time,
+            "end_time": line.end_time,
+            "work_order_id": line.work_order_id,
+            "wo_number": row[1],
+            "ot_type_id": line.ot_type_id,
+            "ot_type_name": row[2],
+            "hours": line.hours,
+            "note": line.note,
+        })
+    return grouped
+
+
 async def _auto_record_on_approve(
     db: AsyncSession,
     report: DailyWorkReport,
@@ -519,38 +571,47 @@ async def _auto_record_on_approve(
         )
     )
 
-    # ── 2. Group lines by work_order_id ──
-    wo_groups: dict[UUID, dict] = {}
+    # ── 2. Group lines by (work_order_id, ot_type_id) ──
+    #   OBS-3 fix: separate Timesheet per OT type to avoid overwrite
+    wo_groups: dict[tuple, dict] = {}
     for line in lines:
         if line.work_order_id:
-            key = line.work_order_id
-            if key not in wo_groups:
-                wo_groups[key] = {
-                    "regular": Decimal("0"),
-                    "ot": Decimal("0"),
-                    "ot_type_id": None,
-                }
             if line.line_type == LineType.REGULAR:
+                key = (line.work_order_id, None)
+                if key not in wo_groups:
+                    wo_groups[key] = {"regular": Decimal("0"), "ot": Decimal("0"), "ot_type_id": None}
                 wo_groups[key]["regular"] += line.hours
             else:
+                key = (line.work_order_id, line.ot_type_id)
+                if key not in wo_groups:
+                    wo_groups[key] = {"regular": Decimal("0"), "ot": Decimal("0"), "ot_type_id": line.ot_type_id}
                 wo_groups[key]["ot"] += line.hours
-                wo_groups[key]["ot_type_id"] = line.ot_type_id
+
+    # Merge regular hours into the first OT group of the same WO (or standalone)
+    merged: dict[UUID, list[dict]] = {}
+    for (wo_id, ot_tid), data in wo_groups.items():
+        merged.setdefault(wo_id, []).append(data)
 
     # ── 3. Create Timesheet records per WO ──
-    for wo_id, hours_data in wo_groups.items():
-        ts = Timesheet(
-            employee_id=report.employee_id,
-            work_order_id=wo_id,
-            work_date=report.report_date,
-            regular_hours=hours_data["regular"],
-            ot_hours=hours_data["ot"],
-            ot_type_id=hours_data["ot_type_id"],
-            status=TimesheetStatus.FINAL,
-            note=f"DailyReport#{report.id}",
-            created_by=report.approved_by,
-            org_id=org_id,
-        )
-        db.add(ts)
+    #   If multiple OT types for same WO: regular hours go to first record only
+    for wo_id, group_list in merged.items():
+        regular_assigned = False
+        for grp in group_list:
+            ts = Timesheet(
+                employee_id=report.employee_id,
+                work_order_id=wo_id,
+                work_date=report.report_date,
+                regular_hours=grp["regular"] if not regular_assigned else Decimal("0"),
+                ot_hours=grp["ot"],
+                ot_type_id=grp["ot_type_id"],
+                status=TimesheetStatus.FINAL,
+                note=f"DailyReport#{report.id}",
+                created_by=report.approved_by,
+                org_id=org_id,
+            )
+            if grp["regular"] > 0:
+                regular_assigned = True
+            db.add(ts)
 
     # ── 4. Update StandardTimesheet with OT hours (BR#53) ──
     std_result = await db.execute(

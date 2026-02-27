@@ -204,8 +204,8 @@ export default function MyLeavePage() {
       </div>
       <Row gutter={[12, 12]} style={{ marginBottom: 24 }}>
         {balances.map((b) => {
-          const used = Number(b.used_days || 0);
-          const quota = Number(b.total_days || b.quota || 0);
+          const used = Number(b.used || 0);
+          const quota = Number(b.quota || 0);
           const pct = quota > 0 ? Math.round((used / quota) * 100) : 0;
           const color = typeColors[b.leave_type_code] || COLORS.accent;
           return (

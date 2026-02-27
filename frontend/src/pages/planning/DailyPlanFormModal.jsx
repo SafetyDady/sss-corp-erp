@@ -16,6 +16,7 @@ export default function DailyPlanFormModal({ open, editItem, onClose, onSuccess 
   const [planTools, setPlanTools] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [conflicts, setConflicts] = useState([]);
+  const [submitError, setSubmitError] = useState('');
 
   const isEdit = !!editItem;
 
@@ -23,6 +24,7 @@ export default function DailyPlanFormModal({ open, editItem, onClose, onSuccess 
     if (open) {
       form.resetFields();
       setConflicts([]);
+      setSubmitError('');
 
       Promise.all([
         api.get('/api/work-orders', { params: { limit: 500, offset: 0, status: 'OPEN' } }),
@@ -117,7 +119,9 @@ export default function DailyPlanFormModal({ open, editItem, onClose, onSuccess 
       onSuccess();
     } catch (err) {
       if (err.response) {
-        message.error(err.response?.data?.detail || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
+        const errMsg = err.response?.data?.detail || 'เกิดข้อผิดพลาด กรุณาลองใหม่';
+        setSubmitError(errMsg);
+        message.error(errMsg);
       }
     } finally {
       setLoading(false);
@@ -257,6 +261,15 @@ export default function DailyPlanFormModal({ open, editItem, onClose, onSuccess 
       width={780}
       destroyOnHidden
     >
+      {submitError && (
+        <Alert
+          type="error" showIcon closable
+          message="ไม่สามารถบันทึกได้"
+          description={submitError}
+          style={{ marginBottom: 16, border: 'none' }}
+          onClose={() => setSubmitError('')}
+        />
+      )}
       {conflicts.length > 0 && (
         <Alert
           type="warning" showIcon closable

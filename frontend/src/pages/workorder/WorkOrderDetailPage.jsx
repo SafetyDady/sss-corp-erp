@@ -156,7 +156,7 @@ export default function WorkOrderDetailPage() {
             <Col xs={24} sm={8}>
               <Card style={{ background: COLORS.card, border: `1px solid ${COLORS.border}` }}>
                 <div style={{ color: COLORS.textSecondary, fontSize: 12, marginBottom: 4 }}>Remaining</div>
-                <div style={{ color: Number(manhour.remaining_manhours) < 0 ? COLORS.error : COLORS.warning, fontSize: 20, fontWeight: 600 }}>
+                <div style={{ color: Number(manhour.remaining_manhours) < 0 ? COLORS.danger : COLORS.warning, fontSize: 20, fontWeight: 600 }}>
                   {Number(manhour.remaining_manhours || 0).toFixed(1)} hrs
                 </div>
               </Card>
@@ -168,7 +168,7 @@ export default function WorkOrderDetailPage() {
               <div style={{ color: COLORS.textSecondary, fontSize: 12, marginBottom: 8 }}>Progress</div>
               <Progress
                 percent={Math.min(Number(manhour.progress_pct || 0), 100)}
-                strokeColor={Number(manhour.progress_pct) > 100 ? COLORS.error : COLORS.accent}
+                strokeColor={Number(manhour.progress_pct) > 100 ? COLORS.danger : COLORS.accent}
                 trailColor={COLORS.border}
                 format={(pct) => `${Number(manhour.progress_pct || 0).toFixed(1)}%`}
               />

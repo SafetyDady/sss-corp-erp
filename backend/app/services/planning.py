@@ -351,6 +351,20 @@ async def create_daily_plan(
     tool_ids = [t["tool_id"] for t in tools]
     await _check_tool_conflicts(db, tool_ids, plan_date)
 
+    # Check duplicate: same org + date + WO
+    existing = await db.execute(
+        select(DailyPlan).where(
+            DailyPlan.org_id == org_id,
+            DailyPlan.plan_date == plan_date,
+            DailyPlan.work_order_id == work_order_id,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"แผนงานสำหรับ WO นี้ในวันที่ {plan_date} มีอยู่แล้ว (1 แผน/WO/วัน)",
+        )
+
     # Create daily plan
     daily_plan = DailyPlan(
         plan_date=plan_date,

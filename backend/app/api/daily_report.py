@@ -108,6 +108,7 @@ async def api_list_daily_reports(
 
     # Data scope enforcement
     filter_employee_id = employee_id
+    dept_emp_ids = None
     if role == "staff":
         # Staff can only see own reports
         emp_id = await _resolve_employee_id(db, user_id)
@@ -128,15 +129,12 @@ async def api_list_daily_reports(
                     )
                 )
                 dept_emp_ids = [row[0] for row in dept_emps.all()]
-                # We'll use the first employee_id=None and filter below in service
-                # For now, passing None means unfiltered (within org)
-                # TODO: department-level filtering in service
-                pass
 
     items, total = await list_daily_reports(
         db,
         org_id=org_id,
         employee_id=filter_employee_id,
+        employee_ids=dept_emp_ids,
         date_from=date_from,
         date_to=date_to,
         report_status=status,
@@ -192,8 +190,10 @@ async def api_create_daily_report(
 async def api_get_daily_report(
     report_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
-    return await get_daily_report(db, report_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await get_daily_report(db, report_id, org_id=org_id)
 
 
 # ============================================================
@@ -211,9 +211,10 @@ async def api_update_daily_report(
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     user_id = UUID(token["sub"])
-    await update_daily_report(db, report_id, body=body, user_id=user_id)
-    return await get_daily_report(db, report_id)
+    await update_daily_report(db, report_id, body=body, user_id=user_id, org_id=org_id)
+    return await get_daily_report(db, report_id, org_id=org_id)
 
 
 # ============================================================
@@ -230,9 +231,10 @@ async def api_submit_daily_report(
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     user_id = UUID(token["sub"])
-    await submit_daily_report(db, report_id, user_id=user_id)
-    return await get_daily_report(db, report_id)
+    await submit_daily_report(db, report_id, user_id=user_id, org_id=org_id)
+    return await get_daily_report(db, report_id, org_id=org_id)
 
 
 # ============================================================
@@ -252,7 +254,7 @@ async def api_approve_daily_report(
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     approver_id = UUID(token["sub"])
     await approve_daily_report(db, report_id, approver_id=approver_id, org_id=org_id)
-    return await get_daily_report(db, report_id)
+    return await get_daily_report(db, report_id, org_id=org_id)
 
 
 # ============================================================
@@ -277,7 +279,7 @@ async def api_batch_approve(
     # Return updated reports
     results = []
     for rid in body.report_ids:
-        r = await get_daily_report(db, rid)
+        r = await get_daily_report(db, rid, org_id=org_id)
         results.append(r)
     return results
 
@@ -297,6 +299,7 @@ async def api_reject_daily_report(
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     approver_id = UUID(token["sub"])
-    await reject_daily_report(db, report_id, approver_id=approver_id, reason=body.reason)
-    return await get_daily_report(db, report_id)
+    await reject_daily_report(db, report_id, approver_id=approver_id, reason=body.reason, org_id=org_id)
+    return await get_daily_report(db, report_id, org_id=org_id)

@@ -306,15 +306,18 @@ sss-corp-erp/
 | hr.leave.create | ✅ | ✅ | ✅ | ✅ | ❌ |
 | hr.leave.read | ✅ | ✅ | ✅ | ✅ | ❌ |
 | hr.leave.approve | ✅ | ✅ | ✅ | ❌ | ❌ |
+| hr.dailyreport.create | ✅ | ✅ | ✅ | ✅ | ❌ |
+| hr.dailyreport.read | ✅ | ✅ | ✅ | ✅ | ❌ |
+| hr.dailyreport.approve | ✅ | ✅ | ✅ | ❌ | ❌ |
 
 ### Permission Count Summary
 
 | Role | Count | Description |
 |------|-------|-------------|
-| owner | 105 | ALL permissions |
-| manager | ~57 | ไม่มี admin.*, ไม่มี *.delete + planning create/update |
-| supervisor | ~41 | read + approve + limited create + planning read |
-| staff | ~28 | read + own create (timesheet, leave, movement) |
+| owner | 108 | ALL permissions |
+| manager | ~60 | ไม่มี admin.*, ไม่มี *.delete + planning create/update |
+| supervisor | ~44 | read + approve + limited create + planning read |
+| staff | ~31 | read + own create (timesheet, leave, movement, dailyreport) |
 | viewer | ~18 | read + selected export only |
 
 ### Permission Usage Pattern
@@ -508,6 +511,15 @@ Manager จองเครื่องมือ → POST /api/planning/reservati
 | 44 | planning | Reservation | MaterialReservation: available = on_hand - SUM(reserved) | Service check |
 | 45 | planning | Reservation | ToolReservation: ห้ามจองซ้อนช่วงเดียวกัน | Service check |
 | 46 | planning | Master Plan | WO Master Plan — 1 plan per WO | DB UNIQUE |
+| 47 | hr | Employee | hire_date required for new employees (optional for existing) | Frontend + Schema |
+| 48 | hr | Staff Portal | Staff sees only own data (ของฉัน menu group) | Data scope |
+| 49 | hr | Daily Report | Daily Work Report per employee per day (REGULAR/OT lines) | Service |
+| 50 | hr | Daily Report | 1 report per employee per day per org | DB UNIQUE + Service |
+| 51 | hr | Daily Report | Time overlap validation within same line type | Service check |
+| 52 | hr | Daily Report | Auto-create Timesheet WO Time Entry on approve | Auto calc |
+| 53 | hr | Daily Report | Auto-update StandardTimesheet OT hours on approve | Auto calc |
+| 54 | hr | Daily Report | Edit only DRAFT/REJECTED status | State machine |
+| 55 | hr | Daily Report | Supervisor sees only own department reports | Data scope |
 
 ---
 
@@ -730,6 +742,18 @@ POST   /api/planning/reservations/tool      workorder.reservation.create
 PUT    /api/planning/reservations/{id}/cancel  workorder.reservation.create
 ```
 
+### Daily Work Report (Phase 5)
+```
+GET    /api/daily-report                    hr.dailyreport.read
+POST   /api/daily-report                    hr.dailyreport.create
+GET    /api/daily-report/{id}               hr.dailyreport.read
+PUT    /api/daily-report/{id}               hr.dailyreport.create
+POST   /api/daily-report/{id}/submit        hr.dailyreport.create
+POST   /api/daily-report/{id}/approve       hr.dailyreport.approve
+POST   /api/daily-report/batch-approve      hr.dailyreport.approve
+POST   /api/daily-report/{id}/reject        hr.dailyreport.approve
+```
+
 ### System
 ```
 GET    /api/health                          — (no auth)
@@ -869,6 +893,16 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **4.6** Email Notification — SMTP service, approval request emails (disabled by default)
 - [x] **4.7** Multi-tenant Enforcement — org_id in JWT, all queries filtered, Setup Wizard
 - [x] **4.8** Deploy & Production — Vercel (SPA + headers), Railway (Docker), Sentry, security hardening
+
+### Phase 5 — Staff Portal & Daily Report ✅
+- [x] **5.1** Employee hire_date + /me API employee fields (BR#47)
+- [x] **5.2** Daily Work Report backend: model, schema, service, API, migration (BR#49-54)
+- [x] **5.3** Staff Portal: 4 pages (MyDailyReport, MyLeave, MyTimesheet, MyTasks) (BR#48)
+- [x] **5.4** DailyReportApprovalTab with batch approve/reject (BR#55)
+- [x] **5.5** WO ManHour Summary: backend + frontend
+- [x] **5.6** Sidebar refactor: grouped menu ("ของฉัน" / "ระบบงาน")
+- [x] **5.7** Phase 4 leftovers: Leave names+colors, LeaveBalanceTab, MasterPlanSection
+- [x] **5.8** E2E testing — 15 scenarios PASSED
 
 ---
 

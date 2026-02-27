@@ -160,3 +160,28 @@ Modules with approval: PO, SO, WO (close), Timesheet, Leave
   → สร้าง Organization + Admin User (role=owner)
   → Returns login tokens
 ```
+
+---
+
+## Daily Work Report (Phase 5)
+
+```
+Business Rules:
+  BR#47 — Employee hire_date required for new employees (optional for existing)
+  BR#48 — Staff Portal: "ของฉัน" menu group — own data scope only
+  BR#49 — Daily Work Report per employee per day (line items: REGULAR/OT)
+  BR#50 — 1 report per employee per day (same org) — duplicate check
+  BR#51 — Time overlap validation (within REGULAR lines, within OT lines)
+  BR#52 — Auto-create Timesheet WO Time Entry on report approve
+  BR#53 — Auto-update StandardTimesheet OT hours on report approve
+  BR#54 — Edit only DRAFT/REJECTED status (state machine: DRAFT→SUBMITTED→APPROVED/REJECTED)
+  BR#55 — Supervisor sees only own department reports
+
+Flow:
+  Staff กรอก Daily Work Report → บันทึก DRAFT
+  → Staff กด Submit → SUBMITTED
+  → Supervisor/Manager Approve → APPROVED (auto Timesheet)
+  → หรือ Reject → REJECTED (กลับไปแก้ไข re-submit ได้)
+
+Permissions: hr.dailyreport.create / hr.dailyreport.read / hr.dailyreport.approve
+```

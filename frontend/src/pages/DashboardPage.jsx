@@ -103,7 +103,7 @@ function StaffDashboard() {
     },
     {
       title: 'วันลาเหลือ',
-      value: leaveBalance ? `${Number(leaveBalance.total_days || leaveBalance.quota || 0) - Number(leaveBalance.used_days || 0)}` : '—',
+      value: leaveBalance ? `${Number(leaveBalance.quota || 0) - Number(leaveBalance.used || 0)}` : '—',
       suffix: leaveBalance ? 'วัน' : '',
       icon: <CalendarOff size={20} />,
       color: COLORS.accent,

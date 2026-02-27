@@ -250,9 +250,13 @@ export default function App() {
       theme={{
         algorithm: theme.darkAlgorithm,
         token: ANT_THEME_TOKEN,
+        components: {
+          Message: { zIndexPopup: 2050 },
+          Notification: { zIndexPopup: 2050 },
+        },
       }}
     >
-      <AntApp>
+      <AntApp message={{ maxCount: 3 }} notification={{ placement: 'topRight' }}>
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Suspense fallback={<PageLoader />}>
             <Routes>

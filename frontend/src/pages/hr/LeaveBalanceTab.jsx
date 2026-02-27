@@ -120,7 +120,7 @@ export default function LeaveBalanceTab() {
       render: (_, r) => {
         const remaining = r.quota - r.used;
         return (
-          <span style={{ fontWeight: 600, color: remaining <= 0 ? COLORS.error : COLORS.success }}>
+          <span style={{ fontWeight: 600, color: remaining <= 0 ? COLORS.danger : COLORS.success }}>
             {remaining}
           </span>
         );
