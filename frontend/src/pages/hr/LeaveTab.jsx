@@ -11,9 +11,11 @@ import { formatDate } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
 
 const LEAVE_TYPE_COLORS = {
-  ANNUAL: { color: '#06b6d4', label: 'ลาพักร้อน' },
-  SICK: { color: '#ef4444', label: 'ลาป่วย' },
-  PERSONAL: { color: '#8b5cf6', label: 'ลากิจ' },
+  ANNUAL:    { color: '#06b6d4', label: 'ลาพักร้อน' },
+  SICK:      { color: '#ef4444', label: 'ลาป่วย' },
+  PERSONAL:  { color: '#f97316', label: 'ลากิจ' },
+  MATERNITY: { color: '#ec4899', label: 'ลาคลอด' },
+  UNPAID:    { color: '#6b7280', label: 'ลาไม่ได้เงิน' },
 };
 
 function calcDays(start, end) {
@@ -71,15 +73,16 @@ export default function LeaveTab() {
 
   const columns = [
     {
-      title: 'Employee ID', dataIndex: 'employee_id', key: 'employee_id', width: 130,
-      ellipsis: true,
-      render: (v) => <span style={{ fontSize: 12, fontFamily: 'monospace', color: COLORS.textSecondary }}>{v?.slice(0, 8)}...</span>,
+      title: 'พนักงาน', dataIndex: 'employee_name', key: 'employee_name', width: 160,
+      render: (v, r) => v || <span style={{ fontSize: 12, fontFamily: 'monospace', color: COLORS.textSecondary }}>{r.employee_id?.slice(0, 8)}...</span>,
     },
     {
-      title: 'ประเภทลา', dataIndex: 'leave_type', key: 'leave_type', width: 120,
-      render: (v) => {
-        const cfg = LEAVE_TYPE_COLORS[v] || { color: COLORS.textMuted, label: v };
-        return <Tag color={cfg.color}>{cfg.label}</Tag>;
+      title: 'ประเภทลา', key: 'leave_type', width: 140,
+      render: (_, r) => {
+        const code = r.leave_type_code || r.leave_type;
+        const cfg = LEAVE_TYPE_COLORS[code] || { color: COLORS.textMuted, label: r.leave_type_name || r.leave_type };
+        const label = r.leave_type_name || cfg.label || r.leave_type;
+        return <Tag color={cfg.color}>{label}</Tag>;
       },
     },
     {

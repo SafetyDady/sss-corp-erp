@@ -260,8 +260,11 @@ class LeaveCreate(BaseModel):
 class LeaveResponse(BaseModel):
     id: UUID
     employee_id: UUID
+    employee_name: Optional[str] = None   # Phase 5: joined from Employee
     leave_type: str
     leave_type_id: Optional[UUID] = None
+    leave_type_name: Optional[str] = None  # Phase 5: joined from LeaveType
+    leave_type_code: Optional[str] = None  # Phase 5: for color coding
     start_date: date
     end_date: date
     days_count: int = 1
@@ -291,7 +294,10 @@ class LeaveListResponse(BaseModel):
 class LeaveBalanceResponse(BaseModel):
     id: UUID
     employee_id: UUID
+    employee_name: Optional[str] = None    # Phase 5: joined
     leave_type_id: UUID
+    leave_type_name: Optional[str] = None  # Phase 5: joined
+    leave_type_code: Optional[str] = None  # Phase 5: joined
     year: int
     quota: int
     used: int

@@ -6,6 +6,7 @@ import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
+import MasterPlanSection from './MasterPlanSection';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
 
@@ -105,6 +106,8 @@ export default function WorkOrderDetailPage() {
           <Descriptions.Item label={'\u0E1B\u0E34\u0E14\u0E40\u0E21\u0E37\u0E48\u0E2D'}>{formatDateTime(wo.closed_at)}</Descriptions.Item>
         </Descriptions>
       </Card>
+
+      <MasterPlanSection workOrderId={id} />
 
       {cost && (
         <>

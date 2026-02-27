@@ -501,20 +501,62 @@ async def list_leaves(
     offset: int = 0,
     employee_id: Optional[UUID] = None,
     org_id: Optional[UUID] = None,
-) -> tuple[list[Leave], int]:
-    query = select(Leave)
+) -> tuple[list[dict], int]:
+    """List leaves with joined employee_name + leave_type info."""
+    from app.models.master import LeaveType as LeaveTypeModel
+
+    query = (
+        select(
+            Leave,
+            Employee.full_name.label("employee_name"),
+            LeaveTypeModel.name.label("leave_type_name"),
+            LeaveTypeModel.code.label("leave_type_code"),
+        )
+        .outerjoin(Employee, Leave.employee_id == Employee.id)
+        .outerjoin(LeaveTypeModel, Leave.leave_type_id == LeaveTypeModel.id)
+    )
     if org_id:
         query = query.where(Leave.org_id == org_id)
     if employee_id:
         query = query.where(Leave.employee_id == employee_id)
 
-    count_query = select(func.count()).select_from(query.subquery())
-    total_result = await db.execute(count_query)
+    # Count
+    count_q = select(func.count()).select_from(
+        select(Leave.id).where(
+            *([Leave.org_id == org_id] if org_id else []),
+            *([Leave.employee_id == employee_id] if employee_id else []),
+        ).subquery()
+    )
+    total_result = await db.execute(count_q)
     total = total_result.scalar() or 0
 
     query = query.order_by(Leave.created_at.desc()).limit(limit).offset(offset)
     result = await db.execute(query)
-    items = list(result.scalars().all())
+    rows = result.all()
+
+    items = []
+    for row in rows:
+        leave = row[0]
+        d = {
+            "id": leave.id,
+            "employee_id": leave.employee_id,
+            "employee_name": row[1],
+            "leave_type": leave.leave_type,
+            "leave_type_id": leave.leave_type_id,
+            "leave_type_name": row[2],
+            "leave_type_code": row[3],
+            "start_date": leave.start_date,
+            "end_date": leave.end_date,
+            "days_count": leave.days_count,
+            "reason": leave.reason,
+            "status": leave.status,
+            "created_by": leave.created_by,
+            "approved_by": leave.approved_by,
+            "requested_approver_id": leave.requested_approver_id,
+            "created_at": leave.created_at,
+            "updated_at": leave.updated_at,
+        }
+        items.append(d)
     return items, total
 
 
@@ -831,16 +873,46 @@ async def list_leave_balances(
     *,
     employee_id: Optional[UUID] = None,
     year: Optional[int] = None,
-) -> list:
+) -> list[dict]:
+    """List leave balances with joined employee_name + leave_type info."""
     from app.models.hr import LeaveBalance
-    query = select(LeaveBalance)
+    from app.models.master import LeaveType as LeaveTypeModel
+
+    query = (
+        select(
+            LeaveBalance,
+            Employee.full_name.label("employee_name"),
+            LeaveTypeModel.name.label("leave_type_name"),
+            LeaveTypeModel.code.label("leave_type_code"),
+        )
+        .outerjoin(Employee, LeaveBalance.employee_id == Employee.id)
+        .outerjoin(LeaveTypeModel, LeaveBalance.leave_type_id == LeaveTypeModel.id)
+    )
     if employee_id:
         query = query.where(LeaveBalance.employee_id == employee_id)
     if year:
         query = query.where(LeaveBalance.year == year)
-    query = query.order_by(LeaveBalance.year.desc())
+    query = query.order_by(LeaveBalance.year.desc(), Employee.full_name.asc())
     result = await db.execute(query)
-    return list(result.scalars().all())
+    rows = result.all()
+
+    items = []
+    for row in rows:
+        bal = row[0]
+        items.append({
+            "id": bal.id,
+            "employee_id": bal.employee_id,
+            "employee_name": row[1],
+            "leave_type_id": bal.leave_type_id,
+            "leave_type_name": row[2],
+            "leave_type_code": row[3],
+            "year": bal.year,
+            "quota": bal.quota,
+            "used": bal.used,
+            "created_at": bal.created_at,
+            "updated_at": bal.updated_at,
+        })
+    return items
 
 
 async def update_leave_balance(

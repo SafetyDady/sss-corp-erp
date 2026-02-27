@@ -1,5 +1,5 @@
 import { Tabs } from 'antd';
-import { Users, Clock, CalendarDays, Banknote, ClipboardList, CalendarCheck, FileCheck } from 'lucide-react';
+import { Users, Clock, CalendarDays, Banknote, ClipboardList, CalendarCheck, FileCheck, BookOpen } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import { usePermission } from '../../hooks/usePermission';
 import EmployeeTab from './EmployeeTab';
@@ -7,6 +7,7 @@ import TimesheetTab from './TimesheetTab';
 import WOTimeEntryForm from './WOTimeEntryForm';
 import StandardTimesheetView from './StandardTimesheetView';
 import LeaveTab from './LeaveTab';
+import LeaveBalanceTab from './LeaveBalanceTab';
 import PayrollTab from './PayrollTab';
 import DailyReportApprovalTab from './DailyReportApprovalTab';
 import { COLORS } from '../../utils/constants';
@@ -45,6 +46,11 @@ export default function HRPage() {
       key: 'leave',
       label: tabLabel(CalendarDays, 'ลาหยุด'),
       children: <LeaveTab />,
+    },
+    can('hr.leave.read') && {
+      key: 'leave-balance',
+      label: tabLabel(BookOpen, 'โควต้าลา'),
+      children: <LeaveBalanceTab />,
     },
     can('hr.payroll.read') && {
       key: 'payroll',
