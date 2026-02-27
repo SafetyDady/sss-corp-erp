@@ -32,6 +32,19 @@ const processQueue = (error, token = null) => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // Normalize FastAPI validation error detail (array of {type,loc,msg,input})
+    // into a plain string so message.error() never receives a non-string value.
+    const detail = error.response?.data?.detail;
+    if (detail && typeof detail !== 'string') {
+      if (Array.isArray(detail)) {
+        error.response.data.detail = detail
+          .map((d) => (typeof d === 'object' ? d.msg || JSON.stringify(d) : String(d)))
+          .join('; ');
+      } else if (typeof detail === 'object') {
+        error.response.data.detail = detail.msg || JSON.stringify(detail);
+      }
+    }
+
     const originalRequest = error.config;
 
     // Skip refresh for auth endpoints

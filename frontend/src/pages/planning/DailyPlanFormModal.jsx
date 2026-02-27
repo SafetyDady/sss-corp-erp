@@ -62,7 +62,7 @@ export default function DailyPlanFormModal({ open, editItem, onClose, onSuccess 
             ? editItem.materials.map((m, i) => ({
                 key: Date.now() + 200 + i,
                 product_id: m.product_id,
-                quantity: m.quantity,
+                quantity: m.planned_qty ?? m.quantity,
               }))
             : []
         );
@@ -102,7 +102,7 @@ export default function DailyPlanFormModal({ open, editItem, onClose, onSuccess 
         note: values.note || '',
         workers: workers.map(({ employee_id, planned_hours }) => ({ employee_id, planned_hours })),
         tools: planTools.map(({ tool_id }) => ({ tool_id })),
-        materials: materials.map(({ product_id, quantity }) => ({ product_id, quantity })),
+        materials: materials.map(({ product_id, quantity }) => ({ product_id, planned_qty: quantity })),
       };
 
       if (isEdit) {
