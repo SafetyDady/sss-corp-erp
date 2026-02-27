@@ -345,3 +345,71 @@ async def get_cost_summary(db: AsyncSession, wo_id: UUID) -> dict:
         "admin_overhead": float(admin_overhead),
         "total_cost": float(total_cost),
     }
+
+
+# ============================================================
+# MANHOUR SUMMARY (Phase 5 — Step 5)
+# ============================================================
+
+async def get_manhour_summary(db: AsyncSession, wo_id: UUID) -> dict:
+    """
+    Return planned vs actual manhours for a work order.
+    - planned: from WOMasterPlan.total_manhours
+    - actual: Σ(regular_hours + ot_hours) from FINAL timesheets
+    - workers: detail per employee per date
+    """
+    from app.models.hr import Employee, Timesheet, TimesheetStatus
+    from app.models.planning import WOMasterPlan
+
+    # Verify WO exists
+    await get_work_order(db, wo_id)
+
+    # 1. Planned manhours from WOMasterPlan
+    plan_result = await db.execute(
+        select(WOMasterPlan).where(WOMasterPlan.work_order_id == wo_id)
+    )
+    plan = plan_result.scalar_one_or_none()
+    planned = Decimal(str(plan.total_manhours)) if plan else Decimal("0")
+
+    # 2. Actual from FINAL timesheets
+    ts_result = await db.execute(
+        select(
+            Timesheet.employee_id,
+            Employee.full_name,
+            Employee.employee_code,
+            Timesheet.work_date,
+            Timesheet.regular_hours,
+            Timesheet.ot_hours,
+        )
+        .join(Employee, Timesheet.employee_id == Employee.id)
+        .where(
+            Timesheet.work_order_id == wo_id,
+            Timesheet.status == TimesheetStatus.FINAL,
+        )
+        .order_by(Timesheet.work_date.desc())
+    )
+    rows = ts_result.all()
+
+    actual = sum(Decimal(str(r.regular_hours)) + Decimal(str(r.ot_hours)) for r in rows) if rows else Decimal("0")
+    remaining = planned - actual
+    progress_pct = (actual / planned * 100) if planned > 0 else Decimal("0")
+
+    workers = [
+        {
+            "employee_name": r.full_name,
+            "employee_code": r.employee_code,
+            "work_date": r.work_date.isoformat() if r.work_date else None,
+            "regular_hours": float(r.regular_hours),
+            "ot_hours": float(r.ot_hours),
+            "total_hours": float(Decimal(str(r.regular_hours)) + Decimal(str(r.ot_hours))),
+        }
+        for r in rows
+    ]
+
+    return {
+        "planned_manhours": float(planned),
+        "actual_manhours": float(actual),
+        "remaining_manhours": float(remaining),
+        "progress_pct": round(float(progress_pct), 1),
+        "workers": workers,
+    }

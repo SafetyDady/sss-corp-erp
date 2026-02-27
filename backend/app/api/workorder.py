@@ -35,6 +35,7 @@ from app.services.workorder import (
     create_work_order,
     delete_work_order,
     get_cost_summary,
+    get_manhour_summary,
     get_work_order,
     list_work_orders,
     open_work_order,
@@ -187,3 +188,19 @@ async def api_cost_summary(
 ):
     """Get cost breakdown for a work order (Material + ManHour + Tools + Overhead)."""
     return await get_cost_summary(db, wo_id)
+
+
+# ============================================================
+# MANHOUR SUMMARY (Phase 5)
+# ============================================================
+
+@workorder_router.get(
+    "/{wo_id}/manhour-summary",
+    dependencies=[Depends(require("workorder.order.read"))],
+)
+async def api_manhour_summary(
+    wo_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get planned vs actual manhour breakdown for a work order."""
+    return await get_manhour_summary(db, wo_id)
