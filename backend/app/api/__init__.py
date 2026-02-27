@@ -13,6 +13,7 @@ from app.api.finance import finance_router
 from app.api.admin import admin_router
 from app.api.planning import master_plan_router, planning_router
 from app.api.setup import router as setup_router
+from app.api.daily_report import daily_report_router
 
 all_routers = [
     auth_router,
@@ -32,4 +33,5 @@ all_routers = [
     master_plan_router,
     planning_router,
     setup_router,
+    daily_report_router,
 ]

@@ -403,10 +403,15 @@ class StandardTimesheet(Base, TimestampMixin, OrgMixin):
         ForeignKey("leaves.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Phase 5: OT hours from Daily Work Report (BR#53)
+    ot_hours: Mapped[Decimal] = mapped_column(
+        Numeric(4, 2), nullable=False, default=Decimal("0.00")
+    )
 
     __table_args__ = (
         UniqueConstraint("employee_id", "work_date", name="uq_std_timesheet_emp_date"),
         CheckConstraint("scheduled_hours >= 0", name="ck_std_timesheet_hours_positive"),
+        CheckConstraint("ot_hours >= 0", name="ck_std_timesheet_ot_positive"),
         Index("ix_std_timesheets_employee_date", "employee_id", "work_date"),
     )
 

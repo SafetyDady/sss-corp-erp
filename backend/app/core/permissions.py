@@ -155,10 +155,14 @@ ALL_PERMISSIONS: list[str] = [
     "hr.leave.create",
     "hr.leave.read",
     "hr.leave.approve",
+    # --- hr.dailyreport (3) --- Phase 5
+    "hr.dailyreport.create",
+    "hr.dailyreport.read",
+    "hr.dailyreport.approve",
 ]
 
-assert len(ALL_PERMISSIONS) == 105, f"Expected 105 permissions, got {len(ALL_PERMISSIONS)}"
-assert len(set(ALL_PERMISSIONS)) == 105, "Duplicate permissions found!"
+assert len(ALL_PERMISSIONS) == 108, f"Expected 108 permissions, got {len(ALL_PERMISSIONS)}"
+assert len(set(ALL_PERMISSIONS)) == 108, "Duplicate permissions found!"
 
 
 # ============================================================
@@ -167,7 +171,7 @@ assert len(set(ALL_PERMISSIONS)) == 105, "Duplicate permissions found!"
 # Legend:  ✅ = granted  ❌ = denied
 
 def _owner() -> set[str]:
-    """Owner: ALL 105 permissions."""
+    """Owner: ALL 108 permissions."""
     return set(ALL_PERMISSIONS)
 
 
@@ -285,6 +289,10 @@ def _supervisor() -> set[str]:
         "hr.leave.create",
         "hr.leave.read",
         "hr.leave.approve",
+        # Daily Report (Phase 5)
+        "hr.dailyreport.create",
+        "hr.dailyreport.read",
+        "hr.dailyreport.approve",
     }
 
 
@@ -333,6 +341,9 @@ def _staff() -> set[str]:
         "hr.timesheet.read",
         "hr.leave.create",
         "hr.leave.read",
+        # Daily Report (Phase 5)
+        "hr.dailyreport.create",
+        "hr.dailyreport.read",
     }
 
 
@@ -371,6 +382,8 @@ def _viewer() -> set[str]:
         # Tools
         "tools.tool.read",
         "tools.tool.export",
+        # Daily Report (Phase 5)
+        "hr.dailyreport.read",
     }
 
 

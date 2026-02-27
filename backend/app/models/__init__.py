@@ -15,6 +15,7 @@ from app.models.planning import (
     MaterialReservation, ReservationStatus,
     ToolReservation, ToolReservationStatus,
 )
+from app.models.daily_report import DailyWorkReport, DailyWorkReportLine, ReportStatus, LineType
 
 __all__ = [
     "User",
@@ -63,4 +64,8 @@ __all__ = [
     "ReservationStatus",
     "ToolReservation",
     "ToolReservationStatus",
+    "DailyWorkReport",
+    "DailyWorkReportLine",
+    "ReportStatus",
+    "LineType",
 ]
