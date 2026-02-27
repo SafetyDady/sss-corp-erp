@@ -5,6 +5,7 @@ import {
   LayoutDashboard, Package, Warehouse, FileText, ShoppingCart,
   DollarSign, BarChart3, Users, Wrench, Database, Settings,
   UserCheck, LogOut, User, ChevronLeft, ChevronRight, CalendarRange,
+  ClipboardList, CalendarOff, Clock, CalendarCheck,
 } from 'lucide-react';
 import useAuthStore from './stores/authStore';
 import { usePermission } from './hooks/usePermission';
@@ -36,15 +37,25 @@ const FinancePage = lazy(() => import('./pages/finance/FinancePage'));
 const AdminPage = lazy(() => import('./pages/admin/AdminPage'));
 const PlanningPage = lazy(() => import('./pages/planning/PlanningPage'));
 const SetupWizardPage = lazy(() => import('./pages/setup/SetupWizardPage'));
+const MyDailyReportPage = lazy(() => import('./pages/my/MyDailyReportPage'));
+const MyLeavePage = lazy(() => import('./pages/my/MyLeavePage'));
+const MyTimesheetPage = lazy(() => import('./pages/my/MyTimesheetPage'));
+const MyTasksPage = lazy(() => import('./pages/my/MyTasksPage'));
 
 const MENU_ITEMS = [
   { key: '/', icon: <LayoutDashboard size={18} />, label: 'Dashboard', permission: null },
+  // --- Staff Portal ---
+  { key: '/my/daily-report', icon: <ClipboardList size={18} />, label: 'รายงานประจำวัน', permission: 'hr.dailyreport.create' },
+  { key: '/my/leave', icon: <CalendarOff size={18} />, label: 'ใบลาของฉัน', permission: 'hr.leave.create' },
+  { key: '/my/timesheet', icon: <Clock size={18} />, label: 'Timesheet', permission: 'hr.timesheet.read' },
+  { key: '/my/tasks', icon: <CalendarCheck size={18} />, label: 'งานของฉัน', permission: 'workorder.plan.read' },
+  // --- Management ---
   { key: '/inventory', icon: <Package size={18} />, label: 'Inventory', permission: 'inventory.product.read' },
   { key: '/warehouse', icon: <Warehouse size={18} />, label: 'Warehouse', permission: 'warehouse.warehouse.read' },
   { key: '/work-orders', icon: <FileText size={18} />, label: 'Work Orders', permission: 'workorder.order.read' },
   { key: '/purchasing', icon: <ShoppingCart size={18} />, label: 'Purchasing', permission: 'purchasing.po.read' },
   { key: '/sales', icon: <DollarSign size={18} />, label: 'Sales', permission: 'sales.order.read' },
-  { key: '/hr', icon: <Users size={18} />, label: 'HR', permission: 'hr.timesheet.read' },
+  { key: '/hr', icon: <Users size={18} />, label: 'HR', permission: 'hr.employee.read' },
   { key: '/tools', icon: <Wrench size={18} />, label: 'Tools', permission: 'tools.tool.read' },
   { key: '/customers', icon: <UserCheck size={18} />, label: 'Customers', permission: 'customer.customer.read' },
   { key: '/planning', icon: <CalendarRange size={18} />, label: 'Planning', permission: 'workorder.plan.read' },
@@ -77,7 +88,11 @@ function AppLayout() {
     label: item.label,
   }));
 
-  const selectedKey = '/' + location.pathname.split('/')[1];
+  const selectedKey = (() => {
+    const path = location.pathname;
+    if (path.startsWith('/my/')) return path;
+    return '/' + path.split('/')[1];
+  })();
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -171,6 +186,10 @@ function AppLayout() {
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<DashboardPage />} />
+              <Route path="/my/daily-report" element={<MyDailyReportPage />} />
+              <Route path="/my/leave" element={<MyLeavePage />} />
+              <Route path="/my/timesheet" element={<MyTimesheetPage />} />
+              <Route path="/my/tasks" element={<MyTasksPage />} />
               <Route path="/inventory" element={<ProductListPage />} />
               <Route path="/inventory/movements" element={<MovementListPage />} />
               <Route path="/warehouse" element={<WarehouseListPage />} />

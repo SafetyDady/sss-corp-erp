@@ -1,13 +1,242 @@
-import { useEffect, useState } from 'react';
-import { Card, Row, Col, Statistic, App } from 'antd';
-import { FileText, Package, Users, Wrench } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Button, Card, Row, Col, Statistic, Table, App, Typography, Space } from 'antd';
+import {
+  FileText, Package, Users, Wrench, ClipboardList, CalendarOff,
+  CalendarCheck, Clock, ArrowRight, Edit,
+} from 'lucide-react';
+import dayjs from 'dayjs';
 import useAuthStore from '../stores/authStore';
 import { usePermission } from '../hooks/usePermission';
 import { COLORS } from '../utils/constants';
 import PageHeader from '../components/PageHeader';
+import StatusBadge from '../components/StatusBadge';
 import api from '../services/api';
 
-export default function DashboardPage() {
+const { Text } = Typography;
+
+// ============================================================
+// Staff Dashboard
+// ============================================================
+function StaffDashboard() {
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const employeeId = useAuthStore((s) => s.employeeId);
+  const employeeName = useAuthStore((s) => s.employeeName);
+  const employeeCode = useAuthStore((s) => s.employeeCode);
+  const hireDate = useAuthStore((s) => s.hireDate);
+
+  const [todayReport, setTodayReport] = useState(null);
+  const [recentReports, setRecentReports] = useState([]);
+  const [leaveBalance, setLeaveBalance] = useState(null);
+  const [todayTasks, setTodayTasks] = useState(0);
+  const [pendingLeaves, setPendingLeaves] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  const tenure = useMemo(() => {
+    if (!hireDate) return '';
+    const hd = dayjs(hireDate);
+    const now = dayjs();
+    const years = now.diff(hd, 'year');
+    const months = now.diff(hd.add(years, 'year'), 'month');
+    const parts = [];
+    if (years > 0) parts.push(`${years} ปี`);
+    if (months > 0) parts.push(`${months} เดือน`);
+    return parts.join(' ') || 'น้อยกว่า 1 เดือน';
+  }, [hireDate]);
+
+  useEffect(() => {
+    if (!employeeId) {
+      setLoading(false);
+      return;
+    }
+    const today = dayjs().format('YYYY-MM-DD');
+    const year = dayjs().year();
+
+    const fetchData = async () => {
+      try {
+        const [reportRes, recentRes, balanceRes, tasksRes, leaveRes] = await Promise.all([
+          api
+            .get('/api/daily-report', { params: { employee_id: employeeId, date_from: today, date_to: today, limit: 1, offset: 0 } })
+            .catch(() => ({ data: { items: [] } })),
+          api
+            .get('/api/daily-report', { params: { employee_id: employeeId, limit: 5, offset: 0 } })
+            .catch(() => ({ data: { items: [] } })),
+          api
+            .get('/api/hr/leave-balance', { params: { employee_id: employeeId, year, limit: 100, offset: 0 } })
+            .catch(() => ({ data: { items: [] } })),
+          api
+            .get('/api/planning/daily', { params: { date: today, employee_id: employeeId, limit: 50, offset: 0 } })
+            .catch(() => ({ data: { items: [], total: 0 } })),
+          api
+            .get('/api/hr/leave', { params: { employee_id: employeeId, status: 'PENDING', limit: 1, offset: 0 } })
+            .catch(() => ({ data: { items: [], total: 0 } })),
+        ]);
+
+        const items = reportRes.data.items || [];
+        setTodayReport(items.length > 0 ? items[0] : null);
+        setRecentReports((recentRes.data.items || []).slice(0, 5));
+
+        const bals = balanceRes.data.items || balanceRes.data || [];
+        const annualBal = bals.find((b) => b.leave_type_code === 'ANNUAL');
+        setLeaveBalance(annualBal || (bals.length > 0 ? bals[0] : null));
+
+        const taskItems = tasksRes.data.items || tasksRes.data || [];
+        setTodayTasks(Array.isArray(taskItems) ? taskItems.length : tasksRes.data.total || 0);
+
+        setPendingLeaves(leaveRes.data.total || (leaveRes.data.items || []).length || 0);
+      } catch {
+        // silently fail
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [employeeId]);
+
+  const summaryCards = [
+    {
+      title: 'Report วันนี้',
+      value: todayReport ? todayReport.status : 'ยังไม่กรอก',
+      icon: <ClipboardList size={20} />,
+      color: todayReport ? COLORS.success : COLORS.warning,
+    },
+    {
+      title: 'วันลาเหลือ',
+      value: leaveBalance ? `${Number(leaveBalance.total_days || leaveBalance.quota || 0) - Number(leaveBalance.used_days || 0)}` : '—',
+      suffix: leaveBalance ? 'วัน' : '',
+      icon: <CalendarOff size={20} />,
+      color: COLORS.accent,
+    },
+    {
+      title: 'งานวันนี้',
+      value: todayTasks,
+      suffix: 'WO',
+      icon: <CalendarCheck size={20} />,
+      color: COLORS.purple,
+    },
+    {
+      title: 'คำขอรออนุมัติ',
+      value: pendingLeaves,
+      suffix: 'ใบลา',
+      icon: <Clock size={20} />,
+      color: COLORS.warning,
+    },
+  ];
+
+  const recentColumns = [
+    {
+      title: 'วันที่',
+      dataIndex: 'report_date',
+      key: 'date',
+      render: (v) => dayjs(v).format('DD/MM'),
+      width: 60,
+    },
+    {
+      title: 'ชั่วโมง',
+      key: 'hours',
+      render: (_, r) => {
+        const reg = Number(r.total_regular_hours || 0);
+        const ot = Number(r.total_ot_hours || 0);
+        return `${reg}${ot > 0 ? `+${ot} OT` : ''} ชม.`;
+      },
+      width: 120,
+    },
+    {
+      title: 'สถานะ',
+      dataIndex: 'status',
+      key: 'status',
+      render: (v) => <StatusBadge status={v} />,
+      width: 100,
+    },
+  ];
+
+  return (
+    <div>
+      <PageHeader
+        title={`สวัสดี, ${employeeName || user?.full_name || 'User'}!`}
+        subtitle={
+          employeeCode
+            ? `รหัส: ${employeeCode}${tenure ? ` | อายุงาน: ${tenure}` : ''}`
+            : `ยินดีต้อนรับสู่ SSS Corp ERP`
+        }
+      />
+
+      {/* Summary Cards */}
+      <Row gutter={[12, 12]} style={{ marginBottom: 24 }}>
+        {summaryCards.map((card, i) => (
+          <Col xs={12} sm={12} md={6} key={i}>
+            <Card
+              size="small"
+              style={{ background: COLORS.card, border: `1px solid ${COLORS.border}` }}
+              loading={loading}
+            >
+              <Statistic
+                title={<span style={{ color: COLORS.textSecondary, fontSize: 12 }}>{card.title}</span>}
+                value={card.value}
+                suffix={card.suffix}
+                prefix={<span style={{ color: card.color }}>{card.icon}</span>}
+                valueStyle={{ color: card.color, fontSize: 18 }}
+              />
+            </Card>
+          </Col>
+        ))}
+      </Row>
+
+      {/* Quick Actions */}
+      <Card
+        size="small"
+        style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, marginBottom: 16 }}
+      >
+        <Space wrap>
+          <Button
+            type="primary"
+            icon={<Edit size={14} />}
+            onClick={() => navigate('/my/daily-report')}
+          >
+            กรอก Report วันนี้
+          </Button>
+          <Button icon={<CalendarOff size={14} />} onClick={() => navigate('/my/leave')}>
+            ขอลา
+          </Button>
+          <Button icon={<CalendarCheck size={14} />} onClick={() => navigate('/my/tasks')}>
+            ดูงานวันนี้
+          </Button>
+          <Button icon={<Clock size={14} />} onClick={() => navigate('/my/timesheet')}>
+            Timesheet
+          </Button>
+        </Space>
+      </Card>
+
+      {/* Recent Reports */}
+      <Card
+        title={<span style={{ fontSize: 14 }}>Report ล่าสุด</span>}
+        size="small"
+        style={{ background: COLORS.card, border: `1px solid ${COLORS.border}` }}
+        extra={
+          <Button type="link" size="small" onClick={() => navigate('/my/daily-report')}>
+            ดูทั้งหมด <ArrowRight size={12} />
+          </Button>
+        }
+      >
+        <Table
+          dataSource={recentReports}
+          columns={recentColumns}
+          rowKey="id"
+          loading={loading}
+          pagination={false}
+          size="small"
+          locale={{ emptyText: 'ยังไม่มี Report' }}
+        />
+      </Card>
+    </div>
+  );
+}
+
+// ============================================================
+// Manager/Admin Dashboard
+// ============================================================
+function AdminDashboard() {
   const user = useAuthStore((s) => s.user);
   const { can } = usePermission();
   const [stats, setStats] = useState({ workOrders: 0, products: 0, employees: 0, tools: 0 });
@@ -66,9 +295,8 @@ export default function DashboardPage() {
     <div>
       <PageHeader
         title="Dashboard"
-        subtitle={`\u0E2A\u0E27\u0E31\u0E2A\u0E14\u0E35, ${user?.full_name || 'User'}`}
+        subtitle={`สวัสดี, ${user?.full_name || 'User'}`}
       />
-
       <Row gutter={[16, 16]}>
         {statCards.map((stat, i) => (
           <Col xs={24} sm={12} lg={6} key={i}>
@@ -85,4 +313,20 @@ export default function DashboardPage() {
       </Row>
     </div>
   );
+}
+
+// ============================================================
+// Main Dashboard — routes by role
+// ============================================================
+export default function DashboardPage() {
+  const user = useAuthStore((s) => s.user);
+  const role = user?.role;
+
+  // Staff and Viewer get the personal/staff dashboard
+  if (role === 'staff' || role === 'viewer') {
+    return <StaffDashboard />;
+  }
+
+  // Manager, Supervisor, Owner get admin dashboard
+  return <AdminDashboard />;
 }
