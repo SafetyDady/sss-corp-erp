@@ -66,6 +66,7 @@ class EmployeeCreate(BaseModel):
     pay_type: PayType = PayType.DAILY
     daily_rate: Optional[Decimal] = Field(default=None, ge=0, decimal_places=2)
     monthly_salary: Optional[Decimal] = Field(default=None, ge=0, decimal_places=2)
+    hire_date: Optional[date] = None  # Phase 5: nullable for migration, frontend enforces
 
     @field_validator("employee_code")
     @classmethod
@@ -86,6 +87,7 @@ class EmployeeUpdate(BaseModel):
     daily_rate: Optional[Decimal] = Field(default=None, ge=0, decimal_places=2)
     monthly_salary: Optional[Decimal] = Field(default=None, ge=0, decimal_places=2)
     is_active: Optional[bool] = None
+    hire_date: Optional[date] = None
 
 
 class EmployeeResponse(BaseModel):
@@ -103,6 +105,7 @@ class EmployeeResponse(BaseModel):
     daily_rate: Optional[Decimal] = None
     monthly_salary: Optional[Decimal] = None
     is_active: bool
+    hire_date: Optional[date] = None
     created_at: datetime
     updated_at: datetime
 

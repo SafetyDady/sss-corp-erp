@@ -143,6 +143,10 @@ class Employee(Base, TimestampMixin, OrgMixin):
         Numeric(12, 2), nullable=True
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Phase 5: hire_date for tenure calculation (BR#55)
+    hire_date: Mapped[date | None] = mapped_column(
+        Date, nullable=True  # nullable for existing employees, new ones should fill
+    )
 
     __table_args__ = (
         UniqueConstraint("org_id", "employee_code", name="uq_employee_org_code"),

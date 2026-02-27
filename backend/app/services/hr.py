@@ -52,6 +52,12 @@ async def create_employee(
     cost_center_id: Optional[UUID],
     user_id: Optional[UUID],
     org_id: UUID,
+    department_id: Optional[UUID] = None,
+    supervisor_id: Optional[UUID] = None,
+    pay_type: str = "DAILY",
+    daily_rate: Optional[Decimal] = None,
+    monthly_salary: Optional[Decimal] = None,
+    hire_date=None,
 ) -> Employee:
     existing = await db.execute(
         select(Employee).where(
@@ -74,6 +80,12 @@ async def create_employee(
         cost_center_id=cost_center_id,
         user_id=user_id,
         org_id=org_id,
+        department_id=department_id,
+        supervisor_id=supervisor_id,
+        pay_type=pay_type,
+        daily_rate=daily_rate,
+        monthly_salary=monthly_salary,
+        hire_date=hire_date,
     )
     db.add(emp)
     await db.commit()

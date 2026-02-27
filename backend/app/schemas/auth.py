@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import date, datetime
+from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
@@ -44,3 +45,8 @@ class UserResponse(BaseModel):
 
 class UserMe(UserResponse):
     permissions: list[str]
+    employee_id: Optional[UUID] = None
+    employee_name: Optional[str] = None
+    employee_code: Optional[str] = None
+    department_id: Optional[UUID] = None
+    hire_date: Optional[date] = None

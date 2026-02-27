@@ -134,7 +134,7 @@ async def get_me(
     token_payload: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get current user info + permissions."""
+    """Get current user info + permissions + employee data."""
     user_id = token_payload.get("sub")
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
@@ -144,6 +144,16 @@ async def get_me(
 
     permissions = sorted(ROLE_PERMISSIONS.get(user.role, set()))
 
+    # Phase 5: Query linked employee for Staff Portal
+    from app.models.hr import Employee
+    emp_result = await db.execute(
+        select(Employee).where(
+            Employee.user_id == user.id,
+            Employee.is_active == True,
+        )
+    )
+    employee = emp_result.scalar_one_or_none()
+
     return UserMe(
         id=user.id,
         email=user.email,
@@ -152,6 +162,11 @@ async def get_me(
         is_active=user.is_active,
         created_at=user.created_at,
         permissions=permissions,
+        employee_id=employee.id if employee else None,
+        employee_name=employee.full_name if employee else None,
+        employee_code=employee.employee_code if employee else None,
+        department_id=employee.department_id if employee else None,
+        hire_date=employee.hire_date if employee else None,
     )
 
 

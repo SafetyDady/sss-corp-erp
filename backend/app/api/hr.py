@@ -133,6 +133,12 @@ async def api_create_employee(
         cost_center_id=body.cost_center_id,
         user_id=body.user_id,
         org_id=org_id,
+        department_id=body.department_id,
+        supervisor_id=body.supervisor_id,
+        pay_type=body.pay_type,
+        daily_rate=body.daily_rate,
+        monthly_salary=body.monthly_salary,
+        hire_date=body.hire_date,
     )
 
 

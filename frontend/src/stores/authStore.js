@@ -16,6 +16,12 @@ const useAuthStore = create(
       isAuthenticated: false,
       isLoading: false,
       _hasHydrated: false,
+      // Phase 5: employee data
+      employeeId: null,
+      employeeName: null,
+      employeeCode: null,
+      departmentId: null,
+      hireDate: null,
 
       // Actions
       setTokens: (accessToken, refreshToken) => {
@@ -49,6 +55,12 @@ const useAuthStore = create(
           set({
             user: data,
             permissions: data.permissions || [],
+            // Phase 5: employee data from /me
+            employeeId: data.employee_id || null,
+            employeeName: data.employee_name || null,
+            employeeCode: data.employee_code || null,
+            departmentId: data.department_id || null,
+            hireDate: data.hire_date || null,
           });
         } catch {
           get().logout();
@@ -66,6 +78,11 @@ const useAuthStore = create(
           refreshToken: null,
           permissions: [],
           isAuthenticated: false,
+          employeeId: null,
+          employeeName: null,
+          employeeCode: null,
+          departmentId: null,
+          hireDate: null,
         });
       },
 
@@ -101,6 +118,11 @@ const useAuthStore = create(
         user: state.user,
         permissions: state.permissions,
         isAuthenticated: state.isAuthenticated,
+        employeeId: state.employeeId,
+        employeeName: state.employeeName,
+        employeeCode: state.employeeCode,
+        departmentId: state.departmentId,
+        hireDate: state.hireDate,
       }),
       merge: (persisted, current) => ({
         ...current,

@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { Modal, Form, Input, InputNumber, Switch, Select, App, Divider, Typography } from 'antd';
+import { useEffect, useState, useMemo } from 'react';
+import { Modal, Form, Input, InputNumber, Switch, Select, App, Divider, Typography, DatePicker } from 'antd';
+import dayjs from 'dayjs';
 import api from '../../services/api';
 import { COLORS } from '../../utils/constants';
 
@@ -18,6 +19,23 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
   const [departments, setDepartments] = useState([]);
   const [employees, setEmployees] = useState([]);
   const payType = Form.useWatch('pay_type', form);
+  const hireDateVal = Form.useWatch('hire_date', form);
+
+  // Calculate tenure from hire_date
+  const tenure = useMemo(() => {
+    if (!hireDateVal) return null;
+    const hd = dayjs.isDayjs(hireDateVal) ? hireDateVal : dayjs(hireDateVal);
+    if (!hd.isValid()) return null;
+    const now = dayjs();
+    const years = now.diff(hd, 'year');
+    const months = now.diff(hd.add(years, 'year'), 'month');
+    const days = now.diff(hd.add(years, 'year').add(months, 'month'), 'day');
+    const parts = [];
+    if (years > 0) parts.push(`${years} ปี`);
+    if (months > 0) parts.push(`${months} เดือน`);
+    parts.push(`${days} วัน`);
+    return parts.join(' ');
+  }, [hireDateVal]);
 
   useEffect(() => {
     if (open) {
@@ -45,6 +63,7 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
           daily_rate: editItem.daily_rate ? parseFloat(editItem.daily_rate) : undefined,
           monthly_salary: editItem.monthly_salary ? parseFloat(editItem.monthly_salary) : undefined,
           is_active: editItem.is_active,
+          hire_date: editItem.hire_date ? dayjs(editItem.hire_date) : undefined,
         });
       } else {
         form.resetFields();
@@ -55,6 +74,10 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
+      // Convert dayjs hire_date to ISO string for API
+      if (values.hire_date && dayjs.isDayjs(values.hire_date)) {
+        values.hire_date = values.hire_date.format('YYYY-MM-DD');
+      }
       setLoading(true);
       if (editItem) {
         const payload = { ...values };
@@ -112,6 +135,13 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
 
         <Form.Item name="position" label="ตำแหน่ง">
           <Input placeholder="เช่น ช่างเทคนิค, วิศวกร" />
+        </Form.Item>
+
+        <Form.Item name="hire_date" label="วันที่เข้างาน"
+          rules={[{ required: !editItem, message: 'กรุณาเลือกวันที่เข้างาน' }]}
+          extra={tenure && <Text type="secondary" style={{ fontSize: 12 }}>อายุงาน: {tenure}</Text>}
+        >
+          <DatePicker style={{ width: '100%' }} placeholder="เลือกวันที่" format="YYYY-MM-DD" />
         </Form.Item>
 
         <Divider style={{ margin: '12px 0', borderColor: COLORS.border }}>สังกัด</Divider>
