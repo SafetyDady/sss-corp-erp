@@ -4,6 +4,7 @@ import { Button, Card, Form, Input, Typography, App } from 'antd';
 import { Lock, Mail } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import { COLORS } from '../utils/constants';
+import AppFooter from '../components/AppFooter';
 
 const { Title, Text } = Typography;
 
@@ -42,6 +43,7 @@ export default function LoginPage() {
       style={{
         minHeight: '100vh',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         background: `linear-gradient(135deg, ${COLORS.bg} 0%, ${COLORS.surface} 100%)`,
@@ -113,6 +115,7 @@ export default function LoginPage() {
           <div>staff@sss-corp.com / staff123</div>
         </div>
       </Card>
+      <AppFooter compact />
     </div>
   );
 }

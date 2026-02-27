@@ -10,6 +10,7 @@ import useAuthStore from './stores/authStore';
 import { usePermission } from './hooks/usePermission';
 import { COLORS, ANT_THEME_TOKEN } from './utils/constants';
 import './App.css';
+import AppFooter from './components/AppFooter';
 
 const { Sider, Header, Content } = Layout;
 const { Text } = Typography;
@@ -163,7 +164,7 @@ function AppLayout() {
             {'\u0E2D\u0E2D\u0E01\u0E08\u0E32\u0E01\u0E23\u0E30\u0E1A\u0E1A'}
           </Button>
         </Header>
-        <Content style={{ margin: 24, minHeight: 280 }}>
+        <Content style={{ margin: 24, minHeight: 280, flex: 1, overflow: 'auto' }}>
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<DashboardPage />} />
@@ -187,6 +188,7 @@ function AppLayout() {
             </Routes>
           </Suspense>
         </Content>
+        <AppFooter />
       </Layout>
     </Layout>
   );

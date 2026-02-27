@@ -19,6 +19,12 @@ body {
   background: #3a3a4a;
 }
 
+/* Footer Link Hover */
+.footer-link:hover {
+  color: #00BCD4 !important;
+  text-decoration: underline;
+}
+
 /* Ant Design dark overrides */
 .ant-layout-sider {
   background: #0d0d14 !important;
