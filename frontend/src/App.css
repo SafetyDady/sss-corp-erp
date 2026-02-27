@@ -90,3 +90,12 @@ body {
   background: #1e1e2a;
   color: #06b6d4;
 }
+
+/* Sidebar menu group labels */
+.ant-menu-dark .ant-menu-item-group-title {
+  color: #64748b !important;
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.8px !important;
+  padding: 8px 16px 4px !important;
+}

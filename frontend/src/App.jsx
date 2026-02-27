@@ -42,14 +42,15 @@ const MyLeavePage = lazy(() => import('./pages/my/MyLeavePage'));
 const MyTimesheetPage = lazy(() => import('./pages/my/MyTimesheetPage'));
 const MyTasksPage = lazy(() => import('./pages/my/MyTasksPage'));
 
-const MENU_ITEMS = [
-  { key: '/', icon: <LayoutDashboard size={18} />, label: 'Dashboard', permission: null },
-  // --- Staff Portal ---
+const MY_MENU_ITEMS = [
   { key: '/my/daily-report', icon: <ClipboardList size={18} />, label: 'รายงานประจำวัน', permission: 'hr.dailyreport.create' },
   { key: '/my/leave', icon: <CalendarOff size={18} />, label: 'ใบลาของฉัน', permission: 'hr.leave.create' },
   { key: '/my/timesheet', icon: <Clock size={18} />, label: 'Timesheet', permission: 'hr.timesheet.read' },
   { key: '/my/tasks', icon: <CalendarCheck size={18} />, label: 'งานของฉัน', permission: 'workorder.plan.read' },
-  // --- Management ---
+];
+
+const SYSTEM_MENU_ITEMS = [
+  { key: '/', icon: <LayoutDashboard size={18} />, label: 'Dashboard', permission: null },
   { key: '/inventory', icon: <Package size={18} />, label: 'Inventory', permission: 'inventory.product.read' },
   { key: '/warehouse', icon: <Warehouse size={18} />, label: 'Warehouse', permission: 'warehouse.warehouse.read' },
   { key: '/work-orders', icon: <FileText size={18} />, label: 'Work Orders', permission: 'workorder.order.read' },
@@ -80,13 +81,30 @@ function AppLayout() {
   const { can } = usePermission();
   const [collapsed, setCollapsed] = useState(false);
 
-  const visibleItems = MENU_ITEMS.filter(
+  const myItems = MY_MENU_ITEMS.filter(
     (item) => !item.permission || can(item.permission)
   ).map((item) => ({
     key: item.key,
     icon: item.icon,
     label: item.label,
   }));
+
+  const systemItems = SYSTEM_MENU_ITEMS.filter(
+    (item) => !item.permission || can(item.permission)
+  ).map((item) => ({
+    key: item.key,
+    icon: item.icon,
+    label: item.label,
+  }));
+
+  const visibleItems = [
+    ...(myItems.length > 0
+      ? [
+          { key: 'grp-my', type: 'group', label: collapsed ? null : 'ของฉัน', children: myItems },
+        ]
+      : []),
+    { key: 'grp-system', type: 'group', label: collapsed ? null : 'ระบบงาน', children: systemItems },
+  ];
 
   const selectedKey = (() => {
     const path = location.pathname;
