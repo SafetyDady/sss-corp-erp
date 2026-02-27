@@ -27,6 +27,7 @@ from app.schemas.sales import (
     SalesOrderResponse,
     SalesOrderUpdate,
 )
+from app.services.organization import check_approval_bypass
 from app.services.sales import (
     approve_sales_order,
     create_sales_order,
@@ -53,9 +54,11 @@ async def api_list_orders(
         pattern=r"^(DRAFT|SUBMITTED|APPROVED|INVOICED|CANCELLED)$",
     ),
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     items, total = await list_sales_orders(
-        db, limit=limit, offset=offset, search=search, so_status=status
+        db, limit=limit, offset=offset, search=search, so_status=status, org_id=org_id
     )
     return SalesOrderListResponse(items=items, total=total, limit=limit, offset=offset)
 
@@ -74,7 +77,7 @@ async def api_create_order(
     user_id = UUID(token["sub"])
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     lines = [l.model_dump() for l in body.lines]
-    return await create_sales_order(
+    so = await create_sales_order(
         db,
         customer_id=body.customer_id,
         order_date=body.order_date,
@@ -82,7 +85,12 @@ async def api_create_order(
         lines=lines,
         created_by=user_id,
         org_id=org_id,
+        requested_approver_id=body.requested_approver_id,
     )
+    # Phase 4.2: Auto-approve if bypass is on
+    if await check_approval_bypass(db, org_id, "sales.order"):
+        so = await approve_sales_order(db, so.id, approved_by=user_id)
+    return so
 
 
 @sales_router.get(
@@ -93,8 +101,10 @@ async def api_create_order(
 async def api_get_order(
     so_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
-    return await get_sales_order(db, so_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await get_sales_order(db, so_id, org_id=org_id)
 
 
 @sales_router.put(

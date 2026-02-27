@@ -2,8 +2,10 @@
 SSS Corp ERP — Main Application
 """
 
+import logging
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -15,7 +17,27 @@ from app.core.config import get_settings
 from app.core.database import engine, Base
 from app.api import all_routers
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
+
+# --- Sentry (error monitoring) ---
+if settings.SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.ENVIRONMENT,
+        release=f"sss-corp-erp@{settings.APP_VERSION}",
+        traces_sample_rate=0.2 if settings.ENVIRONMENT == "production" else 0.0,
+        send_default_pii=False,
+    )
+    logger.info("Sentry initialized for %s", settings.ENVIRONMENT)
+
+# --- Production safety checks ---
+if settings.ENVIRONMENT == "production":
+    if settings.JWT_SECRET_KEY == "change-this-to-a-random-secret":
+        raise RuntimeError(
+            "FATAL: JWT_SECRET_KEY must be changed in production! "
+            "Set a strong random secret via environment variable."
+        )
 
 # Rate limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -35,8 +57,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    docs_url="/docs" if settings.ENVIRONMENT == "development" else None,
-    redoc_url="/redoc" if settings.ENVIRONMENT == "development" else None,
+    docs_url="/docs" if settings.ENVIRONMENT != "production" else None,
+    redoc_url="/redoc" if settings.ENVIRONMENT != "production" else None,
     lifespan=lifespan,
 )
 
@@ -76,5 +98,6 @@ async def root():
     return {
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
-        "docs": "/docs" if settings.ENVIRONMENT == "development" else None,
+        "environment": settings.ENVIRONMENT,
+        "docs": "/docs" if settings.ENVIRONMENT != "production" else None,
     }

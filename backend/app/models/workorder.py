@@ -86,6 +86,12 @@ class WorkOrder(Base, TimestampMixin, OrgMixin):
         ForeignKey("users.id", ondelete="RESTRICT"),
         nullable=False,
     )
+    # Phase 4.2: Approval flow — requested approver for close
+    requested_approver_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 

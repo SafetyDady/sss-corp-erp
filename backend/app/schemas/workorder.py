@@ -18,6 +18,7 @@ class WorkOrderCreate(BaseModel):
     customer_name: Optional[str] = Field(default=None, max_length=255)
     description: Optional[str] = None
     cost_center_code: Optional[str] = Field(default=None, max_length=50)
+    requested_approver_id: Optional[UUID] = None
 
 
 class WorkOrderUpdate(BaseModel):
@@ -41,6 +42,7 @@ class WorkOrderResponse(BaseModel):
     opened_at: Optional[datetime] = None
     closed_at: Optional[datetime] = None
     created_by: UUID
+    requested_approver_id: Optional[UUID] = None
     is_active: bool
     created_at: datetime
     updated_at: datetime

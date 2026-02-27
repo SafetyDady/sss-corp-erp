@@ -62,10 +62,12 @@ async def api_list_products(
     search: Optional[str] = Query(default=None, max_length=100),
     product_type: Optional[str] = Query(default=None, pattern=r"^(MATERIAL|CONSUMABLE)$"),
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """List products with pagination, search, and filter."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     items, total = await list_products(
-        db, limit=limit, offset=offset, search=search, product_type=product_type
+        db, limit=limit, offset=offset, search=search, product_type=product_type, org_id=org_id
     )
     return ProductListResponse(items=items, total=total, limit=limit, offset=offset)
 
@@ -106,9 +108,11 @@ async def api_create_product(
 async def api_get_product(
     product_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Get a single product by ID."""
-    return await get_product(db, product_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await get_product(db, product_id, org_id=org_id)
 
 
 @product_router.put(
@@ -160,10 +164,12 @@ async def api_list_movements(
         pattern=r"^(RECEIVE|ISSUE|TRANSFER|ADJUST|CONSUME|REVERSAL)$",
     ),
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """List stock movements with pagination and filters."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     items, total = await list_movements(
-        db, limit=limit, offset=offset, product_id=product_id, movement_type=movement_type
+        db, limit=limit, offset=offset, product_id=product_id, movement_type=movement_type, org_id=org_id
     )
     return StockMovementListResponse(items=items, total=total, limit=limit, offset=offset)
 

@@ -36,6 +36,19 @@ class PayrollStatus(str, Enum):
     EXPORTED = "EXPORTED"
 
 
+class PayType(str, Enum):
+    DAILY = "DAILY"
+    MONTHLY = "MONTHLY"
+
+
+class DayStatus(str, Enum):
+    WORK = "WORK"
+    LEAVE_PAID = "LEAVE_PAID"
+    LEAVE_UNPAID = "LEAVE_UNPAID"
+    ABSENT = "ABSENT"
+    HOLIDAY = "HOLIDAY"
+
+
 # ============================================================
 # EMPLOYEE SCHEMAS
 # ============================================================
@@ -48,6 +61,11 @@ class EmployeeCreate(BaseModel):
     daily_working_hours: Decimal = Field(default=Decimal("8.00"), gt=0, le=24, decimal_places=2)
     cost_center_id: Optional[UUID] = None
     user_id: Optional[UUID] = None
+    department_id: Optional[UUID] = None
+    supervisor_id: Optional[UUID] = None
+    pay_type: PayType = PayType.DAILY
+    daily_rate: Optional[Decimal] = Field(default=None, ge=0, decimal_places=2)
+    monthly_salary: Optional[Decimal] = Field(default=None, ge=0, decimal_places=2)
 
     @field_validator("employee_code")
     @classmethod
@@ -62,6 +80,11 @@ class EmployeeUpdate(BaseModel):
     daily_working_hours: Optional[Decimal] = Field(default=None, gt=0, le=24, decimal_places=2)
     cost_center_id: Optional[UUID] = None
     user_id: Optional[UUID] = None
+    department_id: Optional[UUID] = None
+    supervisor_id: Optional[UUID] = None
+    pay_type: Optional[PayType] = None
+    daily_rate: Optional[Decimal] = Field(default=None, ge=0, decimal_places=2)
+    monthly_salary: Optional[Decimal] = Field(default=None, ge=0, decimal_places=2)
     is_active: Optional[bool] = None
 
 
@@ -74,6 +97,11 @@ class EmployeeResponse(BaseModel):
     daily_working_hours: Decimal
     cost_center_id: Optional[UUID] = None
     user_id: Optional[UUID] = None
+    department_id: Optional[UUID] = None
+    supervisor_id: Optional[UUID] = None
+    pay_type: PayType
+    daily_rate: Optional[Decimal] = None
+    monthly_salary: Optional[Decimal] = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -101,6 +129,7 @@ class TimesheetCreate(BaseModel):
     ot_hours: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
     ot_type_id: Optional[UUID] = None
     note: Optional[str] = None
+    requested_approver_id: Optional[UUID] = None
 
     @field_validator("ot_type_id")
     @classmethod
@@ -131,6 +160,7 @@ class TimesheetResponse(BaseModel):
     created_by: UUID
     approved_by: Optional[UUID] = None
     final_approved_by: Optional[UUID] = None
+    requested_approver_id: Optional[UUID] = None
     is_locked: bool
     created_at: datetime
     updated_at: datetime
@@ -147,15 +177,73 @@ class TimesheetListResponse(BaseModel):
 
 
 # ============================================================
+# TIMESHEET BATCH SCHEMAS  (Phase 4.4)
+# ============================================================
+
+class TimesheetBatchEntry(BaseModel):
+    work_order_id: UUID
+    regular_hours: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
+    ot_hours: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
+    ot_type_id: Optional[UUID] = None
+    note: Optional[str] = None
+
+
+class TimesheetBatchCreate(BaseModel):
+    employee_id: UUID
+    work_date: date
+    entries: list[TimesheetBatchEntry] = Field(min_length=1)
+    requested_approver_id: Optional[UUID] = None
+
+
+# ============================================================
+# STANDARD TIMESHEET SCHEMAS  (Phase 4.4)
+# ============================================================
+
+class StandardTimesheetResponse(BaseModel):
+    id: UUID
+    employee_id: UUID
+    work_date: date
+    scheduled_hours: Decimal
+    actual_status: DayStatus
+    leave_id: Optional[UUID] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class StandardTimesheetListResponse(BaseModel):
+    items: list[StandardTimesheetResponse]
+    total: int
+
+
+class StandardTimesheetGenerate(BaseModel):
+    employee_id: Optional[UUID] = None  # None = all active employees
+    period_start: date
+    period_end: date
+
+    @field_validator("period_end")
+    @classmethod
+    def end_gte_start(cls, v, info):
+        start = info.data.get("period_start")
+        if start and v < start:
+            raise ValueError("period_end must be >= period_start")
+        return v
+
+
+# ============================================================
 # LEAVE SCHEMAS
 # ============================================================
 
 class LeaveCreate(BaseModel):
     employee_id: UUID
     leave_type: str = Field(min_length=1, max_length=50)
+    leave_type_id: Optional[UUID] = None
     start_date: date
     end_date: date
     reason: Optional[str] = None
+    requested_approver_id: Optional[UUID] = None
 
     @field_validator("end_date")
     @classmethod
@@ -170,12 +258,15 @@ class LeaveResponse(BaseModel):
     id: UUID
     employee_id: UUID
     leave_type: str
+    leave_type_id: Optional[UUID] = None
     start_date: date
     end_date: date
+    days_count: int = 1
     reason: Optional[str] = None
     status: LeaveStatus
     created_by: UUID
     approved_by: Optional[UUID] = None
+    requested_approver_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
 
@@ -188,6 +279,33 @@ class LeaveListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+# ============================================================
+# LEAVE BALANCE SCHEMAS  (Phase 4.3)
+# ============================================================
+
+class LeaveBalanceResponse(BaseModel):
+    id: UUID
+    employee_id: UUID
+    leave_type_id: UUID
+    year: int
+    quota: int
+    used: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class LeaveBalanceListResponse(BaseModel):
+    items: list[LeaveBalanceResponse]
+    total: int
+
+
+class LeaveBalanceUpdate(BaseModel):
+    quota: Optional[int] = Field(default=None, ge=0)
 
 
 # ============================================================

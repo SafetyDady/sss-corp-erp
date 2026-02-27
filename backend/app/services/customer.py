@@ -49,10 +49,11 @@ async def create_customer(
     return cust
 
 
-async def get_customer(db: AsyncSession, cust_id: UUID) -> Customer:
-    result = await db.execute(
-        select(Customer).where(Customer.id == cust_id, Customer.is_active == True)
-    )
+async def get_customer(db: AsyncSession, cust_id: UUID, *, org_id: Optional[UUID] = None) -> Customer:
+    query = select(Customer).where(Customer.id == cust_id, Customer.is_active == True)
+    if org_id:
+        query = query.where(Customer.org_id == org_id)
+    result = await db.execute(query)
     cust = result.scalar_one_or_none()
     if not cust:
         raise HTTPException(status_code=404, detail="Customer not found")
@@ -65,8 +66,11 @@ async def list_customers(
     limit: int = 20,
     offset: int = 0,
     search: Optional[str] = None,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list[Customer], int]:
     query = select(Customer).where(Customer.is_active == True)
+    if org_id:
+        query = query.where(Customer.org_id == org_id)
 
     if search:
         pattern = f"%{search}%"

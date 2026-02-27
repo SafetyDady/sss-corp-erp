@@ -29,6 +29,7 @@ from app.schemas.purchasing import (
     PurchaseOrderResponse,
     PurchaseOrderUpdate,
 )
+from app.services.organization import check_approval_bypass
 from app.services.purchasing import (
     approve_purchase_order,
     create_purchase_order,
@@ -56,9 +57,11 @@ async def api_list_pos(
         pattern=r"^(DRAFT|SUBMITTED|APPROVED|RECEIVED|CANCELLED)$",
     ),
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     items, total = await list_purchase_orders(
-        db, limit=limit, offset=offset, search=search, po_status=status
+        db, limit=limit, offset=offset, search=search, po_status=status, org_id=org_id
     )
     return PurchaseOrderListResponse(items=items, total=total, limit=limit, offset=offset)
 
@@ -77,7 +80,7 @@ async def api_create_po(
     user_id = UUID(token["sub"])
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     lines = [l.model_dump() for l in body.lines]
-    return await create_purchase_order(
+    po = await create_purchase_order(
         db,
         supplier_name=body.supplier_name,
         order_date=body.order_date,
@@ -86,7 +89,12 @@ async def api_create_po(
         lines=lines,
         created_by=user_id,
         org_id=org_id,
+        requested_approver_id=body.requested_approver_id,
     )
+    # Phase 4.2: Auto-approve if bypass is on
+    if await check_approval_bypass(db, org_id, "purchasing.po"):
+        po = await approve_purchase_order(db, po.id, approved_by=user_id)
+    return po
 
 
 @purchasing_router.get(
@@ -97,8 +105,10 @@ async def api_create_po(
 async def api_get_po(
     po_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
-    return await get_purchase_order(db, po_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await get_purchase_order(db, po_id, org_id=org_id)
 
 
 @purchasing_router.put(

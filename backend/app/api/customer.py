@@ -46,8 +46,10 @@ async def api_list_customers(
     offset: int = Query(default=0, ge=0),
     search: Optional[str] = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
-    items, total = await list_customers(db, limit=limit, offset=offset, search=search)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    items, total = await list_customers(db, limit=limit, offset=offset, search=search, org_id=org_id)
     return CustomerListResponse(items=items, total=total, limit=limit, offset=offset)
 
 
@@ -84,8 +86,10 @@ async def api_create_customer(
 async def api_get_customer(
     cust_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
-    return await get_customer(db, cust_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await get_customer(db, cust_id, org_id=org_id)
 
 
 @customer_router.put(

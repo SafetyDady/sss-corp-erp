@@ -1,16 +1,20 @@
 import { useEffect, useState } from 'react';
-import { Modal, Form, Input, App } from 'antd';
+import { Modal, Form, Input, Select, App } from 'antd';
 import api from '../../services/api';
 
 export default function WorkOrderFormModal({ open, editItem, onClose, onSuccess }) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [approvers, setApprovers] = useState([]);
   const { message } = App.useApp();
 
   useEffect(() => {
     if (open) {
       form.resetFields();
       if (editItem) form.setFieldsValue(editItem);
+      api.get('/api/admin/approvers', { params: { module: 'workorder.order' } })
+        .then((r) => setApprovers(r.data))
+        .catch(() => {});
     }
   }, [open, editItem]);
 
@@ -52,6 +56,15 @@ export default function WorkOrderFormModal({ open, editItem, onClose, onSuccess 
         <Form.Item name="cost_center_code" label={'\u0E23\u0E2B\u0E31\u0E2A\u0E28\u0E39\u0E19\u0E22\u0E4C\u0E15\u0E49\u0E19\u0E17\u0E38\u0E19'}>
           <Input placeholder="CC-001" />
         </Form.Item>
+        {!editItem && (
+          <Form.Item name="requested_approver_id" label={'\u0E1C\u0E39\u0E49\u0E2D\u0E19\u0E38\u0E21\u0E31\u0E15\u0E34 (Close)'}>
+            <Select
+              showSearch optionFilterProp="label" allowClear
+              placeholder={'\u0E40\u0E25\u0E37\u0E2D\u0E01\u0E1C\u0E39\u0E49\u0E2D\u0E19\u0E38\u0E21\u0E31\u0E15\u0E34'}
+              options={approvers.map((a) => ({ value: a.id, label: a.full_name }))}
+            />
+          </Form.Item>
+        )}
       </Form>
     </Modal>
   );

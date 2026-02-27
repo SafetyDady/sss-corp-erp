@@ -14,6 +14,8 @@ export default function TimesheetFormModal({ open, onClose, onSuccess }) {
   const [otTypes, setOtTypes] = useState([]);
   const otHours = Form.useWatch('ot_hours', form);
 
+  const [approvers, setApprovers] = useState([]);
+
   useEffect(() => {
     if (open) {
       form.resetFields();
@@ -21,10 +23,12 @@ export default function TimesheetFormModal({ open, onClose, onSuccess }) {
         api.get('/api/hr/employees', { params: { limit: 200, offset: 0 } }),
         api.get('/api/work-orders', { params: { limit: 200, offset: 0, status: 'OPEN' } }),
         api.get('/api/master/ot-types', { params: { limit: 50, offset: 0 } }),
-      ]).then(([empRes, woRes, otRes]) => {
+        api.get('/api/admin/approvers', { params: { module: 'hr.timesheet' } }),
+      ]).then(([empRes, woRes, otRes, appRes]) => {
         setEmployees((empRes.data.items || []).filter((e) => e.is_active));
         setWorkOrders(woRes.data.items || []);
         setOtTypes((otRes.data.items || []).filter((t) => t.is_active));
+        setApprovers(appRes.data);
       }).catch(() => {});
     }
   }, [open]);
@@ -113,6 +117,14 @@ export default function TimesheetFormModal({ open, onClose, onSuccess }) {
               options={otTypes.map((t) => ({ value: t.id, label: `${t.name} (x${t.factor})` }))} />
           </Form.Item>
         )}
+
+        <Form.Item name="requested_approver_id" label="ผู้อนุมัติ">
+          <Select
+            showSearch optionFilterProp="label" allowClear
+            placeholder="เลือกผู้อนุมัติ"
+            options={approvers.map((a) => ({ value: a.id, label: a.full_name }))}
+          />
+        </Form.Item>
 
         <Form.Item name="note" label="หมายเหตุ">
           <Input.TextArea rows={2} placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)" maxLength={500} showCount />

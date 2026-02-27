@@ -59,8 +59,10 @@ async def api_list_tools(
     offset: int = Query(default=0, ge=0),
     search: Optional[str] = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
-    items, total = await list_tools(db, limit=limit, offset=offset, search=search)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    items, total = await list_tools(db, limit=limit, offset=offset, search=search, org_id=org_id)
     return ToolListResponse(items=items, total=total, limit=limit, offset=offset)
 
 
@@ -94,8 +96,10 @@ async def api_create_tool(
 async def api_get_tool(
     tool_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
-    return await get_tool(db, tool_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await get_tool(db, tool_id, org_id=org_id)
 
 
 @tools_router.put(
@@ -178,7 +182,9 @@ async def api_tool_history(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Get checkout/checkin history for a tool."""
-    items, total = await list_tool_checkouts(db, tool_id, limit=limit, offset=offset)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    items, total = await list_tool_checkouts(db, tool_id, limit=limit, offset=offset, org_id=org_id)
     return ToolCheckoutListResponse(items=items, total=total, limit=limit, offset=offset)

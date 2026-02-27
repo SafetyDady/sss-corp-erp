@@ -1,10 +1,11 @@
 import { Tabs } from 'antd';
-import { Users, Shield, FileText } from 'lucide-react';
+import { Users, Shield, FileText, Settings } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import { usePermission } from '../../hooks/usePermission';
 import UserTab from './UserTab';
 import RoleTab from './RoleTab';
 import AuditLogTab from './AuditLogTab';
+import OrgSettingsTab from './OrgSettingsTab';
 import { COLORS } from '../../utils/constants';
 
 const tabLabel = (Icon, text) => (
@@ -27,6 +28,11 @@ export default function AdminPage() {
       label: tabLabel(Shield, 'บทบาท & สิทธิ์'),
       children: <RoleTab />,
     },
+    can('admin.config.read') && {
+      key: 'org-settings',
+      label: tabLabel(Settings, 'ตั้งค่าองค์กร'),
+      children: <OrgSettingsTab />,
+    },
     can('admin.role.read') && {
       key: 'audit',
       label: tabLabel(FileText, 'Audit Log'),
@@ -38,7 +44,7 @@ export default function AdminPage() {
     <div>
       <PageHeader
         title="Admin"
-        subtitle="จัดการผู้ใช้งาน, บทบาท, สิทธิ์, และ Audit Log"
+        subtitle="จัดการผู้ใช้งาน, บทบาท, สิทธิ์, ตั้งค่าองค์กร, และ Audit Log"
       />
       {items.length > 0 ? (
         <Tabs defaultActiveKey={items[0]?.key} items={items} />

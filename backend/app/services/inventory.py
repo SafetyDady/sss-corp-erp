@@ -81,11 +81,12 @@ async def create_product(
     return product
 
 
-async def get_product(db: AsyncSession, product_id: UUID) -> Product:
+async def get_product(db: AsyncSession, product_id: UUID, *, org_id: Optional[UUID] = None) -> Product:
     """Get a single product by ID."""
-    result = await db.execute(
-        select(Product).where(Product.id == product_id, Product.is_active == True)
-    )
+    query = select(Product).where(Product.id == product_id, Product.is_active == True)
+    if org_id:
+        query = query.where(Product.org_id == org_id)
+    result = await db.execute(query)
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(
@@ -102,9 +103,12 @@ async def list_products(
     offset: int = 0,
     search: Optional[str] = None,
     product_type: Optional[str] = None,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list[Product], int]:
     """List products with pagination, search, and filter."""
     query = select(Product).where(Product.is_active == True)
+    if org_id:
+        query = query.where(Product.org_id == org_id)
 
     if search:
         pattern = f"%{search}%"
@@ -328,9 +332,12 @@ async def list_movements(
     offset: int = 0,
     product_id: Optional[UUID] = None,
     movement_type: Optional[str] = None,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list[StockMovement], int]:
     """List stock movements with pagination and filters."""
     query = select(StockMovement)
+    if org_id:
+        query = query.where(StockMovement.org_id == org_id)
 
     if product_id:
         query = query.where(StockMovement.product_id == product_id)

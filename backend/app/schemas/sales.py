@@ -43,6 +43,7 @@ class SalesOrderCreate(BaseModel):
     customer_id: UUID
     order_date: date
     note: Optional[str] = None
+    requested_approver_id: Optional[UUID] = None
     lines: list[SOLineCreate] = Field(min_length=1)
 
 
@@ -60,6 +61,7 @@ class SalesOrderResponse(BaseModel):
     note: Optional[str] = None
     created_by: UUID
     approved_by: Optional[UUID] = None
+    requested_approver_id: Optional[UUID] = None
     is_active: bool
     lines: list[SOLineResponse] = []
     created_at: datetime

@@ -1,6 +1,7 @@
 """
 SSS Corp ERP — Master Data Models
 Phase 1: CostCenter, CostElement, OTType
+Phase 4.3: LeaveType
 
 Business Rules:
   BR#9  — cost_center_id must be integer/UUID (not string)
@@ -16,6 +17,7 @@ import uuid
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Integer,
     Numeric,
     String,
     Text,
@@ -135,3 +137,34 @@ class OTType(Base, TimestampMixin, OrgMixin):
 
     def __repr__(self) -> str:
         return f"<OTType {self.name} factor={self.factor}× max={self.max_ceiling}×>"
+
+
+# ============================================================
+# LEAVE TYPE  (Phase 4.3)
+# ============================================================
+
+class LeaveType(Base, TimestampMixin, OrgMixin):
+    """
+    Leave type master data — defines leave categories per org.
+    Seed defaults: ANNUAL (6d), SICK (30d), PERSONAL (3d), MATERNITY (98d), UNPAID (unlimited).
+    """
+    __tablename__ = "leave_types"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    code: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_paid: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    default_quota: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("org_id", "code", name="uq_leave_type_org_code"),
+        CheckConstraint("default_quota IS NULL OR default_quota >= 0", name="ck_leave_type_quota_positive"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<LeaveType {self.code} paid={self.is_paid} quota={self.default_quota}>"

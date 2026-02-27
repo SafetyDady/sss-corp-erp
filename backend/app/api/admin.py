@@ -23,15 +23,41 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import DEFAULT_ORG_ID
 from app.core.database import get_db
 from app.core.permissions import ALL_PERMISSIONS, ROLE_PERMISSIONS, require
 from app.core.security import get_token_payload
 from app.models.user import User
+from app.schemas.organization import (
+    OrgApprovalConfigListResponse,
+    OrgApprovalConfigUpdate,
+    OrganizationResponse,
+    OrganizationUpdate,
+    OrgWorkConfigResponse,
+    OrgWorkConfigUpdate,
+)
+from app.services.organization import (
+    get_approval_configs,
+    get_or_create_work_config,
+    get_organization,
+    update_approval_configs,
+    update_organization,
+    update_work_config,
+)
 
 admin_router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 VALID_ACTIONS = {"create", "read", "update", "delete", "approve", "export", "execute"}
 VALID_ROLES = {"owner", "manager", "supervisor", "staff", "viewer"}
+
+# Module key → approve permission mapping
+APPROVAL_PERMISSION_MAP = {
+    "purchasing.po": "purchasing.po.approve",
+    "sales.order": "sales.order.approve",
+    "hr.timesheet": "hr.timesheet.approve",
+    "hr.leave": "hr.leave.approve",
+    "workorder.order": "workorder.order.approve",
+}
 
 
 # ============================================================
@@ -134,13 +160,17 @@ async def api_list_users(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     from sqlalchemy import func
-    count_result = await db.execute(select(func.count()).select_from(User))
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+
+    base_query = select(User).where(User.org_id == org_id)
+    count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
     total = count_result.scalar() or 0
 
     result = await db.execute(
-        select(User).order_by(User.created_at.desc()).limit(limit).offset(offset)
+        base_query.order_by(User.created_at.desc()).limit(limit).offset(offset)
     )
     items = list(result.scalars().all())
     return UserListResponse(items=items, total=total)
@@ -229,3 +259,155 @@ async def api_seed_permissions():
             for role, perms in ROLE_PERMISSIONS.items()
         },
     }
+
+
+# ============================================================
+# ORGANIZATION CONFIG ROUTES  (Phase 4.1)
+# ============================================================
+
+@admin_router.get(
+    "/organization",
+    response_model=OrganizationResponse,
+    dependencies=[Depends(require("admin.config.read"))],
+)
+async def api_get_organization(
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Get current organization details."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await get_organization(db, org_id)
+
+
+@admin_router.put(
+    "/organization",
+    response_model=OrganizationResponse,
+    dependencies=[Depends(require("admin.config.update"))],
+)
+async def api_update_organization(
+    body: OrganizationUpdate,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Update organization details (name, tax_id, address)."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    update_data = body.model_dump(exclude_unset=True)
+    return await update_organization(db, org_id, update_data=update_data)
+
+
+@admin_router.get(
+    "/config/work",
+    response_model=OrgWorkConfigResponse,
+    dependencies=[Depends(require("admin.config.read"))],
+)
+async def api_get_work_config(
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Get org work configuration (working days, hours per day)."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await get_or_create_work_config(db, org_id)
+
+
+@admin_router.put(
+    "/config/work",
+    response_model=OrgWorkConfigResponse,
+    dependencies=[Depends(require("admin.config.update"))],
+)
+async def api_update_work_config(
+    body: OrgWorkConfigUpdate,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Update org work configuration."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    update_data = body.model_dump(exclude_unset=True)
+    return await update_work_config(db, org_id, update_data=update_data)
+
+
+@admin_router.get(
+    "/config/approval",
+    response_model=OrgApprovalConfigListResponse,
+    dependencies=[Depends(require("admin.config.read"))],
+)
+async def api_get_approval_config(
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Get approval bypass config for all modules."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    items = await get_approval_configs(db, org_id)
+    return OrgApprovalConfigListResponse(items=items)
+
+
+@admin_router.put(
+    "/config/approval",
+    response_model=OrgApprovalConfigListResponse,
+    dependencies=[Depends(require("admin.config.update"))],
+)
+async def api_update_approval_config(
+    body: OrgApprovalConfigUpdate,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Update approval bypass config per module."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    configs_data = [item.model_dump() for item in body.configs]
+    items = await update_approval_configs(db, org_id, configs=configs_data)
+    return OrgApprovalConfigListResponse(items=items)
+
+
+# ============================================================
+# APPROVER LIST ENDPOINT  (Phase 4.2)
+# ============================================================
+
+class ApproverResponse(BaseModel):
+    id: UUID
+    full_name: str
+    email: str
+    role: str
+
+    class Config:
+        from_attributes = True
+
+
+@admin_router.get(
+    "/approvers",
+    response_model=list[ApproverResponse],
+)
+async def api_list_approvers(
+    module: str = Query(..., description="Module key e.g. purchasing.po, sales.order"),
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """
+    Get users eligible to approve a given module.
+    Any authenticated user can call this — no specific permission needed.
+    Returns active users whose role grants the module's approve permission.
+    """
+    approve_perm = APPROVAL_PERMISSION_MAP.get(module)
+    if not approve_perm:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Unknown approval module: {module}. Valid: {list(APPROVAL_PERMISSION_MAP.keys())}",
+        )
+
+    # Find roles that have this approve permission
+    eligible_roles = [
+        role for role, perms in ROLE_PERMISSIONS.items()
+        if approve_perm in perms
+    ]
+
+    if not eligible_roles:
+        return []
+
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    result = await db.execute(
+        select(User).where(
+            User.is_active == True,
+            User.role.in_(eligible_roles),
+            User.org_id == org_id,
+        ).order_by(User.full_name)
+    )
+    users = list(result.scalars().all())
+    return users

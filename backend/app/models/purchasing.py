@@ -64,6 +64,12 @@ class PurchaseOrder(Base, TimestampMixin, OrgMixin):
         nullable=False,
     )
     approved_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # Phase 4.2: Approval flow — requested approver
+    requested_approver_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     lines: Mapped[list["PurchaseOrderLine"]] = relationship(

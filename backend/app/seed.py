@@ -1,14 +1,16 @@
 """
-Seed script — Create test users for development.
+Seed script — Create test users and default org for development.
 Run: python -m app.seed
 """
 
 import asyncio
+from uuid import UUID
 
 from sqlalchemy import select
 from app.core.database import AsyncSessionLocal, engine, Base
+from app.core.config import DEFAULT_ORG_ID
 from app.core.security import hash_password
-from app.models import User
+from app.models import User, Organization
 
 
 TEST_USERS = [
@@ -26,13 +28,34 @@ async def seed():
         await conn.run_sync(Base.metadata.create_all)
 
     async with AsyncSessionLocal() as db:
+        # Ensure default organization exists
+        org_result = await db.execute(
+            select(Organization).where(Organization.id == DEFAULT_ORG_ID)
+        )
+        if not org_result.scalar_one_or_none():
+            org = Organization(
+                id=DEFAULT_ORG_ID,
+                code="SSS",
+                name="SSS Corp",
+            )
+            db.add(org)
+            print("  ✅ Default organization: SSS Corp")
+        else:
+            print("  ⏭  Default organization (exists)")
+
+        # Create test users
         for user_data in TEST_USERS:
-            # Skip if exists
             result = await db.execute(
                 select(User).where(User.email == user_data["email"])
             )
-            if result.scalar_one_or_none():
-                print(f"  ⏭  {user_data['email']} (exists)")
+            existing = result.scalar_one_or_none()
+            if existing:
+                # Update org_id if not set
+                if not existing.org_id:
+                    existing.org_id = DEFAULT_ORG_ID
+                    print(f"  🔄 {user_data['email']} (org_id updated)")
+                else:
+                    print(f"  ⏭  {user_data['email']} (exists)")
                 continue
 
             user = User(
@@ -40,6 +63,7 @@ async def seed():
                 hashed_password=hash_password(user_data["password"]),
                 full_name=user_data["full_name"],
                 role=user_data["role"],
+                org_id=DEFAULT_ORG_ID,
             )
             db.add(user)
             print(f"  ✅ {user_data['email']} ({user_data['role']})")

@@ -16,7 +16,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.master import CostCenter, CostElement, OTType
+from app.models.master import CostCenter, CostElement, LeaveType, OTType
 
 
 # ============================================================
@@ -57,10 +57,11 @@ async def create_cost_center(
     return cc
 
 
-async def get_cost_center(db: AsyncSession, cc_id: UUID) -> CostCenter:
-    result = await db.execute(
-        select(CostCenter).where(CostCenter.id == cc_id, CostCenter.is_active == True)
-    )
+async def get_cost_center(db: AsyncSession, cc_id: UUID, *, org_id: Optional[UUID] = None) -> CostCenter:
+    query = select(CostCenter).where(CostCenter.id == cc_id, CostCenter.is_active == True)
+    if org_id:
+        query = query.where(CostCenter.org_id == org_id)
+    result = await db.execute(query)
     cc = result.scalar_one_or_none()
     if not cc:
         raise HTTPException(
@@ -76,8 +77,11 @@ async def list_cost_centers(
     limit: int = 20,
     offset: int = 0,
     search: Optional[str] = None,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list[CostCenter], int]:
     query = select(CostCenter).where(CostCenter.is_active == True)
+    if org_id:
+        query = query.where(CostCenter.org_id == org_id)
 
     if search:
         pattern = f"%{search}%"
@@ -154,10 +158,11 @@ async def create_cost_element(
     return ce
 
 
-async def get_cost_element(db: AsyncSession, ce_id: UUID) -> CostElement:
-    result = await db.execute(
-        select(CostElement).where(CostElement.id == ce_id, CostElement.is_active == True)
-    )
+async def get_cost_element(db: AsyncSession, ce_id: UUID, *, org_id: Optional[UUID] = None) -> CostElement:
+    query = select(CostElement).where(CostElement.id == ce_id, CostElement.is_active == True)
+    if org_id:
+        query = query.where(CostElement.org_id == org_id)
+    result = await db.execute(query)
     ce = result.scalar_one_or_none()
     if not ce:
         raise HTTPException(
@@ -173,8 +178,11 @@ async def list_cost_elements(
     limit: int = 20,
     offset: int = 0,
     search: Optional[str] = None,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list[CostElement], int]:
     query = select(CostElement).where(CostElement.is_active == True)
+    if org_id:
+        query = query.where(CostElement.org_id == org_id)
 
     if search:
         pattern = f"%{search}%"
@@ -260,10 +268,11 @@ async def create_ot_type(
     return ot
 
 
-async def get_ot_type(db: AsyncSession, ot_id: UUID) -> OTType:
-    result = await db.execute(
-        select(OTType).where(OTType.id == ot_id, OTType.is_active == True)
-    )
+async def get_ot_type(db: AsyncSession, ot_id: UUID, *, org_id: Optional[UUID] = None) -> OTType:
+    query = select(OTType).where(OTType.id == ot_id, OTType.is_active == True)
+    if org_id:
+        query = query.where(OTType.org_id == org_id)
+    result = await db.execute(query)
     ot = result.scalar_one_or_none()
     if not ot:
         raise HTTPException(
@@ -279,8 +288,11 @@ async def list_ot_types(
     limit: int = 20,
     offset: int = 0,
     search: Optional[str] = None,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list[OTType], int]:
     query = select(OTType).where(OTType.is_active == True)
+    if org_id:
+        query = query.where(OTType.org_id == org_id)
 
     if search:
         pattern = f"%{search}%"
@@ -323,4 +335,107 @@ async def update_ot_type(
 async def delete_ot_type(db: AsyncSession, ot_id: UUID) -> None:
     ot = await get_ot_type(db, ot_id)
     ot.is_active = False
+    await db.commit()
+
+
+# ============================================================
+# LEAVE TYPE CRUD  (Phase 4.3)
+# ============================================================
+
+async def create_leave_type(
+    db: AsyncSession,
+    *,
+    code: str,
+    name: str,
+    is_paid: bool,
+    default_quota: Optional[int],
+    org_id: UUID,
+) -> LeaveType:
+    existing = await db.execute(
+        select(LeaveType).where(
+            LeaveType.org_id == org_id,
+            LeaveType.code == code,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Leave type with code '{code}' already exists",
+        )
+
+    lt = LeaveType(
+        code=code,
+        name=name,
+        is_paid=is_paid,
+        default_quota=default_quota,
+        org_id=org_id,
+    )
+    db.add(lt)
+    await db.commit()
+    await db.refresh(lt)
+    return lt
+
+
+async def get_leave_type(db: AsyncSession, lt_id: UUID, *, org_id: Optional[UUID] = None) -> LeaveType:
+    query = select(LeaveType).where(LeaveType.id == lt_id, LeaveType.is_active == True)
+    if org_id:
+        query = query.where(LeaveType.org_id == org_id)
+    result = await db.execute(query)
+    lt = result.scalar_one_or_none()
+    if not lt:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Leave type not found",
+        )
+    return lt
+
+
+async def list_leave_types(
+    db: AsyncSession,
+    *,
+    limit: int = 20,
+    offset: int = 0,
+    search: Optional[str] = None,
+    org_id: Optional[UUID] = None,
+) -> tuple[list[LeaveType], int]:
+    query = select(LeaveType).where(LeaveType.is_active == True)
+    if org_id:
+        query = query.where(LeaveType.org_id == org_id)
+
+    if search:
+        pattern = f"%{search}%"
+        query = query.where(
+            (LeaveType.code.ilike(pattern)) | (LeaveType.name.ilike(pattern))
+        )
+
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    query = query.order_by(LeaveType.created_at.desc()).limit(limit).offset(offset)
+    result = await db.execute(query)
+    items = list(result.scalars().all())
+    return items, total
+
+
+async def update_leave_type(
+    db: AsyncSession,
+    lt_id: UUID,
+    *,
+    update_data: dict,
+) -> LeaveType:
+    lt = await get_leave_type(db, lt_id)
+
+    for field, value in update_data.items():
+        if value is not None:
+            setattr(lt, field, value)
+
+    await db.commit()
+    await db.refresh(lt)
+    return lt
+
+
+async def delete_leave_type(db: AsyncSession, lt_id: UUID) -> None:
+    lt = await get_leave_type(db, lt_id)
+    lt.is_active = False
     await db.commit()

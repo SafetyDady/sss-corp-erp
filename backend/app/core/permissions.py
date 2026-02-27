@@ -1,11 +1,12 @@
 """
 RBAC Permission System — SSS Corp ERP
-11 modules × 7 actions = 89 permissions (explicit allow only)
+11 modules × 7 actions = 105 permissions (explicit allow only)
 
 Permission format: module.resource.action (3-part always)
 Actions: create / read / update / delete / approve / export / execute
 
-Synced with CLAUDE.md v2 — 2026-02-26
+Phase 4.1: Added 16 new permissions (department, leavetype, plan, reservation, config)
+Synced with plan v4 — 2026-02-27
 """
 
 from functools import wraps
@@ -20,7 +21,7 @@ from app.core.security import get_token_payload
 
 
 # ============================================================
-# ALL 89 PERMISSIONS  (synced with CLAUDE.md v2 full matrix)
+# ALL 105 PERMISSIONS  (89 original + 16 new in Phase 4.1)
 # ============================================================
 
 ALL_PERMISSIONS: list[str] = [
@@ -49,13 +50,20 @@ ALL_PERMISSIONS: list[str] = [
     "warehouse.location.update",
     "warehouse.location.delete",
 
-    # --- workorder (6) ---
+    # --- workorder (6 + 6 = 12) ---
     "workorder.order.create",
     "workorder.order.read",
     "workorder.order.update",
     "workorder.order.delete",
     "workorder.order.approve",
     "workorder.order.export",
+    # Phase 4.5: Planning
+    "workorder.plan.create",
+    "workorder.plan.read",
+    "workorder.plan.update",
+    "workorder.plan.delete",
+    "workorder.reservation.create",
+    "workorder.reservation.read",
 
     # --- purchasing (6) ---
     "purchasing.po.create",
@@ -77,7 +85,7 @@ ALL_PERMISSIONS: list[str] = [
     "finance.report.read",
     "finance.report.export",
 
-    # --- master data (12) ---
+    # --- master data (12 + 8 = 20) ---
     "master.costcenter.create",
     "master.costcenter.read",
     "master.costcenter.update",
@@ -90,8 +98,18 @@ ALL_PERMISSIONS: list[str] = [
     "master.ottype.read",
     "master.ottype.update",
     "master.ottype.delete",
+    # Phase 4.1: Department
+    "master.department.create",
+    "master.department.read",
+    "master.department.update",
+    "master.department.delete",
+    # Phase 4.3: Leave Type
+    "master.leavetype.create",
+    "master.leavetype.read",
+    "master.leavetype.update",
+    "master.leavetype.delete",
 
-    # --- admin (8) ---
+    # --- admin (8 + 2 = 10) ---
     "admin.role.create",
     "admin.role.read",
     "admin.role.update",
@@ -100,6 +118,9 @@ ALL_PERMISSIONS: list[str] = [
     "admin.user.read",
     "admin.user.update",
     "admin.user.delete",
+    # Phase 4.1: Org config
+    "admin.config.read",
+    "admin.config.update",
 
     # --- customer (5) ---
     "customer.customer.create",
@@ -136,28 +157,25 @@ ALL_PERMISSIONS: list[str] = [
     "hr.leave.approve",
 ]
 
-assert len(ALL_PERMISSIONS) == 89, f"Expected 89 permissions, got {len(ALL_PERMISSIONS)}"
-assert len(set(ALL_PERMISSIONS)) == 89, "Duplicate permissions found!"
+assert len(ALL_PERMISSIONS) == 105, f"Expected 105 permissions, got {len(ALL_PERMISSIONS)}"
+assert len(set(ALL_PERMISSIONS)) == 105, "Duplicate permissions found!"
 
 
 # ============================================================
-# ROLE → PERMISSION MAPPING  (matches CLAUDE.md v2 matrix exactly)
+# ROLE → PERMISSION MAPPING  (matches plan v4 matrix)
 # ============================================================
 # Legend:  ✅ = granted  ❌ = denied
-# Source:  CLAUDE.md v2 → RBAC section → per-module tables
 
 def _owner() -> set[str]:
-    """Owner: ALL 89 permissions."""
+    """Owner: ALL 105 permissions."""
     return set(ALL_PERMISSIONS)
 
 
 def _manager() -> set[str]:
-    """Manager: everything except admin.role.create/delete, admin.user.delete,
-    and certain delete actions. ~52 permissions."""
-    # Start from all, then remove what manager doesn't get
+    """Manager: everything except admin.role.*, admin.user.*, all deletes, finance.report.export."""
     result = set(ALL_PERMISSIONS)
     result -= {
-        # Admin: manager gets NONE of admin.*
+        # Admin: manager gets NONE of admin.role.* / admin.user.*
         "admin.role.create",
         "admin.role.read",
         "admin.role.update",
@@ -173,11 +191,14 @@ def _manager() -> set[str]:
         "warehouse.zone.delete",
         "warehouse.location.delete",
         "workorder.order.delete",
+        "workorder.plan.delete",
         "purchasing.po.delete",
         "sales.order.delete",
         "master.costcenter.delete",
         "master.costelement.delete",
         "master.ottype.delete",
+        "master.department.delete",
+        "master.leavetype.delete",
         "customer.customer.delete",
         "tools.tool.delete",
         "hr.employee.delete",
@@ -188,7 +209,7 @@ def _manager() -> set[str]:
 
 
 def _supervisor() -> set[str]:
-    """Supervisor: read + approve + export + limited create/update. ~38 permissions."""
+    """Supervisor: read + approve + export + limited create/update."""
     return {
         # Inventory
         "inventory.product.create",
@@ -214,6 +235,12 @@ def _supervisor() -> set[str]:
         "workorder.order.update",
         "workorder.order.approve",
         "workorder.order.export",
+        # Planning (supervisor can plan)
+        "workorder.plan.create",
+        "workorder.plan.read",
+        "workorder.plan.update",
+        "workorder.reservation.create",
+        "workorder.reservation.read",
         # Purchasing
         "purchasing.po.create",
         "purchasing.po.read",
@@ -236,6 +263,8 @@ def _supervisor() -> set[str]:
         "master.costelement.read",
         "master.costelement.update",
         "master.ottype.read",
+        "master.department.read",
+        "master.leavetype.read",
         # Customer
         "customer.customer.create",
         "customer.customer.read",
@@ -260,7 +289,7 @@ def _supervisor() -> set[str]:
 
 
 def _staff() -> set[str]:
-    """Staff: read (limited) + own create. ~22 permissions."""
+    """Staff: read (limited) + own create."""
     return {
         # Inventory
         "inventory.product.read",
@@ -277,6 +306,9 @@ def _staff() -> set[str]:
         "workorder.order.read",
         "workorder.order.update",
         "workorder.order.export",
+        # Planning (staff can view plans)
+        "workorder.plan.read",
+        "workorder.reservation.read",
         # Purchasing
         "purchasing.po.create",
         "purchasing.po.read",
@@ -289,6 +321,8 @@ def _staff() -> set[str]:
         "master.costcenter.read",
         "master.costelement.read",
         "master.ottype.read",
+        "master.department.read",
+        "master.leavetype.read",
         # Customer
         "customer.customer.read",
         # Tools
@@ -303,7 +337,7 @@ def _staff() -> set[str]:
 
 
 def _viewer() -> set[str]:
-    """Viewer: read + selected export only. ~15 permissions."""
+    """Viewer: read + selected export only."""
     return {
         # Inventory
         "inventory.product.read",
@@ -315,6 +349,8 @@ def _viewer() -> set[str]:
         "warehouse.location.read",
         # Work Order
         "workorder.order.read",
+        "workorder.plan.read",
+        "workorder.reservation.read",
         # Purchasing
         "purchasing.po.read",
         "purchasing.po.export",
@@ -327,6 +363,8 @@ def _viewer() -> set[str]:
         "master.costcenter.read",
         "master.costelement.read",
         "master.ottype.read",
+        "master.department.read",
+        "master.leavetype.read",
         # Customer
         "customer.customer.read",
         "customer.customer.export",

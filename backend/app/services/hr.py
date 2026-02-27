@@ -81,10 +81,11 @@ async def create_employee(
     return emp
 
 
-async def get_employee(db: AsyncSession, emp_id: UUID) -> Employee:
-    result = await db.execute(
-        select(Employee).where(Employee.id == emp_id, Employee.is_active == True)
-    )
+async def get_employee(db: AsyncSession, emp_id: UUID, *, org_id: Optional[UUID] = None) -> Employee:
+    query = select(Employee).where(Employee.id == emp_id, Employee.is_active == True)
+    if org_id:
+        query = query.where(Employee.org_id == org_id)
+    result = await db.execute(query)
     emp = result.scalar_one_or_none()
     if not emp:
         raise HTTPException(
@@ -100,8 +101,11 @@ async def list_employees(
     limit: int = 20,
     offset: int = 0,
     search: Optional[str] = None,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list[Employee], int]:
     query = select(Employee).where(Employee.is_active == True)
+    if org_id:
+        query = query.where(Employee.org_id == org_id)
 
     if search:
         pattern = f"%{search}%"
@@ -156,6 +160,7 @@ async def create_timesheet(
     note: Optional[str],
     created_by: UUID,
     org_id: UUID,
+    requested_approver_id: Optional[UUID] = None,
 ) -> Timesheet:
     # Validate employee exists
     emp = await get_employee(db, employee_id)
@@ -230,6 +235,7 @@ async def create_timesheet(
         created_by=created_by,
         status=TimesheetStatus.DRAFT,
         org_id=org_id,
+        requested_approver_id=requested_approver_id,
     )
     db.add(ts)
     await db.commit()
@@ -237,10 +243,11 @@ async def create_timesheet(
     return ts
 
 
-async def get_timesheet(db: AsyncSession, ts_id: UUID) -> Timesheet:
-    result = await db.execute(
-        select(Timesheet).where(Timesheet.id == ts_id)
-    )
+async def get_timesheet(db: AsyncSession, ts_id: UUID, *, org_id: Optional[UUID] = None) -> Timesheet:
+    query = select(Timesheet).where(Timesheet.id == ts_id)
+    if org_id:
+        query = query.where(Timesheet.org_id == org_id)
+    result = await db.execute(query)
     ts = result.scalar_one_or_none()
     if not ts:
         raise HTTPException(status_code=404, detail="Timesheet not found")
@@ -255,8 +262,11 @@ async def list_timesheets(
     employee_id: Optional[UUID] = None,
     work_order_id: Optional[UUID] = None,
     status_filter: Optional[str] = None,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list[Timesheet], int]:
     query = select(Timesheet)
+    if org_id:
+        query = query.where(Timesheet.org_id == org_id)
 
     if employee_id:
         query = query.where(Timesheet.employee_id == employee_id)
@@ -388,19 +398,85 @@ async def create_leave(
     reason: Optional[str],
     created_by: UUID,
     org_id: UUID,
+    requested_approver_id: Optional[UUID] = None,
+    leave_type_id: Optional[UUID] = None,
 ) -> Leave:
     await get_employee(db, employee_id)
+
+    # Phase 4.3: Calculate days count
+    days_count = (end_date - start_date).days + 1
+
+    # Phase 4.3: Quota check (BR#36) if leave_type_id provided
+    if leave_type_id:
+        from app.models.hr import LeaveBalance
+        from app.models.master import LeaveType as LeaveTypeModel
+        lt_result = await db.execute(
+            select(LeaveTypeModel).where(LeaveTypeModel.id == leave_type_id)
+        )
+        lt = lt_result.scalar_one_or_none()
+        if not lt:
+            raise HTTPException(status_code=404, detail="Leave type not found")
+
+        if lt.default_quota is not None:
+            current_year = start_date.year
+            bal_result = await db.execute(
+                select(LeaveBalance).where(
+                    LeaveBalance.employee_id == employee_id,
+                    LeaveBalance.leave_type_id == leave_type_id,
+                    LeaveBalance.year == current_year,
+                )
+            )
+            balance = bal_result.scalar_one_or_none()
+            if not balance:
+                # Auto-create balance with default quota
+                balance = LeaveBalance(
+                    employee_id=employee_id,
+                    leave_type_id=leave_type_id,
+                    year=current_year,
+                    quota=lt.default_quota,
+                    used=0,
+                    org_id=org_id,
+                )
+                db.add(balance)
+                await db.flush()
+
+            remaining = balance.quota - balance.used
+            if days_count > remaining:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"ลาเกินโควต้า: เหลือ {remaining} วัน แต่ขอลา {days_count} วัน (BR#36)",
+                )
 
     leave = Leave(
         employee_id=employee_id,
         leave_type=leave_type,
+        leave_type_id=leave_type_id,
         start_date=start_date,
         end_date=end_date,
+        days_count=days_count,
         reason=reason,
         created_by=created_by,
         org_id=org_id,
+        requested_approver_id=requested_approver_id,
     )
     db.add(leave)
+    await db.flush()
+
+    # Phase 4.3: Increment used in leave balance
+    if leave_type_id:
+        from app.models.hr import LeaveBalance
+        current_year = start_date.year
+        bal_result = await db.execute(
+            select(LeaveBalance).where(
+                LeaveBalance.employee_id == employee_id,
+                LeaveBalance.leave_type_id == leave_type_id,
+                LeaveBalance.year == current_year,
+            )
+        )
+        balance = bal_result.scalar_one_or_none()
+        if balance:
+            balance.used += days_count
+
     await db.commit()
     await db.refresh(leave)
     return leave
@@ -412,8 +488,11 @@ async def list_leaves(
     limit: int = 20,
     offset: int = 0,
     employee_id: Optional[UUID] = None,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list[Leave], int]:
     query = select(Leave)
+    if org_id:
+        query = query.where(Leave.org_id == org_id)
     if employee_id:
         query = query.where(Leave.employee_id == employee_id)
 
@@ -455,6 +534,327 @@ async def approve_leave(
 
 
 # ============================================================
+# STANDARD TIMESHEET + BATCH  (Phase 4.4 — Timesheet Redesign)
+# ============================================================
+
+async def list_standard_timesheets(
+    db: AsyncSession,
+    *,
+    employee_id: Optional[UUID] = None,
+    period_start: Optional[date] = None,
+    period_end: Optional[date] = None,
+) -> tuple[list, int]:
+    from app.models.hr import StandardTimesheet
+    query = select(StandardTimesheet)
+    if employee_id:
+        query = query.where(StandardTimesheet.employee_id == employee_id)
+    if period_start:
+        query = query.where(StandardTimesheet.work_date >= period_start)
+    if period_end:
+        query = query.where(StandardTimesheet.work_date <= period_end)
+
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    query = query.order_by(StandardTimesheet.work_date.asc())
+    result = await db.execute(query)
+    items = list(result.scalars().all())
+    return items, total
+
+
+async def generate_standard_timesheets(
+    db: AsyncSession,
+    *,
+    employee_id: Optional[UUID] = None,
+    period_start: date,
+    period_end: date,
+    org_id: UUID,
+) -> int:
+    """
+    Auto-generate StandardTimesheet records for working days.
+    Checks approved leaves and marks days accordingly.
+    Returns count of records created.
+    """
+    from app.models.hr import DayStatus, StandardTimesheet, LeaveBalance
+    from app.models.master import LeaveType as LeaveTypeModel
+    from app.models.organization import OrgWorkConfig
+
+    # Get org work config
+    wc_result = await db.execute(
+        select(OrgWorkConfig).where(OrgWorkConfig.org_id == org_id)
+    )
+    work_config = wc_result.scalar_one_or_none()
+    working_days = work_config.working_days if work_config else [1, 2, 3, 4, 5, 6]
+    hours_per_day = work_config.hours_per_day if work_config else Decimal("8.00")
+
+    # Get employees
+    emp_query = select(Employee).where(Employee.is_active == True)
+    if employee_id:
+        emp_query = emp_query.where(Employee.id == employee_id)
+    emp_result = await db.execute(emp_query)
+    employees = list(emp_result.scalars().all())
+
+    # Get approved leaves in the period
+    leave_query = select(Leave).where(
+        Leave.status == LeaveStatus.APPROVED,
+        Leave.start_date <= period_end,
+        Leave.end_date >= period_start,
+    )
+    if employee_id:
+        leave_query = leave_query.where(Leave.employee_id == employee_id)
+    leave_result = await db.execute(leave_query)
+    all_leaves = list(leave_result.scalars().all())
+
+    # Build leave lookup: {(employee_id, date): leave}
+    leave_map = {}
+    for lv in all_leaves:
+        d = max(lv.start_date, period_start)
+        end = min(lv.end_date, period_end)
+        while d <= end:
+            leave_map[(lv.employee_id, d)] = lv
+            d += timedelta(days=1)
+
+    # Get leave type info for paid/unpaid determination
+    leave_type_map = {}
+    if all_leaves:
+        lt_ids = {lv.leave_type_id for lv in all_leaves if lv.leave_type_id}
+        if lt_ids:
+            lt_result = await db.execute(
+                select(LeaveTypeModel).where(LeaveTypeModel.id.in_(lt_ids))
+            )
+            for lt in lt_result.scalars().all():
+                leave_type_map[lt.id] = lt
+
+    created_count = 0
+    current_date = period_start
+    while current_date <= period_end:
+        # Check if this day is a working day (isoweekday: 1=Mon..7=Sun)
+        iso_weekday = current_date.isoweekday()
+
+        for emp in employees:
+            # Check if record already exists
+            existing = await db.execute(
+                select(StandardTimesheet).where(
+                    StandardTimesheet.employee_id == emp.id,
+                    StandardTimesheet.work_date == current_date,
+                )
+            )
+            if existing.scalar_one_or_none():
+                continue
+
+            leave = leave_map.get((emp.id, current_date))
+
+            if iso_weekday not in working_days:
+                # Non-working day (e.g. Sunday) — skip unless there's a leave record
+                if not leave:
+                    continue
+                # Holiday/non-working day with leave — still create record
+                actual_status = DayStatus.HOLIDAY
+                scheduled_hours = Decimal("0.00")
+                leave_ref = None
+            elif leave:
+                # Working day with approved leave
+                lt = leave_type_map.get(leave.leave_type_id) if leave.leave_type_id else None
+                if lt and not lt.is_paid:
+                    actual_status = DayStatus.LEAVE_UNPAID
+                    scheduled_hours = Decimal("0.00")
+                else:
+                    actual_status = DayStatus.LEAVE_PAID
+                    scheduled_hours = hours_per_day
+                leave_ref = leave.id
+            else:
+                # Normal working day
+                actual_status = DayStatus.WORK
+                scheduled_hours = hours_per_day
+                leave_ref = None
+
+            st = StandardTimesheet(
+                employee_id=emp.id,
+                work_date=current_date,
+                scheduled_hours=scheduled_hours,
+                actual_status=actual_status,
+                leave_id=leave_ref,
+                org_id=org_id,
+            )
+            db.add(st)
+            created_count += 1
+
+        current_date += timedelta(days=1)
+
+    await db.commit()
+    return created_count
+
+
+async def create_timesheet_batch(
+    db: AsyncSession,
+    *,
+    employee_id: UUID,
+    work_date: date,
+    entries: list[dict],
+    created_by: UUID,
+    org_id: UUID,
+    requested_approver_id: Optional[UUID] = None,
+) -> list[Timesheet]:
+    """
+    Create multiple WO time entries for a single employee on a single date.
+    Validates total hours, WO status, and overlaps.
+    """
+    emp = await get_employee(db, employee_id)
+
+    # BR#19: Lock period
+    today = date.today()
+    if (today - work_date).days > LOCK_PERIOD_DAYS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Cannot create timesheet older than {LOCK_PERIOD_DAYS} days (BR#19)",
+        )
+
+    # BR#39: Check if employee is on leave this day
+    from app.models.hr import StandardTimesheet, DayStatus
+    std_result = await db.execute(
+        select(StandardTimesheet).where(
+            StandardTimesheet.employee_id == employee_id,
+            StandardTimesheet.work_date == work_date,
+            StandardTimesheet.actual_status.in_([DayStatus.LEAVE_PAID, DayStatus.LEAVE_UNPAID]),
+        )
+    )
+    if std_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="วันนี้คุณลา ไม่สามารถกรอก WO Time Entry ได้ (BR#39)",
+        )
+
+    # Calculate total hours from existing entries for this day
+    existing_hours_result = await db.execute(
+        select(func.coalesce(func.sum(Timesheet.regular_hours), 0)).where(
+            Timesheet.employee_id == employee_id,
+            Timesheet.work_date == work_date,
+        )
+    )
+    existing_regular = existing_hours_result.scalar() or Decimal("0")
+
+    # Sum new regular hours
+    new_regular_total = sum(Decimal(str(e.get("regular_hours", 0))) for e in entries)
+    total_regular = existing_regular + new_regular_total
+
+    # BR#20: Regular hours per day check
+    if total_regular > emp.daily_working_hours:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"ชั่วโมงปกติรวม ({total_regular}) เกินกำหนด {emp.daily_working_hours} ชม./วัน (BR#20)",
+        )
+
+    created = []
+    for entry in entries:
+        wo_id = entry["work_order_id"]
+        regular_hours = Decimal(str(entry.get("regular_hours", 0)))
+        ot_hours = Decimal(str(entry.get("ot_hours", 0)))
+        ot_type_id = entry.get("ot_type_id")
+        note = entry.get("note")
+
+        # Validate WO is OPEN
+        wo_result = await db.execute(
+            select(WorkOrder).where(WorkOrder.id == wo_id)
+        )
+        wo = wo_result.scalar_one_or_none()
+        if not wo:
+            raise HTTPException(status_code=404, detail=f"Work order {wo_id} not found")
+        if wo.status != WOStatus.OPEN:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Work order {wo_id} is not OPEN",
+            )
+
+        # BR#18: No duplicate for same employee/WO/date
+        overlap = await db.execute(
+            select(Timesheet).where(
+                Timesheet.employee_id == employee_id,
+                Timesheet.work_order_id == wo_id,
+                Timesheet.work_date == work_date,
+            )
+        )
+        if overlap.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Timesheet already exists for WO {wo_id} on {work_date} (BR#18)",
+            )
+
+        # Validate OT type
+        if ot_type_id:
+            ot_result = await db.execute(
+                select(OTType).where(OTType.id == ot_type_id, OTType.is_active == True)
+            )
+            if not ot_result.scalar_one_or_none():
+                raise HTTPException(status_code=404, detail="OT type not found")
+
+        ts = Timesheet(
+            employee_id=employee_id,
+            work_order_id=wo_id,
+            work_date=work_date,
+            regular_hours=regular_hours,
+            ot_hours=ot_hours,
+            ot_type_id=ot_type_id,
+            note=note,
+            created_by=created_by,
+            status=TimesheetStatus.DRAFT,
+            org_id=org_id,
+            requested_approver_id=requested_approver_id,
+        )
+        db.add(ts)
+        created.append(ts)
+
+    await db.commit()
+    for ts in created:
+        await db.refresh(ts)
+    return created
+
+
+# ============================================================
+# LEAVE BALANCE  (Phase 4.3 — BR#36)
+# ============================================================
+
+async def list_leave_balances(
+    db: AsyncSession,
+    *,
+    employee_id: Optional[UUID] = None,
+    year: Optional[int] = None,
+) -> list:
+    from app.models.hr import LeaveBalance
+    query = select(LeaveBalance)
+    if employee_id:
+        query = query.where(LeaveBalance.employee_id == employee_id)
+    if year:
+        query = query.where(LeaveBalance.year == year)
+    query = query.order_by(LeaveBalance.year.desc())
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
+async def update_leave_balance(
+    db: AsyncSession,
+    balance_id: UUID,
+    *,
+    update_data: dict,
+) -> "LeaveBalance":
+    from app.models.hr import LeaveBalance
+    result = await db.execute(
+        select(LeaveBalance).where(LeaveBalance.id == balance_id)
+    )
+    balance = result.scalar_one_or_none()
+    if not balance:
+        raise HTTPException(status_code=404, detail="Leave balance not found")
+
+    for field, value in update_data.items():
+        if value is not None:
+            setattr(balance, field, value)
+
+    await db.commit()
+    await db.refresh(balance)
+    return balance
+
+
+# ============================================================
 # PAYROLL
 # ============================================================
 
@@ -483,8 +883,11 @@ async def list_payroll_runs(
     *,
     limit: int = 20,
     offset: int = 0,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list[PayrollRun], int]:
     query = select(PayrollRun)
+    if org_id:
+        query = query.where(PayrollRun.org_id == org_id)
     count_query = select(func.count()).select_from(query.subquery())
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0

@@ -7,6 +7,7 @@ export default function POFormModal({ open, onClose, onSuccess }) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState([]);
+  const [approvers, setApprovers] = useState([]);
   const [lines, setLines] = useState([]);
   const { message } = App.useApp();
 
@@ -14,9 +15,13 @@ export default function POFormModal({ open, onClose, onSuccess }) {
     if (open) {
       form.resetFields();
       setLines([{ key: Date.now(), product_id: undefined, quantity: 1, unit_cost: 0 }]);
-      api.get('/api/inventory/products', { params: { limit: 500, offset: 0 } })
-        .then((r) => setProducts(r.data.items))
-        .catch(() => {});
+      Promise.all([
+        api.get('/api/inventory/products', { params: { limit: 500, offset: 0 } }),
+        api.get('/api/admin/approvers', { params: { module: 'purchasing.po' } }),
+      ]).then(([prodRes, appRes]) => {
+        setProducts(prodRes.data.items);
+        setApprovers(appRes.data);
+      }).catch(() => {});
     }
   }, [open]);
 
@@ -106,6 +111,13 @@ export default function POFormModal({ open, onClose, onSuccess }) {
         </Space>
         <Form.Item name="note" label={'\u0E2B\u0E21\u0E32\u0E22\u0E40\u0E2B\u0E15\u0E38'}>
           <Input.TextArea rows={2} />
+        </Form.Item>
+        <Form.Item name="requested_approver_id" label={'\u0E1C\u0E39\u0E49\u0E2D\u0E19\u0E38\u0E21\u0E31\u0E15\u0E34'}>
+          <Select
+            showSearch optionFilterProp="label" allowClear
+            placeholder={'\u0E40\u0E25\u0E37\u0E2D\u0E01\u0E1C\u0E39\u0E49\u0E2D\u0E19\u0E38\u0E21\u0E31\u0E15\u0E34'}
+            options={approvers.map((a) => ({ value: a.id, label: a.full_name }))}
+          />
         </Form.Item>
       </Form>
       <div style={{ marginTop: 16 }}>

@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
+from app.core.config import DEFAULT_ORG_ID, get_settings
 from app.core.database import get_db
 from app.core.security import (
     create_access_token,
@@ -49,8 +49,13 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
             detail="Invalid email or password",
         )
 
-    # Create tokens
-    token_data = {"sub": str(user.id), "role": user.role, "email": user.email}
+    # Create tokens (include org_id for multi-tenant filtering)
+    token_data = {
+        "sub": str(user.id),
+        "role": user.role,
+        "email": user.email,
+        "org_id": str(user.org_id) if user.org_id else str(DEFAULT_ORG_ID),
+    }
     access_token = create_access_token(token_data)
     refresh_token = create_refresh_token(token_data)
 
@@ -101,8 +106,13 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
-    # Create new tokens
-    token_data = {"sub": str(user.id), "role": user.role, "email": user.email}
+    # Create new tokens (include org_id for multi-tenant filtering)
+    token_data = {
+        "sub": str(user.id),
+        "role": user.role,
+        "email": user.email,
+        "org_id": str(user.org_id) if user.org_id else str(DEFAULT_ORG_ID),
+    }
     new_access = create_access_token(token_data)
     new_refresh = create_refresh_token(token_data)
 

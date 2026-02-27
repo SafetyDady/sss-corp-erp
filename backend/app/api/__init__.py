@@ -11,6 +11,8 @@ from app.api.purchasing import purchasing_router
 from app.api.sales import sales_router
 from app.api.finance import finance_router
 from app.api.admin import admin_router
+from app.api.planning import master_plan_router, planning_router
+from app.api.setup import router as setup_router
 
 all_routers = [
     auth_router,
@@ -27,4 +29,7 @@ all_routers = [
     sales_router,
     finance_router,
     admin_router,
+    master_plan_router,
+    planning_router,
+    setup_router,
 ]

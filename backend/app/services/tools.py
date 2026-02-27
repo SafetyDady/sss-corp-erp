@@ -56,10 +56,11 @@ async def create_tool(
     return tool
 
 
-async def get_tool(db: AsyncSession, tool_id: UUID) -> Tool:
-    result = await db.execute(
-        select(Tool).where(Tool.id == tool_id, Tool.is_active == True)
-    )
+async def get_tool(db: AsyncSession, tool_id: UUID, *, org_id: Optional[UUID] = None) -> Tool:
+    query = select(Tool).where(Tool.id == tool_id, Tool.is_active == True)
+    if org_id:
+        query = query.where(Tool.org_id == org_id)
+    result = await db.execute(query)
     tool = result.scalar_one_or_none()
     if not tool:
         raise HTTPException(status_code=404, detail="Tool not found")
@@ -72,8 +73,11 @@ async def list_tools(
     limit: int = 20,
     offset: int = 0,
     search: Optional[str] = None,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list[Tool], int]:
     query = select(Tool).where(Tool.is_active == True)
+    if org_id:
+        query = query.where(Tool.org_id == org_id)
 
     if search:
         pattern = f"%{search}%"
@@ -224,8 +228,11 @@ async def list_tool_checkouts(
     *,
     limit: int = 20,
     offset: int = 0,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list[ToolCheckout], int]:
     query = select(ToolCheckout).where(ToolCheckout.tool_id == tool_id)
+    if org_id:
+        query = query.where(ToolCheckout.org_id == org_id)
 
     count_query = select(func.count()).select_from(query.subquery())
     total_result = await db.execute(count_query)

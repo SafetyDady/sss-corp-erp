@@ -1,6 +1,8 @@
 """
 SSS Corp ERP — HR Models
 Phase 2: Employee, Timesheet, Leave, PayrollRun
+Phase 4.1: Employee + department_id, supervisor_id, pay_type, daily_rate, monthly_salary
+Phase 4.3: LeaveBalance + Leave upgrade (leave_type_id, days_count)
 
 Business Rules:
   BR#15 — ManHour Cost = Σ((Regular + OT × Factor) × Rate)
@@ -64,6 +66,20 @@ class PayrollStatus(str, enum.Enum):
     EXPORTED = "EXPORTED"
 
 
+class PayType(str, enum.Enum):
+    DAILY = "DAILY"
+    MONTHLY = "MONTHLY"
+
+
+class DayStatus(str, enum.Enum):
+    """Actual status for a standard timesheet day."""
+    WORK = "WORK"
+    LEAVE_PAID = "LEAVE_PAID"
+    LEAVE_UNPAID = "LEAVE_UNPAID"
+    ABSENT = "ABSENT"
+    HOLIDAY = "HOLIDAY"
+
+
 # ============================================================
 # EMPLOYEE
 # ============================================================
@@ -71,7 +87,11 @@ class PayrollStatus(str, enum.Enum):
 class Employee(Base, TimestampMixin, OrgMixin):
     """
     Employee with hourly rate for job costing.
-    Links to user account (optional) and cost center.
+    Links to user account (optional), cost center, department, and supervisor.
+
+    Pay types:
+      DAILY   — daily_rate × days worked, hourly_rate = daily_rate / hours_per_day
+      MONTHLY — monthly_salary fixed, hourly_rate = monthly_salary / (working_days × hours_per_day)
     """
     __tablename__ = "employees"
 
@@ -99,6 +119,29 @@ class Employee(Base, TimestampMixin, OrgMixin):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Phase 4.1: Department + chain-of-command
+    department_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("departments.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    supervisor_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("employees.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    # Phase 4.1: Pay type (daily rate vs monthly salary)
+    pay_type: Mapped[PayType] = mapped_column(
+        Enum(PayType, name="pay_type_enum"),
+        nullable=False,
+        default=PayType.DAILY,
+    )
+    daily_rate: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2), nullable=True
+    )
+    monthly_salary: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2), nullable=True
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     __table_args__ = (
@@ -108,6 +151,10 @@ class Employee(Base, TimestampMixin, OrgMixin):
             "daily_working_hours > 0 AND daily_working_hours <= 24",
             name="ck_employee_daily_hours_range",
         ),
+        CheckConstraint("daily_rate IS NULL OR daily_rate >= 0", name="ck_employee_daily_rate_positive"),
+        CheckConstraint("monthly_salary IS NULL OR monthly_salary >= 0", name="ck_employee_monthly_salary_positive"),
+        Index("ix_employees_department", "department_id"),
+        Index("ix_employees_supervisor", "supervisor_id"),
     )
 
     def __repr__(self) -> str:
@@ -167,6 +214,12 @@ class Timesheet(Base, TimestampMixin, OrgMixin):
     final_approved_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
     )
+    # Phase 4.2: Approval flow — requested approver
+    requested_approver_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     is_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     __table_args__ = (
@@ -196,8 +249,15 @@ class Leave(Base, TimestampMixin, OrgMixin):
         nullable=False,
     )
     leave_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    # Phase 4.3: FK to leave_types (nullable for backward compat)
+    leave_type_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("leave_types.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    days_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[LeaveStatus] = mapped_column(
         Enum(LeaveStatus, name="leave_status_enum"),
@@ -212,6 +272,12 @@ class Leave(Base, TimestampMixin, OrgMixin):
     approved_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
     )
+    # Phase 4.2: Approval flow — requested approver
+    requested_approver_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     __table_args__ = (
         CheckConstraint("end_date >= start_date", name="ck_leave_date_range"),
@@ -220,6 +286,45 @@ class Leave(Base, TimestampMixin, OrgMixin):
 
     def __repr__(self) -> str:
         return f"<Leave emp={self.employee_id} {self.leave_type} {self.status.value}>"
+
+
+# ============================================================
+# LEAVE BALANCE  (Phase 4.3 — BR#36)
+# ============================================================
+
+class LeaveBalance(Base, TimestampMixin, OrgMixin):
+    """
+    Per-employee per-leave-type per-year quota tracking.
+    BR#36: Cannot take leave exceeding quota.
+    """
+    __tablename__ = "leave_balances"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    employee_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("employees.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    leave_type_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("leave_types.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    quota: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        UniqueConstraint("employee_id", "leave_type_id", "year", name="uq_leave_balance_emp_type_year"),
+        CheckConstraint("quota >= 0", name="ck_leave_balance_quota_positive"),
+        CheckConstraint("used >= 0", name="ck_leave_balance_used_positive"),
+        Index("ix_leave_balances_employee", "employee_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<LeaveBalance emp={self.employee_id} year={self.year} used={self.used}/{self.quota}>"
 
 
 # ============================================================
@@ -258,3 +363,48 @@ class PayrollRun(Base, TimestampMixin, OrgMixin):
 
     def __repr__(self) -> str:
         return f"<PayrollRun {self.period_start}~{self.period_end} {self.status.value}>"
+
+
+# ============================================================
+# STANDARD TIMESHEET  (Phase 4.4 — auto-generated per day)
+# ============================================================
+
+class StandardTimesheet(Base, TimestampMixin, OrgMixin):
+    """
+    Auto-generated daily attendance record for each employee.
+    Used for payroll — tracks whether employee worked, was on leave, absent, etc.
+    WO-specific time entries remain in the Timesheet (WO Time Entry) model.
+    """
+    __tablename__ = "standard_timesheets"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    employee_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("employees.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    work_date: Mapped[date] = mapped_column(Date, nullable=False)
+    scheduled_hours: Mapped[Decimal] = mapped_column(
+        Numeric(4, 2), nullable=False, default=Decimal("8.00")
+    )
+    actual_status: Mapped[DayStatus] = mapped_column(
+        Enum(DayStatus, name="day_status_enum"),
+        nullable=False,
+        default=DayStatus.WORK,
+    )
+    leave_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("leaves.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    __table_args__ = (
+        UniqueConstraint("employee_id", "work_date", name="uq_std_timesheet_emp_date"),
+        CheckConstraint("scheduled_hours >= 0", name="ck_std_timesheet_hours_positive"),
+        Index("ix_std_timesheets_employee_date", "employee_id", "work_date"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<StandardTimesheet emp={self.employee_id} date={self.work_date} {self.actual_status.value}>"

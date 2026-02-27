@@ -60,10 +60,12 @@ async def api_list_work_orders(
     search: Optional[str] = Query(default=None, max_length=100),
     status: Optional[str] = Query(default=None, pattern=r"^(DRAFT|OPEN|CLOSED)$"),
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """List work orders with pagination, search, and status filter."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     items, total = await list_work_orders(
-        db, limit=limit, offset=offset, search=search, wo_status=status
+        db, limit=limit, offset=offset, search=search, wo_status=status, org_id=org_id
     )
     return WorkOrderListResponse(items=items, total=total, limit=limit, offset=offset)
 
@@ -90,6 +92,7 @@ async def api_create_work_order(
         cost_center_code=body.cost_center_code,
         created_by=user_id,
         org_id=org_id,
+        requested_approver_id=body.requested_approver_id,
     )
 
 
@@ -101,9 +104,11 @@ async def api_create_work_order(
 async def api_get_work_order(
     wo_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Get a single work order by ID."""
-    return await get_work_order(db, wo_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await get_work_order(db, wo_id, org_id=org_id)
 
 
 @workorder_router.put(

@@ -61,11 +61,12 @@ async def create_warehouse(
     return warehouse
 
 
-async def get_warehouse(db: AsyncSession, warehouse_id: UUID) -> Warehouse:
+async def get_warehouse(db: AsyncSession, warehouse_id: UUID, *, org_id: Optional[UUID] = None) -> Warehouse:
     """Get a single warehouse by ID."""
-    result = await db.execute(
-        select(Warehouse).where(Warehouse.id == warehouse_id, Warehouse.is_active == True)
-    )
+    query = select(Warehouse).where(Warehouse.id == warehouse_id, Warehouse.is_active == True)
+    if org_id:
+        query = query.where(Warehouse.org_id == org_id)
+    result = await db.execute(query)
     warehouse = result.scalar_one_or_none()
     if not warehouse:
         raise HTTPException(
@@ -81,9 +82,12 @@ async def list_warehouses(
     limit: int = 20,
     offset: int = 0,
     search: Optional[str] = None,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list[Warehouse], int]:
     """List warehouses with pagination and search."""
     query = select(Warehouse).where(Warehouse.is_active == True)
+    if org_id:
+        query = query.where(Warehouse.org_id == org_id)
 
     if search:
         pattern = f"%{search}%"
@@ -225,11 +229,12 @@ async def create_location(
     return location
 
 
-async def get_location(db: AsyncSession, location_id: UUID) -> Location:
+async def get_location(db: AsyncSession, location_id: UUID, *, org_id: Optional[UUID] = None) -> Location:
     """Get a single location by ID."""
-    result = await db.execute(
-        select(Location).where(Location.id == location_id, Location.is_active == True)
-    )
+    query = select(Location).where(Location.id == location_id, Location.is_active == True)
+    if org_id:
+        query = query.where(Location.org_id == org_id)
+    result = await db.execute(query)
     location = result.scalar_one_or_none()
     if not location:
         raise HTTPException(
@@ -246,9 +251,12 @@ async def list_locations(
     offset: int = 0,
     warehouse_id: Optional[UUID] = None,
     search: Optional[str] = None,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list[Location], int]:
     """List locations with pagination, warehouse filter, and search."""
     query = select(Location).where(Location.is_active == True)
+    if org_id:
+        query = query.where(Location.org_id == org_id)
 
     if warehouse_id:
         query = query.where(Location.warehouse_id == warehouse_id)

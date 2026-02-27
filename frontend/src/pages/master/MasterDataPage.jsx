@@ -1,10 +1,12 @@
 import { Tabs } from 'antd';
-import { Building2, Layers, Clock } from 'lucide-react';
+import { Building2, Layers, Clock, Network, CalendarOff } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import { usePermission } from '../../hooks/usePermission';
 import CostCenterTab from './CostCenterTab';
 import CostElementTab from './CostElementTab';
 import OTTypeTab from './OTTypeTab';
+import DepartmentTab from './DepartmentTab';
+import LeaveTypeTab from './LeaveTypeTab';
 import { COLORS } from '../../utils/constants';
 
 const tabLabel = (Icon, text) => (
@@ -17,6 +19,11 @@ export default function MasterDataPage() {
   const { can } = usePermission();
 
   const items = [
+    can('master.department.read') && {
+      key: 'departments',
+      label: tabLabel(Network, 'แผนก'),
+      children: <DepartmentTab />,
+    },
     can('master.costcenter.read') && {
       key: 'cost-centers',
       label: tabLabel(Building2, 'ศูนย์ต้นทุน'),
@@ -32,13 +39,18 @@ export default function MasterDataPage() {
       label: tabLabel(Clock, 'ประเภท OT'),
       children: <OTTypeTab />,
     },
+    can('master.leavetype.read') && {
+      key: 'leave-types',
+      label: tabLabel(CalendarOff, 'ประเภทลา'),
+      children: <LeaveTypeTab />,
+    },
   ].filter(Boolean);
 
   return (
     <div>
       <PageHeader
         title="Master Data"
-        subtitle="ข้อมูลหลัก — ศูนย์ต้นทุน, องค์ประกอบต้นทุน, ประเภท OT"
+        subtitle="ข้อมูลหลัก — แผนก, ศูนย์ต้นทุน, องค์ประกอบต้นทุน, ประเภท OT, ประเภทลา"
       />
       {items.length > 0 ? (
         <Tabs defaultActiveKey={items[0]?.key} items={items} />

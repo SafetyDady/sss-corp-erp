@@ -67,9 +67,11 @@ async def api_list_warehouses(
     offset: int = Query(default=0, ge=0),
     search: Optional[str] = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """List warehouses with pagination and search."""
-    items, total = await list_warehouses(db, limit=limit, offset=offset, search=search)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    items, total = await list_warehouses(db, limit=limit, offset=offset, search=search, org_id=org_id)
     return WarehouseListResponse(items=items, total=total, limit=limit, offset=offset)
 
 
@@ -105,9 +107,11 @@ async def api_create_warehouse(
 async def api_get_warehouse(
     warehouse_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Get a single warehouse by ID."""
-    return await get_warehouse(db, warehouse_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await get_warehouse(db, warehouse_id, org_id=org_id)
 
 
 @warehouse_router.put(
@@ -153,10 +157,12 @@ async def api_list_locations(
     warehouse_id: Optional[UUID] = Query(default=None),
     search: Optional[str] = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """List locations with pagination, warehouse filter, and search."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     items, total = await list_locations(
-        db, limit=limit, offset=offset, warehouse_id=warehouse_id, search=search
+        db, limit=limit, offset=offset, warehouse_id=warehouse_id, search=search, org_id=org_id
     )
     return LocationListResponse(items=items, total=total, limit=limit, offset=offset)
 
@@ -194,9 +200,11 @@ async def api_create_location(
 async def api_get_location(
     location_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Get a single location by ID."""
-    return await get_location(db, location_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await get_location(db, location_id, org_id=org_id)
 
 
 @warehouse_router.put(

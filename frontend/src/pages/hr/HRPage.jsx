@@ -1,9 +1,11 @@
 import { Tabs } from 'antd';
-import { Users, Clock, CalendarDays, Banknote } from 'lucide-react';
+import { Users, Clock, CalendarDays, Banknote, ClipboardList, CalendarCheck } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import { usePermission } from '../../hooks/usePermission';
 import EmployeeTab from './EmployeeTab';
 import TimesheetTab from './TimesheetTab';
+import WOTimeEntryForm from './WOTimeEntryForm';
+import StandardTimesheetView from './StandardTimesheetView';
 import LeaveTab from './LeaveTab';
 import PayrollTab from './PayrollTab';
 import { COLORS } from '../../utils/constants';
@@ -27,6 +29,16 @@ export default function HRPage() {
       key: 'timesheet',
       label: tabLabel(Clock, 'Timesheet'),
       children: <TimesheetTab />,
+    },
+    can('hr.timesheet.create') && {
+      key: 'wo-time-entry',
+      label: tabLabel(ClipboardList, 'กรอกชั่วโมง WO'),
+      children: <WOTimeEntryForm />,
+    },
+    can('hr.timesheet.read') && {
+      key: 'standard-timesheet',
+      label: tabLabel(CalendarCheck, 'Standard Timesheet'),
+      children: <StandardTimesheetView />,
     },
     can('hr.leave.read') && {
       key: 'leave',

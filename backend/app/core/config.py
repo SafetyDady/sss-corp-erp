@@ -27,7 +27,19 @@ class Settings(BaseSettings):
     # App
     ENVIRONMENT: str = "development"
     APP_NAME: str = "SSS Corp ERP"
-    APP_VERSION: str = "0.1.0"
+    APP_VERSION: str = "1.0.0"
+
+    # Sentry (monitoring — optional)
+    SENTRY_DSN: str = ""
+
+    # Email (Phase 4.6 — disabled by default)
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    EMAIL_FROM: str = "noreply@sss-corp.com"
+    EMAIL_ENABLED: bool = False
+    FRONTEND_URL: str = "http://localhost:5173"
 
     @property
     def cors_origins_list(self) -> list[str]:

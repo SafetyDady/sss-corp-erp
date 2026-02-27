@@ -57,6 +57,7 @@ async def create_work_order(
     cost_center_code: Optional[str],
     created_by: UUID,
     org_id: UUID,
+    requested_approver_id: Optional[UUID] = None,
 ) -> WorkOrder:
     """Create a new Work Order in DRAFT status with auto-generated wo_number."""
 
@@ -70,6 +71,7 @@ async def create_work_order(
         cost_center_code=cost_center_code,
         created_by=created_by,
         org_id=org_id,
+        requested_approver_id=requested_approver_id,
     )
     db.add(work_order)
     await db.commit()
@@ -77,11 +79,12 @@ async def create_work_order(
     return work_order
 
 
-async def get_work_order(db: AsyncSession, wo_id: UUID) -> WorkOrder:
+async def get_work_order(db: AsyncSession, wo_id: UUID, *, org_id: Optional[UUID] = None) -> WorkOrder:
     """Get a single work order by ID."""
-    result = await db.execute(
-        select(WorkOrder).where(WorkOrder.id == wo_id, WorkOrder.is_active == True)
-    )
+    query = select(WorkOrder).where(WorkOrder.id == wo_id, WorkOrder.is_active == True)
+    if org_id:
+        query = query.where(WorkOrder.org_id == org_id)
+    result = await db.execute(query)
     wo = result.scalar_one_or_none()
     if not wo:
         raise HTTPException(
@@ -98,9 +101,12 @@ async def list_work_orders(
     offset: int = 0,
     search: Optional[str] = None,
     wo_status: Optional[str] = None,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list[WorkOrder], int]:
     """List work orders with pagination, search, and status filter."""
     query = select(WorkOrder).where(WorkOrder.is_active == True)
+    if org_id:
+        query = query.where(WorkOrder.org_id == org_id)
 
     if search:
         pattern = f"%{search}%"

@@ -43,6 +43,7 @@ async def create_purchase_order(
     lines: list[dict],
     created_by: UUID,
     org_id: UUID,
+    requested_approver_id: Optional[UUID] = None,
 ) -> PurchaseOrder:
     po_number = await _next_po_number(db, org_id)
 
@@ -57,6 +58,7 @@ async def create_purchase_order(
         total_amount=total,
         created_by=created_by,
         org_id=org_id,
+        requested_approver_id=requested_approver_id,
     )
     db.add(po)
     await db.flush()
@@ -74,12 +76,15 @@ async def create_purchase_order(
     return await get_purchase_order(db, po.id)
 
 
-async def get_purchase_order(db: AsyncSession, po_id: UUID) -> PurchaseOrder:
-    result = await db.execute(
+async def get_purchase_order(db: AsyncSession, po_id: UUID, *, org_id: Optional[UUID] = None) -> PurchaseOrder:
+    query = (
         select(PurchaseOrder)
         .options(selectinload(PurchaseOrder.lines))
         .where(PurchaseOrder.id == po_id, PurchaseOrder.is_active == True)
     )
+    if org_id:
+        query = query.where(PurchaseOrder.org_id == org_id)
+    result = await db.execute(query)
     po = result.scalar_one_or_none()
     if not po:
         raise HTTPException(status_code=404, detail="Purchase order not found")
@@ -93,8 +98,11 @@ async def list_purchase_orders(
     offset: int = 0,
     search: Optional[str] = None,
     po_status: Optional[str] = None,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list[PurchaseOrder], int]:
     query = select(PurchaseOrder).where(PurchaseOrder.is_active == True)
+    if org_id:
+        query = query.where(PurchaseOrder.org_id == org_id)
 
     if search:
         pattern = f"%{search}%"

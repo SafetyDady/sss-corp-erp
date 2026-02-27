@@ -10,6 +10,11 @@ import EmployeeFormModal from './EmployeeFormModal';
 import { formatCurrency } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
 
+const PAY_TYPE_LABELS = {
+  DAILY: 'รายวัน',
+  MONTHLY: 'รายเดือน',
+};
+
 export default function EmployeeTab() {
   const { can } = usePermission();
   const { message } = App.useApp();
@@ -20,6 +25,27 @@ export default function EmployeeTab() {
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
+
+  // Lookup maps for display
+  const [departmentMap, setDepartmentMap] = useState({});
+  const [employeeMap, setEmployeeMap] = useState({});
+
+  const fetchLookups = useCallback(async () => {
+    try {
+      const [deptRes, empRes] = await Promise.all([
+        api.get('/api/master/departments', { params: { limit: 500, offset: 0 } }).catch(() => ({ data: { items: [] } })),
+        api.get('/api/hr/employees', { params: { limit: 500, offset: 0 } }),
+      ]);
+      const dMap = {};
+      (deptRes.data.items || []).forEach((d) => { dMap[d.id] = d; });
+      setDepartmentMap(dMap);
+      const eMap = {};
+      (empRes.data.items || []).forEach((e) => { eMap[e.id] = e; });
+      setEmployeeMap(eMap);
+    } catch {
+      // Silent fail
+    }
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -40,6 +66,7 @@ export default function EmployeeTab() {
     }
   }, [pagination.current, pagination.pageSize, search]);
 
+  useEffect(() => { fetchLookups(); }, [fetchLookups]);
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleDelete = async (id) => {
@@ -66,14 +93,34 @@ export default function EmployeeTab() {
       render: (v) => v ? <Tag>{v}</Tag> : <span style={{ color: COLORS.textMuted }}>-</span>,
     },
     {
-      title: 'อัตราค่าจ้าง/ชม.', dataIndex: 'hourly_rate', key: 'hourly_rate',
-      width: 150, align: 'right',
-      render: (v) => <span style={{ fontFamily: 'monospace' }}>{formatCurrency(v)}</span>,
+      title: 'แผนก', dataIndex: 'department_id', key: 'department_id',
+      render: (id) => {
+        const dept = departmentMap[id];
+        return dept ? <Tag color="cyan">{dept.name}</Tag> : <span style={{ color: COLORS.textMuted }}>-</span>;
+      },
     },
     {
-      title: 'ชม.ทำงาน/วัน', dataIndex: 'daily_working_hours', key: 'daily_working_hours',
-      width: 120, align: 'center',
-      render: (v) => `${v} ชม.`,
+      title: 'หัวหน้างาน', dataIndex: 'supervisor_id', key: 'supervisor_id',
+      render: (id) => {
+        const sup = employeeMap[id];
+        return sup ? sup.full_name : <span style={{ color: COLORS.textMuted }}>-</span>;
+      },
+    },
+    {
+      title: 'ประเภท', dataIndex: 'pay_type', key: 'pay_type', width: 100,
+      render: (v) => <Tag color={v === 'MONTHLY' ? 'blue' : 'green'}>{PAY_TYPE_LABELS[v] || v}</Tag>,
+    },
+    {
+      title: 'ค่าตอบแทน', key: 'pay_amount', width: 150, align: 'right',
+      render: (_, record) => {
+        if (record.pay_type === 'MONTHLY' && record.monthly_salary) {
+          return <span style={{ fontFamily: 'monospace' }}>{formatCurrency(record.monthly_salary)}/เดือน</span>;
+        }
+        if (record.pay_type === 'DAILY' && record.daily_rate) {
+          return <span style={{ fontFamily: 'monospace' }}>{formatCurrency(record.daily_rate)}/วัน</span>;
+        }
+        return <span style={{ fontFamily: 'monospace' }}>{formatCurrency(record.hourly_rate)}/ชม.</span>;
+      },
     },
     {
       title: 'สถานะ', dataIndex: 'is_active', key: 'is_active', width: 100,
@@ -139,12 +186,13 @@ export default function EmployeeTab() {
           showTotal: (t) => `ทั้งหมด ${t} รายการ`,
         }}
         size="middle"
+        scroll={{ x: 1100 }}
       />
       <EmployeeFormModal
         open={modalOpen}
         editItem={editItem}
         onClose={() => setModalOpen(false)}
-        onSuccess={() => { setModalOpen(false); fetchData(); }}
+        onSuccess={() => { setModalOpen(false); fetchData(); fetchLookups(); }}
       />
     </div>
   );

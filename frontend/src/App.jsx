@@ -4,7 +4,7 @@ import { App as AntApp, ConfigProvider, Layout, Menu, Button, Typography, Spin, 
 import {
   LayoutDashboard, Package, Warehouse, FileText, ShoppingCart,
   DollarSign, BarChart3, Users, Wrench, Database, Settings,
-  UserCheck, LogOut, User, ChevronLeft, ChevronRight,
+  UserCheck, LogOut, User, ChevronLeft, ChevronRight, CalendarRange,
 } from 'lucide-react';
 import useAuthStore from './stores/authStore';
 import { usePermission } from './hooks/usePermission';
@@ -34,6 +34,8 @@ const MasterDataPage = lazy(() => import('./pages/master/MasterDataPage'));
 const CustomerListPage = lazy(() => import('./pages/customer/CustomerListPage'));
 const FinancePage = lazy(() => import('./pages/finance/FinancePage'));
 const AdminPage = lazy(() => import('./pages/admin/AdminPage'));
+const PlanningPage = lazy(() => import('./pages/planning/PlanningPage'));
+const SetupWizardPage = lazy(() => import('./pages/setup/SetupWizardPage'));
 
 const MENU_ITEMS = [
   { key: '/', icon: <LayoutDashboard size={18} />, label: 'Dashboard', permission: null },
@@ -45,6 +47,7 @@ const MENU_ITEMS = [
   { key: '/hr', icon: <Users size={18} />, label: 'HR', permission: 'hr.timesheet.read' },
   { key: '/tools', icon: <Wrench size={18} />, label: 'Tools', permission: 'tools.tool.read' },
   { key: '/customers', icon: <UserCheck size={18} />, label: 'Customers', permission: 'customer.customer.read' },
+  { key: '/planning', icon: <CalendarRange size={18} />, label: 'Planning', permission: 'workorder.plan.read' },
   { key: '/master', icon: <Database size={18} />, label: 'Master Data', permission: 'master.costcenter.read' },
   { key: '/finance', icon: <BarChart3 size={18} />, label: 'Finance', permission: 'finance.report.read' },
   { key: '/admin', icon: <Settings size={18} />, label: 'Admin', permission: 'admin.user.read' },
@@ -183,6 +186,7 @@ function AppLayout() {
               <Route path="/master" element={<MasterDataPage />} />
               <Route path="/customers" element={<CustomerListPage />} />
               <Route path="/finance" element={<FinancePage />} />
+              <Route path="/planning" element={<PlanningPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
@@ -216,6 +220,7 @@ export default function App() {
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/setup" element={<SetupWizardPage />} />
               <Route
                 path="/*"
                 element={

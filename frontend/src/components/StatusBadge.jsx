@@ -25,6 +25,8 @@ const STATUS_CONFIG = {
   ANNUAL: { color: '#06b6d4' },
   SICK: { color: '#ef4444' },
   PERSONAL: { color: '#8b5cf6' },
+  RESERVED: { color: '#06b6d4' },
+  FULFILLED: { color: '#10b981' },
 };
 
 export default function StatusBadge({ status }) {

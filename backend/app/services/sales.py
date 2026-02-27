@@ -38,6 +38,7 @@ async def create_sales_order(
     lines: list[dict],
     created_by: UUID,
     org_id: UUID,
+    requested_approver_id: Optional[UUID] = None,
 ) -> SalesOrder:
     so_number = await _next_so_number(db, org_id)
 
@@ -51,6 +52,7 @@ async def create_sales_order(
         total_amount=total,
         created_by=created_by,
         org_id=org_id,
+        requested_approver_id=requested_approver_id,
     )
     db.add(so)
     await db.flush()
@@ -68,12 +70,15 @@ async def create_sales_order(
     return await get_sales_order(db, so.id)
 
 
-async def get_sales_order(db: AsyncSession, so_id: UUID) -> SalesOrder:
-    result = await db.execute(
+async def get_sales_order(db: AsyncSession, so_id: UUID, *, org_id: Optional[UUID] = None) -> SalesOrder:
+    query = (
         select(SalesOrder)
         .options(selectinload(SalesOrder.lines))
         .where(SalesOrder.id == so_id, SalesOrder.is_active == True)
     )
+    if org_id:
+        query = query.where(SalesOrder.org_id == org_id)
+    result = await db.execute(query)
     so = result.scalar_one_or_none()
     if not so:
         raise HTTPException(status_code=404, detail="Sales order not found")
@@ -87,8 +92,11 @@ async def list_sales_orders(
     offset: int = 0,
     search: Optional[str] = None,
     so_status: Optional[str] = None,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list[SalesOrder], int]:
     query = select(SalesOrder).where(SalesOrder.is_active == True)
+    if org_id:
+        query = query.where(SalesOrder.org_id == org_id)
 
     if search:
         pattern = f"%{search}%"

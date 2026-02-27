@@ -159,3 +159,47 @@ class OTTypeListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+# ============================================================
+# LEAVE TYPE SCHEMAS  (Phase 4.3)
+# ============================================================
+
+class LeaveTypeCreate(BaseModel):
+    code: str = Field(min_length=1, max_length=50)
+    name: str = Field(min_length=1, max_length=255)
+    is_paid: bool = True
+    default_quota: Optional[int] = Field(default=None, ge=0)
+
+    @field_validator("code")
+    @classmethod
+    def normalize_code(cls, v):
+        return v.strip().upper()
+
+
+class LeaveTypeUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    is_paid: Optional[bool] = None
+    default_quota: Optional[int] = Field(default=None, ge=0)
+    is_active: Optional[bool] = None
+
+
+class LeaveTypeResponse(BaseModel):
+    id: UUID
+    code: str
+    name: str
+    is_paid: bool
+    default_quota: Optional[int] = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class LeaveTypeListResponse(BaseModel):
+    items: list[LeaveTypeResponse]
+    total: int
+    limit: int
+    offset: int

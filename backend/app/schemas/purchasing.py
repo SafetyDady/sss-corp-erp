@@ -45,6 +45,7 @@ class PurchaseOrderCreate(BaseModel):
     order_date: date
     expected_date: Optional[date] = None
     note: Optional[str] = None
+    requested_approver_id: Optional[UUID] = None
     lines: list[POLineCreate] = Field(min_length=1)
 
 
@@ -65,6 +66,7 @@ class PurchaseOrderResponse(BaseModel):
     note: Optional[str] = None
     created_by: UUID
     approved_by: Optional[UUID] = None
+    requested_approver_id: Optional[UUID] = None
     is_active: bool
     lines: list[POLineResponse] = []
     created_at: datetime
