@@ -1,6 +1,6 @@
 # SSS Corp ERP — BUSINESS POLICY (Source of Truth)
 
-Updated: 2026-02-26 | Based on SmartERP Master Document v2
+Updated: 2026-02-27 | Based on SmartERP Master Document v2 + Phase 4 additions
 
 ---
 
@@ -63,8 +63,100 @@ WO Total Cost
 
 | Role | Permissions | Notes |
 |------|------------|-------|
-| owner | ALL 89 | Full access |
-| manager | ~52 | No admin.user.delete, no hr.payroll.execute |
-| supervisor | ~38 | Read/approve + limited create |
-| staff | ~22 | Read + own create (timesheet, leave, movement) |
-| viewer | ~9 | Read only, limited modules |
+| owner | ALL 105 | Full access (89 original + 16 Phase 4) |
+| manager | ~57 | No admin.*, no *.delete + planning create/update |
+| supervisor | ~41 | Read + approve + limited create + planning read |
+| staff | ~28 | Read + own create (timesheet, leave, movement) |
+| viewer | ~18 | Read + selected export only |
+
+### New Permissions (Phase 4 — 16 added)
+
+| Permission Group | Count | Details |
+|-----------------|:-----:|---------|
+| master.department.* | 4 | create / read / update / delete |
+| master.leavetype.* | 4 | create / read / update / delete |
+| admin.config.* | 2 | read / update (Org + Work + Approval config) |
+| workorder.plan.* | 4 | create / read / update / delete (Master + Daily Plan) |
+| workorder.reservation.* | 2 | create / read (Material + Tool reservation) |
+
+---
+
+## Business Rules — Phase 4 Additions (BR#36-46)
+
+### Leave Rules
+
+| # | Rule | Enforcement |
+|---|------|-------------|
+| 36 | ลาเกินโควต้าไม่ได้ (used + days_count <= quota) | Service check |
+| 37 | ลาได้เงิน → Timesheet วันนั้น = 8 ชม. ปกติ (payroll เต็ม) | Auto calc |
+| 38 | ลาไม่ได้เงิน → Timesheet วันนั้น = 0 ชม. (หัก payroll) | Auto calc |
+| 39 | วันลา → ห้ามกรอก WO Time Entry | Service check |
+
+### Planning Rules
+
+| # | Rule | Enforcement |
+|---|------|-------------|
+| 40 | Daily Plan — 1 คน : 1 WO ต่อวัน (conflict check) | DB UNIQUE + Service |
+| 41 | Daily Plan — 1 เครื่องมือ : 1 WO ต่อวัน (conflict check) | DB UNIQUE + Service |
+| 42 | Daily Plan — พนักงานลาวันนั้น จัดลงงานไม่ได้ | Service check |
+| 43 | Daily Plan — วางแผนล่วงหน้าได้ 14 วัน, แก้ไขได้ | Service check |
+| 44 | MaterialReservation — available = on_hand - SUM(reserved qty) | Service check |
+| 45 | ToolReservation — ห้ามจองซ้อนช่วงเดียวกัน | Service check |
+| 46 | WO Master Plan — 1 plan per WO | DB UNIQUE |
+
+---
+
+## Leave Types (Default)
+
+| Code | Name | Paid | Default Quota/year |
+|------|------|:----:|:------------------:|
+| ANNUAL | ลาพักร้อน | Yes | 6 |
+| SICK | ลาป่วย | Yes | 30 |
+| PERSONAL | ลากิจ | Yes | 3 |
+| MATERNITY | ลาคลอด | Yes | 98 |
+| UNPAID | ลาไม่ได้เงิน | No | unlimited |
+
+---
+
+## Approval Flow (Phase 4.2)
+
+```
+ทุก document ที่ต้อง approve:
+→ ผู้สร้างเลือก "ผู้อนุมัติ" (requested_approver_id) จาก dropdown
+→ Dropdown แสดงเฉพาะ user ที่มี permission *.approve ของ module นั้น
+→ Submit → status = SUBMITTED
+→ ผู้อนุมัติ approve / reject
+
+ถ้า OrgApprovalConfig.require_approval == false:
+→ auto set status = APPROVED (skip SUBMITTED)
+→ ซ่อน approver dropdown + approve button
+```
+
+Modules with approval: PO, SO, WO (close), Timesheet, Leave
+
+---
+
+## Planning Flow (Phase 4.5)
+
+```
+1. WO Master Plan — กำหนดแผนรวม (manpower, material, tool)
+   → 1 plan per WO, สร้างได้ตอน DRAFT
+2. Daily Plan — จัดคน/เครื่องมือ/วัสดุ ลง WO รายวัน
+   → Conflict check: 1 คน = 1 WO/วัน, 1 tool = 1 WO/วัน
+   → ถ้าพนักงานลาวันนั้น → จัดลงงานไม่ได้
+3. Reservation — จองวัสดุ/เครื่องมือล่วงหน้า
+   → Material: available = on_hand - SUM(reserved)
+   → Tool: ห้ามจองซ้อนช่วงเดียวกัน
+```
+
+---
+
+## Multi-tenant (Phase 4.7)
+
+```
+- org_id ใน JWT token payload
+- ทุก query ต้องมี .where(Model.org_id == org_id)
+- Setup Wizard: POST /api/setup (no auth, once-only)
+  → สร้าง Organization + Admin User (role=owner)
+  → Returns login tokens
+```

@@ -2,7 +2,7 @@
 
 > ไฟล์นี้เป็นส่วนเสริมของ CLAUDE.md — กำหนดแนวทาง UI ทั้งหมด
 > AI ต้องอ่านร่วมกับ CLAUDE.md เสมอ
-> อัปเดต: 2026-02-26 v4 — Synced with Frontend Implementation (45 pages, 54 files)
+> อัปเดต: 2026-02-27 v5 — Synced with Phase 4 (70+ pages, 20+ routes)
 
 ---
 
@@ -144,7 +144,7 @@ import StatusBadge from '../../components/StatusBadge';
 <StatusBadge status="APPROVED" />
 ```
 
-รองรับ status ทั้งหมด 28 ค่า:
+รองรับ status ทั้งหมด 30 ค่า:
 
 | Status | Color | Usage |
 |--------|-------|-------|
@@ -173,6 +173,8 @@ import StatusBadge from '../../components/StatusBadge';
 | ANNUAL | `#06b6d4` (accent) | Leave type |
 | SICK | `#ef4444` (danger) | Leave type |
 | PERSONAL | `#8b5cf6` (purple) | Leave type |
+| RESERVED | `#06b6d4` (accent) | Material/tool reservation (Phase 4.5) |
+| FULFILLED | `#10b981` (success) | Reservation fulfilled (Phase 4.5) |
 
 Badge style: `background: color + '18'` (10% opacity), `borderRadius: 6`, `fontSize: 11`, `fontWeight: 600`, `letterSpacing: 0.3`
 
@@ -208,7 +210,7 @@ import SearchInput from '../../components/SearchInput';
 
 ## Icon System — Lucide React
 
-### Module Icons (Sidebar — 12 items)
+### Module Icons (Sidebar — 13 items)
 
 | Module | Icon | Import | Route | Permission |
 |--------|------|--------|-------|-----------|
@@ -216,6 +218,7 @@ import SearchInput from '../../components/SearchInput';
 | Inventory | Package | `Package` | `/inventory` | `inventory.product.read` |
 | Warehouse | Warehouse | `Warehouse` | `/warehouse` | `warehouse.warehouse.read` |
 | Work Orders | FileText | `FileText` | `/work-orders` | `workorder.order.read` |
+| Planning | CalendarRange | `CalendarRange` | `/planning` | `workorder.plan.read` |
 | Purchasing | ShoppingCart | `ShoppingCart` | `/purchasing` | `purchasing.po.read` |
 | Sales | DollarSign | `DollarSign` | `/sales` | `sales.order.read` |
 | HR | Users | `Users` | `/hr` | `hr.timesheet.read` |
@@ -313,7 +316,7 @@ Header user:      14
 - Background: `COLORS.sidebar` (#0d0d14)
 - Logo: "SSS Corp" (expanded) / "SSS" (collapsed), color `COLORS.accent`
 - Menu: Ant Design `<Menu>` with `theme="dark"`, `mode="inline"`
-- 12 items, RBAC-filtered via `usePermission().can(permission)`
+- 13 items, RBAC-filtered via `usePermission().can(permission)`
 - User info at bottom: `full_name` + `role` (hidden when collapsed)
 - Collapse button: `ChevronLeft` / `ChevronRight`
 
@@ -389,7 +392,7 @@ import { COLORS } from '../../utils/constants';
 // 5. RBAC-aware actions via usePermission().can()
 ```
 
-### Tab Page Pattern (HR, Admin, Master Data)
+### Tab Page Pattern (HR, Admin, Master Data, Planning)
 
 ```jsx
 import { Tabs } from 'antd';
@@ -599,13 +602,14 @@ pagination={{
 
 ```
 frontend/src/
-├── App.jsx                    # Routes (17) + Layout + Theme
+├── App.jsx                    # Routes (20+) + Layout + Theme
 ├── App.css                    # Dark theme overrides
+├── main.jsx                   # Entry point + Sentry init
 ├── components/
 │   ├── EmptyState.jsx         # Empty state with icon + hint
 │   ├── PageHeader.jsx         # Title + subtitle + actions
 │   ├── SearchInput.jsx        # Debounced search input (300ms)
-│   └── StatusBadge.jsx        # Universal status badge (28 statuses)
+│   └── StatusBadge.jsx        # Universal status badge (30 statuses)
 ├── hooks/
 │   └── usePermission.js       # RBAC permission check
 ├── stores/
@@ -618,6 +622,8 @@ frontend/src/
 └── pages/
     ├── LoginPage.jsx
     ├── DashboardPage.jsx
+    ├── setup/                        # Phase 4.7 — Setup Wizard
+    │   └── SetupWizardPage.jsx
     ├── inventory/
     │   ├── ProductListPage.jsx
     │   ├── ProductFormModal.jsx
@@ -652,24 +658,37 @@ frontend/src/
     │   ├── LeaveTab.jsx
     │   ├── LeaveFormModal.jsx
     │   ├── PayrollTab.jsx
-    │   └── PayrollFormModal.jsx
+    │   ├── PayrollFormModal.jsx
+    │   ├── StandardTimesheetView.jsx  # Phase 4.4 — auto-generated timesheet
+    │   └── WOTimeEntryForm.jsx        # Phase 4.4 — batch WO time entry
     ├── tools/
     │   ├── ToolListPage.jsx
     │   ├── ToolFormModal.jsx
     │   └── ToolCheckoutModal.jsx
     ├── master/
-    │   ├── MasterDataPage.jsx       # 3 tabs (RBAC-filtered)
+    │   ├── MasterDataPage.jsx       # 5 tabs (RBAC-filtered)
     │   ├── CostCenterTab.jsx
     │   ├── CostCenterFormModal.jsx
     │   ├── CostElementTab.jsx
     │   ├── CostElementFormModal.jsx
     │   ├── OTTypeTab.jsx
-    │   └── OTTypeFormModal.jsx
+    │   ├── OTTypeFormModal.jsx
+    │   ├── DepartmentTab.jsx          # Phase 4.1
+    │   ├── DepartmentFormModal.jsx    # Phase 4.1
+    │   ├── LeaveTypeTab.jsx           # Phase 4.3
+    │   └── LeaveTypeFormModal.jsx     # Phase 4.3
+    ├── planning/                      # Phase 4.5 — WO Planning
+    │   ├── PlanningPage.jsx           # Tab container (Daily Plan + Reservations)
+    │   ├── DailyPlanTab.jsx
+    │   ├── DailyPlanFormModal.jsx
+    │   ├── ReservationTab.jsx
+    │   └── ReservationFormModal.jsx
     ├── admin/
-    │   ├── AdminPage.jsx            # 3 tabs (RBAC-filtered)
+    │   ├── AdminPage.jsx            # 4 tabs (RBAC-filtered)
     │   ├── UserTab.jsx
     │   ├── RoleTab.jsx
-    │   └── AuditLogTab.jsx
+    │   ├── AuditLogTab.jsx
+    │   └── OrgSettingsTab.jsx         # Phase 4.1 — org/work/approval config
     └── finance/
         └── FinancePage.jsx
 ```
@@ -773,6 +792,48 @@ frontend/src/
 | `/api/admin/roles/{role}/permissions` | PUT | `/api/admin/roles/{role_name}/permissions` |
 | `/api/admin/audit-log` | GET | `/api/admin/audit-log` |
 | `/api/admin/seed-permissions` | POST | `/api/admin/seed-permissions` |
+| `/api/admin/organization` | GET, PUT | `/api/admin/organization` |
+| `/api/admin/config/work` | GET, PUT | `/api/admin/config/work` |
+| `/api/admin/config/approval` | GET, PUT | `/api/admin/config/approval` |
+
+### Setup (Phase 4.7)
+| Frontend Path | Method | Backend Endpoint |
+|---------------|--------|-----------------|
+| `/api/setup` | POST | `/api/setup` |
+
+### Department (Phase 4.1)
+| Frontend Path | Method | Backend Endpoint |
+|---------------|--------|-----------------|
+| `/api/master/departments` | GET, POST | `/api/master/departments` |
+| `/api/master/departments/{id}` | PUT, DELETE | `/api/master/departments/{dept_id}` |
+
+### Leave Type (Phase 4.3)
+| Frontend Path | Method | Backend Endpoint |
+|---------------|--------|-----------------|
+| `/api/master/leave-types` | GET, POST | `/api/master/leave-types` |
+| `/api/master/leave-types/{id}` | PUT, DELETE | `/api/master/leave-types/{lt_id}` |
+| `/api/hr/leave-balance` | GET | `/api/hr/leave-balance` |
+
+### Planning (Phase 4.5)
+| Frontend Path | Method | Backend Endpoint |
+|---------------|--------|-----------------|
+| `/api/work-orders/{id}/plan` | GET, POST, PUT | `/api/work-orders/{wo_id}/plan` |
+| `/api/planning/daily` | GET, POST | `/api/planning/daily` |
+| `/api/planning/daily/{id}` | PUT, DELETE | `/api/planning/daily/{plan_id}` |
+| `/api/planning/conflicts` | GET | `/api/planning/conflicts` |
+| `/api/planning/reservations/material` | GET, POST | `/api/planning/reservations/material` |
+| `/api/planning/reservations/tool` | GET, POST | `/api/planning/reservations/tool` |
+
+### Approvers (Phase 4.2)
+| Frontend Path | Method | Backend Endpoint |
+|---------------|--------|-----------------|
+| `/api/approvers` | GET | `/api/approvers?module=` |
+
+### Batch Timesheet (Phase 4.4)
+| Frontend Path | Method | Backend Endpoint |
+|---------------|--------|-----------------|
+| `/api/hr/timesheet/batch` | POST | `/api/hr/timesheet/batch` |
+| `/api/hr/standard-timesheet` | GET | `/api/hr/standard-timesheet` |
 
 ---
 
@@ -788,7 +849,7 @@ frontend/src/
 
 ---
 
-## Backlog — ทำภายหลัง (Phase 4)
+## Backlog — ทำภายหลัง
 
 | รายการ | เหตุผลที่ยังไม่ทำ |
 |--------|-----------------|
@@ -796,7 +857,8 @@ frontend/src/
 | CSS Custom Properties | ใช้ ConfigProvider + COLORS constants เป็น single source แล้ว |
 | Animation / Transition spec | ไม่จำเป็นระยะแรก |
 | Responsive / Mobile layout | ERP ใช้บน desktop เท่านั้น |
+| i18n / Language switcher | ใช้ Thai label + English menu pattern แทน |
 
 ---
 
-*End of UI_GUIDELINES.md — SSS Corp ERP v4*
+*End of UI_GUIDELINES.md — SSS Corp ERP v5 (Phase 4 complete)*

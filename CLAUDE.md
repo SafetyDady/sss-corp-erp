@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-02-26 v3 (Frontend 100% complete)
+> อัปเดตล่าสุด: 2026-02-27 v4 (Phase 4 complete — Production ready)
 
 ---
 
@@ -10,7 +10,7 @@
 
 **SSS Corp ERP** — ระบบ ERP สำหรับธุรกิจ Manufacturing/Trading ขนาดเล็ก-กลาง
 - Multi-tenant (Shared DB + org_id)
-- **11 Modules, 89 Permissions, 5 Roles**
+- **11 Modules, 105 Permissions, 5 Roles**
 - Job Costing: Material + ManHour + Tools Recharge + Admin Overhead
 - อ้างอิงเพิ่มเติม: `UI_GUIDELINES.md` (theme/icons), `BUSINESS_POLICY.md` (business rules)
 
@@ -27,6 +27,7 @@
 | ORM | **SQLAlchemy 2.0** (async) | Numeric(12,2) for money |
 | Auth | **JWT Bearer Token** | Access 15min + Refresh 7d + rotation |
 | Icons | **Lucide React** | ห้ามใช้ emoji / Ant Design Icons |
+| Monitoring | **Sentry** (optional) | Backend + Frontend error tracking |
 | Deploy | **Vercel** (frontend) + **Railway** (backend) | git push = deploy |
 
 ---
@@ -38,7 +39,10 @@ sss-corp-erp/
 ├── frontend/                     ← Vercel deploys this (Root Dir = frontend/)
 │   ├── src/
 │   │   ├── components/           # Shared UI (StatusBadge, EmptyState, etc.)
-│   │   ├── pages/                # Route pages (1 file per page)
+│   │   ├── pages/                # Route pages (~70 files, 20+ routes)
+│   │   │   ├── setup/            # SetupWizardPage (Phase 4.7)
+│   │   │   ├── planning/         # PlanningPage, DailyPlan, Reservation (Phase 4.5)
+│   │   │   └── ...               # inventory, warehouse, workorder, hr, etc.
 │   │   ├── hooks/                # usePermission, useAuth, etc.
 │   │   ├── stores/               # Zustand stores
 │   │   ├── services/             # API client (axios + interceptor)
@@ -46,18 +50,28 @@ sss-corp-erp/
 │   ├── index.html
 │   ├── package.json
 │   ├── vite.config.ts
-│   └── vercel.json
+│   └── vercel.json               # SPA rewrites + security headers + caching
 ├── backend/                      ← Railway deploys this (Dockerfile)
 │   ├── app/
-│   │   ├── api/                  # Route handlers (1 file per module)
+│   │   ├── api/                  # Route handlers (16 files, 17 routers)
+│   │   │   ├── planning.py       # Daily plans, reservations (Phase 4.5)
+│   │   │   ├── setup.py          # One-time org setup (Phase 4.7)
+│   │   │   └── ...               # auth, inventory, warehouse, etc.
 │   │   ├── core/                 # config, database, security, permissions
-│   │   ├── models/               # SQLAlchemy models (1 file per domain)
+│   │   ├── models/               # SQLAlchemy models (12 files)
+│   │   │   ├── organization.py   # Org, Department, OrgConfig (Phase 4.1)
+│   │   │   ├── planning.py       # WOMasterPlan, DailyPlan, Reservations (Phase 4.5)
+│   │   │   └── ...               # user, inventory, warehouse, etc.
 │   │   ├── schemas/              # Pydantic request/response schemas
 │   │   ├── services/             # Business logic (1 file per module)
-│   │   └── main.py               # FastAPI app entry point
-│   ├── alembic/                  # DB migrations
+│   │   │   ├── email.py          # SMTP notification service (Phase 4.6)
+│   │   │   ├── organization.py   # Org + Department service (Phase 4.1)
+│   │   │   ├── planning.py       # Planning + Reservation service (Phase 4.5)
+│   │   │   └── ...
+│   │   └── main.py               # FastAPI app + Sentry init
+│   ├── alembic/                  # DB migrations (10 revisions)
 │   ├── tests/                    # pytest
-│   ├── Dockerfile                # Production (Railway)
+│   ├── Dockerfile                # Production (Railway, non-root user)
 │   ├── Dockerfile.dev            # Dev (hot-reload)
 │   ├── railway.toml
 │   └── requirements.txt
@@ -116,9 +130,22 @@ sss-corp-erp/
 - Tool checkout 1 คน ณ เวลาเดียว (BR#27)
 - Auto charge เมื่อ **Check-in** เท่านั้น (ไม่ใช่ Check-out) (BR#28)
 
+### 8. Leave Rules (Phase 4)
+- ลาเกินโควต้าไม่ได้ (BR#36)
+- ลาได้เงิน → Timesheet = 8 ชม. ปกติ (BR#37)
+- ลาไม่ได้เงิน → Timesheet = 0 ชม. (BR#38)
+- วันลา → ห้ามกรอก WO Time Entry (BR#39)
+
+### 9. Planning Rules (Phase 4)
+- Daily Plan — **1 คน : 1 WO ต่อวัน** (BR#40)
+- Daily Plan — **1 เครื่องมือ : 1 WO ต่อวัน** (BR#41)
+- Daily Plan — พนักงานลาวันนั้น จัดลงงานไม่ได้ (BR#42)
+- MaterialReservation — available = on_hand - SUM(reserved) (BR#44)
+- ToolReservation — ห้ามจองซ้อนช่วงเดียวกัน (BR#45)
+
 ---
 
-## RBAC — 5 Roles x 89 Permissions (Full Matrix)
+## RBAC — 5 Roles x 105 Permissions (Full Matrix)
 
 ### Inventory (9 permissions)
 
@@ -151,7 +178,7 @@ sss-corp-erp/
 | warehouse.location.update | ✅ | ✅ | ✅ | ❌ | ❌ |
 | warehouse.location.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
 
-### Work Order (6 permissions)
+### Work Order (12 permissions)
 
 | Permission | owner | manager | supervisor | staff | viewer |
 |-----------|:-----:|:-------:|:----------:|:-----:|:------:|
@@ -161,6 +188,12 @@ sss-corp-erp/
 | workorder.order.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
 | workorder.order.approve | ✅ | ✅ | ✅ | ❌ | ❌ |
 | workorder.order.export | ✅ | ✅ | ✅ | ✅ | ❌ |
+| workorder.plan.create | ✅ | ✅ | ✅ | ❌ | ❌ |
+| workorder.plan.read | ✅ | ✅ | ✅ | ✅ | ✅ |
+| workorder.plan.update | ✅ | ✅ | ✅ | ❌ | ❌ |
+| workorder.plan.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
+| workorder.reservation.create | ✅ | ✅ | ✅ | ❌ | ❌ |
+| workorder.reservation.read | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ### Purchasing (6 permissions)
 
@@ -191,7 +224,7 @@ sss-corp-erp/
 | finance.report.read | ✅ | ✅ | ✅ | ✅ | ✅ |
 | finance.report.export | ✅ | ❌ | ❌ | ❌ | ❌ |
 
-### Master Data (12 permissions)
+### Master Data (20 permissions)
 
 | Permission | owner | manager | supervisor | staff | viewer |
 |-----------|:-----:|:-------:|:----------:|:-----:|:------:|
@@ -207,8 +240,16 @@ sss-corp-erp/
 | master.ottype.read | ✅ | ✅ | ✅ | ✅ | ✅ |
 | master.ottype.update | ✅ | ✅ | ❌ | ❌ | ❌ |
 | master.ottype.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
+| master.department.create | ✅ | ✅ | ✅ | ❌ | ❌ |
+| master.department.read | ✅ | ✅ | ✅ | ✅ | ✅ |
+| master.department.update | ✅ | ✅ | ✅ | ❌ | ❌ |
+| master.department.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
+| master.leavetype.create | ✅ | ✅ | ❌ | ❌ | ❌ |
+| master.leavetype.read | ✅ | ✅ | ✅ | ✅ | ✅ |
+| master.leavetype.update | ✅ | ✅ | ❌ | ❌ | ❌ |
+| master.leavetype.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
 
-### Admin (8 permissions)
+### Admin (10 permissions)
 
 | Permission | owner | manager | supervisor | staff | viewer |
 |-----------|:-----:|:-------:|:----------:|:-----:|:------:|
@@ -220,6 +261,8 @@ sss-corp-erp/
 | admin.user.read | ✅ | ❌ | ❌ | ❌ | ❌ |
 | admin.user.update | ✅ | ❌ | ❌ | ❌ | ❌ |
 | admin.user.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
+| admin.config.read | ✅ | ❌ | ❌ | ❌ | ❌ |
+| admin.config.update | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 ### Customer (5 permissions)
 
@@ -268,11 +311,11 @@ sss-corp-erp/
 
 | Role | Count | Description |
 |------|-------|-------------|
-| owner | 89 | ALL permissions |
-| manager | ~52 | ไม่มี admin.*, ไม่มี *.delete (ยกเว้นบางตัว) |
-| supervisor | ~38 | read + approve + limited create |
-| staff | ~22 | read + own create (timesheet, leave, movement) |
-| viewer | ~15 | read + selected export only |
+| owner | 105 | ALL permissions |
+| manager | ~57 | ไม่มี admin.*, ไม่มี *.delete + planning create/update |
+| supervisor | ~41 | read + approve + limited create + planning read |
+| staff | ~28 | read + own create (timesheet, leave, movement) |
+| viewer | ~18 | read + selected export only |
 
 ### Permission Usage Pattern
 ```python
@@ -384,9 +427,38 @@ Owner เข้า Admin Panel (admin.role.read)
 → ตั้ง Overhead Rate % ต่อ Cost Center (master.costcenter.update)
 ```
 
+### Flow 10: Setup Wizard (Phase 4.7)
+```
+First-time access → /setup page
+→ Step 1: กรอกชื่อองค์กร + รหัส
+→ Step 2: กรอกชื่อ/อีเมล/รหัสผ่าน Admin
+→ POST /api/setup → สร้าง Organization + User(role=owner)
+→ Auto login → redirect to Dashboard
+Permission: none (once-only, disabled after first org created)
+```
+
+### Flow 11: WO Planning (Phase 4.5)
+```
+Manager สร้าง WO Master Plan (workorder.plan.create)
+→ กำหนด planned_start, planned_end, manpower/material/tool needs
+→ Supervisor สร้าง Daily Plan (workorder.plan.create)
+→ จัด Workers + Tools + Materials ลง WO ต่อวัน
+→ ระบบเช็ค conflict: 1 คน = 1 WO/วัน, ลา = ห้ามจัด (BR#40-42)
+→ Staff เห็นงานที่ได้รับมอบหมาย → กรอก WO Time Entry
+```
+
+### Flow 12: Material/Tool Reservation (Phase 4.5)
+```
+Manager จองวัสดุ → POST /api/planning/reservations/material
+→ ระบบเช็ค available = on_hand - SUM(reserved) (BR#44)
+Manager จองเครื่องมือ → POST /api/planning/reservations/tool
+→ ระบบเช็ค overlap ช่วงวันที่ (BR#45)
+→ Status: RESERVED → FULFILLED / CANCELLED
+```
+
 ---
 
-## Business Rules (Complete — 35 Rules)
+## Business Rules (Complete — 46 Rules)
 
 | # | Module | Feature | Rule | Enforcement |
 |---|--------|---------|------|-------------|
@@ -425,6 +497,17 @@ Owner เข้า Admin Panel (admin.role.read)
 | 33 | admin | Action | Action ต้องเป็น 1 ใน 7: create/read/update/delete/approve/export/execute | VALID_ACTIONS |
 | 34 | warehouse | Zone | 1 zone type ต่อ warehouse (UNIQUE constraint) | DB UNIQUE |
 | 35 | finance | Float | ห้ามใช้ Float สำหรับ accounting — ต้อง Numeric(12,2) | Tech constraint |
+| 36 | hr | Leave | ลาเกินโควต้าไม่ได้ (used + days <= quota) | Service check |
+| 37 | hr | Leave | ลาได้เงิน → Timesheet = 8 ชม. ปกติ (payroll เต็ม) | Auto calc |
+| 38 | hr | Leave | ลาไม่ได้เงิน → Timesheet = 0 ชม. (หัก payroll) | Auto calc |
+| 39 | hr | Leave | วันลา → ห้ามกรอก WO Time Entry | Service check |
+| 40 | planning | Daily Plan | 1 คน : 1 WO ต่อวัน (conflict check) | DB UNIQUE + Service |
+| 41 | planning | Daily Plan | 1 เครื่องมือ : 1 WO ต่อวัน (conflict check) | DB UNIQUE + Service |
+| 42 | planning | Daily Plan | พนักงานลาวันนั้น จัดลงงานไม่ได้ | Service check |
+| 43 | planning | Daily Plan | วางแผนล่วงหน้าได้ 14 วัน, แก้ไขได้ | Service check |
+| 44 | planning | Reservation | MaterialReservation: available = on_hand - SUM(reserved) | Service check |
+| 45 | planning | Reservation | ToolReservation: ห้ามจองซ้อนช่วงเดียวกัน | Service check |
+| 46 | planning | Master Plan | WO Master Plan — 1 plan per WO | DB UNIQUE |
 
 ---
 
@@ -577,6 +660,76 @@ GET    /api/admin/audit-log                 admin.role.read
 POST   /api/admin/seed-permissions          admin.role.update
 ```
 
+### Setup (Phase 4.7)
+```
+POST   /api/setup                           — (no auth, once-only)
+```
+
+### Organization & Config (Phase 4.1)
+```
+GET    /api/admin/organization              admin.config.read
+PUT    /api/admin/organization              admin.config.update
+GET    /api/admin/config/work               admin.config.read
+PUT    /api/admin/config/work               admin.config.update
+GET    /api/admin/config/approval           admin.config.read
+PUT    /api/admin/config/approval           admin.config.update
+```
+
+### Department (Phase 4.1)
+```
+GET    /api/master/departments              master.department.read
+POST   /api/master/departments              master.department.create
+PUT    /api/master/departments/{id}         master.department.update
+DELETE /api/master/departments/{id}         master.department.delete
+```
+
+### Leave Type (Phase 4.3)
+```
+GET    /api/master/leave-types              master.leavetype.read
+POST   /api/master/leave-types              master.leavetype.create
+PUT    /api/master/leave-types/{id}         master.leavetype.update
+DELETE /api/master/leave-types/{id}         master.leavetype.delete
+```
+
+### Leave Balance (Phase 4.3)
+```
+GET    /api/hr/leave-balance                hr.leave.read
+PUT    /api/hr/leave-balance/{id}           hr.employee.update
+```
+
+### Batch Timesheet (Phase 4.4)
+```
+POST   /api/hr/timesheet/batch              hr.timesheet.create
+GET    /api/hr/standard-timesheet           hr.timesheet.read
+POST   /api/hr/standard-timesheet/generate  hr.timesheet.execute
+```
+
+### Approvers (Phase 4.2)
+```
+GET    /api/approvers?module=               — (JWT, any authenticated user)
+```
+
+### WO Master Plan (Phase 4.5)
+```
+GET    /api/work-orders/{id}/plan           workorder.plan.read
+POST   /api/work-orders/{id}/plan           workorder.plan.create
+PUT    /api/work-orders/{id}/plan           workorder.plan.update
+```
+
+### Daily Plan & Reservation (Phase 4.5)
+```
+GET    /api/planning/daily                  workorder.plan.read
+POST   /api/planning/daily                  workorder.plan.create
+PUT    /api/planning/daily/{id}             workorder.plan.update
+DELETE /api/planning/daily/{id}             workorder.plan.delete
+GET    /api/planning/conflicts              workorder.plan.read
+GET    /api/planning/reservations/material  workorder.reservation.read
+POST   /api/planning/reservations/material  workorder.reservation.create
+GET    /api/planning/reservations/tool      workorder.reservation.read
+POST   /api/planning/reservations/tool      workorder.reservation.create
+PUT    /api/planning/reservations/{id}/cancel  workorder.reservation.create
+```
+
 ### System
 ```
 GET    /api/health                          — (no auth)
@@ -617,11 +770,11 @@ npm run build                                          # Production build
 
 | Email | Password | Role |
 |-------|----------|------|
-| owner@sss-corp.com | owner123 | owner (all 89 perms) |
-| manager@sss-corp.com | manager123 | manager (~52 perms) |
-| supervisor@sss-corp.com | supervisor123 | supervisor (~38 perms) |
-| staff@sss-corp.com | staff123 | staff (~22 perms) |
-| viewer@sss-corp.com | viewer123 | viewer (~15 perms) |
+| owner@sss-corp.com | owner123 | owner (all 105 perms) |
+| manager@sss-corp.com | manager123 | manager (~57 perms) |
+| supervisor@sss-corp.com | supervisor123 | supervisor (~41 perms) |
+| staff@sss-corp.com | staff123 | staff (~28 perms) |
+| viewer@sss-corp.com | viewer123 | viewer (~18 perms) |
 
 ### Important Constants
 ```python
@@ -707,11 +860,15 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] UI_GUIDELINES.md v4 synced with all frontend files
 - [x] Route wiring verified + API path fixes applied
 
-### Phase 4 — Multi-tenant + Production 🔲
-- [ ] Multi-tenant: org_id filtering + Setup Wizard
-- [ ] Deploy: Vercel + Railway
-- [ ] Backup + Monitoring (Sentry)
-- [ ] Security audit + load test
+### Phase 4 — Organization, Planning & Production ✅
+- [x] **4.1** Organization & Department — Org model, Department CRUD, OrgWorkConfig, OrgApprovalConfig
+- [x] **4.2** Approval Flow Overhaul — requested_approver_id on all documents, bypass config
+- [x] **4.3** Leave System Upgrade — LeaveType master, LeaveBalance, quota enforcement (BR#36-39)
+- [x] **4.4** Timesheet Redesign — StandardTimesheet (auto), WO Time Entry batch form
+- [x] **4.5** WO Planning & Reservation — Master Plan, Daily Plan, Material/Tool Reservation (BR#40-46)
+- [x] **4.6** Email Notification — SMTP service, approval request emails (disabled by default)
+- [x] **4.7** Multi-tenant Enforcement — org_id in JWT, all queries filtered, Setup Wizard
+- [x] **4.8** Deploy & Production — Vercel (SPA + headers), Railway (Docker), Sentry, security hardening
 
 ---
 
@@ -730,6 +887,10 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 11. ❌ อย่าใช้ `uuid4()` เป็น fallback สำหรับ org_id — ใช้ `DEFAULT_ORG_ID` จาก config
 12. ❌ อย่าใช้ emoji ใน UI — ใช้ Lucide icons เท่านั้น
 13. ❌ อย่าใช้ Ant Design Icons — ใช้ Lucide icons เท่านั้น
+14. ❌ อย่าลืม org_id filter บนทุก query — multi-tenant enforcement (Phase 4.7)
+15. ❌ อย่าให้ Daily Plan จัดคนซ้ำ WO เดียวกัน (1 คน : 1 WO/วัน) (BR#40)
+16. ❌ อย่าให้ลาเกินโควต้า — ต้องเช็ค LeaveBalance ก่อน (BR#36)
+17. ❌ อย่าใช้ JWT_SECRET_KEY default ใน production — ระบบจะ RuntimeError (Phase 4.8)
 
 ---
 
@@ -747,7 +908,13 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `backend/app/core/config.py` | Environment settings + DEFAULT_ORG_ID |
 | `frontend/src/stores/authStore.js` | Auth state + token management |
 | `frontend/src/hooks/usePermission.js` | RBAC hook for components |
-| `frontend/src/components/StatusBadge.jsx` | Reusable status badge |
+| `frontend/src/components/StatusBadge.jsx` | Reusable status badge (30 statuses) |
+| `backend/app/models/organization.py` | Org, Department, OrgConfig models |
+| `backend/app/models/planning.py` | WOMasterPlan, DailyPlan, Reservations |
+| `backend/app/services/email.py` | SMTP email notification service |
+| `backend/app/api/setup.py` | One-time setup wizard API |
+| `backend/app/api/planning.py` | Daily plans + reservations API |
+| `frontend/src/pages/setup/SetupWizardPage.jsx` | First-time org setup wizard |
 
 ---
 
@@ -770,4 +937,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v3 (Phase 0-3 complete, Phase 4 remaining)*
+*End of CLAUDE.md — SSS Corp ERP v4 (Phase 0-4 complete — Production ready)*
