@@ -57,7 +57,7 @@ product_router = APIRouter(prefix="/api/inventory", tags=["inventory"])
     dependencies=[Depends(require("inventory.product.read"))],
 )
 async def api_list_products(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     search: Optional[str] = Query(default=None, max_length=100),
     product_type: Optional[str] = Query(default=None, pattern=r"^(MATERIAL|CONSUMABLE)$"),
@@ -156,7 +156,7 @@ movement_router = APIRouter(prefix="/api/stock", tags=["stock-movements"])
     dependencies=[Depends(require("inventory.movement.read"))],
 )
 async def api_list_movements(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     product_id: Optional[UUID] = Query(default=None),
     movement_type: Optional[str] = Query(

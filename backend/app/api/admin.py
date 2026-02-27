@@ -157,7 +157,7 @@ async def api_update_role_permissions(
     dependencies=[Depends(require("admin.user.read"))],
 )
 async def api_list_users(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),

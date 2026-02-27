@@ -46,7 +46,7 @@ sales_router = APIRouter(prefix="/api/sales", tags=["sales"])
     dependencies=[Depends(require("sales.order.read"))],
 )
 async def api_list_orders(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     search: Optional[str] = Query(default=None, max_length=100),
     status: Optional[str] = Query(

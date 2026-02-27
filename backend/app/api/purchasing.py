@@ -49,7 +49,7 @@ purchasing_router = APIRouter(prefix="/api/purchasing", tags=["purchasing"])
     dependencies=[Depends(require("purchasing.po.read"))],
 )
 async def api_list_pos(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     search: Optional[str] = Query(default=None, max_length=100),
     status: Optional[str] = Query(

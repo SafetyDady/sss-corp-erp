@@ -100,7 +100,7 @@ hr_router = APIRouter(prefix="/api/hr", tags=["hr"])
     dependencies=[Depends(require("hr.employee.read"))],
 )
 async def api_list_employees(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     search: Optional[str] = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db),
@@ -186,7 +186,7 @@ async def api_delete_employee(
     dependencies=[Depends(require("hr.timesheet.read"))],
 )
 async def api_list_timesheets(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     employee_id: Optional[UUID] = Query(default=None),
     work_order_id: Optional[UUID] = Query(default=None),
@@ -384,7 +384,7 @@ async def api_generate_standard_timesheets(
     dependencies=[Depends(require("hr.leave.read"))],
 )
 async def api_list_leaves(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     employee_id: Optional[UUID] = Query(default=None),
     db: AsyncSession = Depends(get_db),
@@ -482,7 +482,7 @@ async def api_update_leave_balance(
     dependencies=[Depends(require("hr.payroll.read"))],
 )
 async def api_list_payroll_runs(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),

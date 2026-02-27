@@ -96,7 +96,7 @@ master_router = APIRouter(prefix="/api/master", tags=["master-data"])
     dependencies=[Depends(require("master.costcenter.read"))],
 )
 async def api_list_cost_centers(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     search: Optional[str] = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db),
@@ -184,7 +184,7 @@ async def api_delete_cost_center(
     dependencies=[Depends(require("master.costelement.read"))],
 )
 async def api_list_cost_elements(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     search: Optional[str] = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db),
@@ -271,7 +271,7 @@ async def api_delete_cost_element(
     dependencies=[Depends(require("master.ottype.read"))],
 )
 async def api_list_ot_types(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     search: Optional[str] = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db),
@@ -359,7 +359,7 @@ async def api_delete_ot_type(
     dependencies=[Depends(require("master.department.read"))],
 )
 async def api_list_departments(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     search: Optional[str] = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db),
@@ -449,7 +449,7 @@ async def api_delete_department(
     dependencies=[Depends(require("master.leavetype.read"))],
 )
 async def api_list_leave_types(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     search: Optional[str] = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db),

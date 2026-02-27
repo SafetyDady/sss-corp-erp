@@ -42,7 +42,7 @@ customer_router = APIRouter(prefix="/api/customers", tags=["customers"])
     dependencies=[Depends(require("customer.customer.read"))],
 )
 async def api_list_customers(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     search: Optional[str] = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db),

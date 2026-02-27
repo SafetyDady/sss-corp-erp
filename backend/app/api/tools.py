@@ -55,7 +55,7 @@ tools_router = APIRouter(prefix="/api/tools", tags=["tools"])
     dependencies=[Depends(require("tools.tool.read"))],
 )
 async def api_list_tools(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     search: Optional[str] = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db),
@@ -179,7 +179,7 @@ async def api_checkin_tool(
 )
 async def api_tool_history(
     tool_id: UUID,
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),

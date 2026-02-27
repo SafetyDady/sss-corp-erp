@@ -63,7 +63,7 @@ warehouse_router = APIRouter(prefix="/api/warehouse", tags=["warehouse"])
     dependencies=[Depends(require("warehouse.warehouse.read"))],
 )
 async def api_list_warehouses(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     search: Optional[str] = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db),
@@ -152,7 +152,7 @@ async def api_delete_warehouse(
     dependencies=[Depends(require("warehouse.location.read"))],
 )
 async def api_list_locations(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     warehouse_id: Optional[UUID] = Query(default=None),
     search: Optional[str] = Query(default=None, max_length=100),

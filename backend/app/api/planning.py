@@ -162,7 +162,7 @@ async def api_update_master_plan(
     dependencies=[Depends(require("workorder.plan.read"))],
 )
 async def api_list_daily_plans(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     plan_date: Optional[date] = Query(default=None, alias="date"),
     date_end: Optional[date] = Query(default=None),
@@ -292,7 +292,7 @@ async def api_check_conflicts(
     dependencies=[Depends(require("workorder.reservation.read"))],
 )
 async def api_list_material_reservations(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     work_order_id: Optional[UUID] = Query(default=None),
     db: AsyncSession = Depends(get_db),
@@ -353,7 +353,7 @@ async def api_cancel_material_reservation(
     dependencies=[Depends(require("workorder.reservation.read"))],
 )
 async def api_list_tool_reservations(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     work_order_id: Optional[UUID] = Query(default=None),
     db: AsyncSession = Depends(get_db),

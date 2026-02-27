@@ -55,7 +55,7 @@ workorder_router = APIRouter(prefix="/api/work-orders", tags=["work-orders"])
     dependencies=[Depends(require("workorder.order.read"))],
 )
 async def api_list_work_orders(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     search: Optional[str] = Query(default=None, max_length=100),
     status: Optional[str] = Query(default=None, pattern=r"^(DRAFT|OPEN|CLOSED)$"),
