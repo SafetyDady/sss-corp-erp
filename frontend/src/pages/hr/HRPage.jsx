@@ -1,5 +1,5 @@
 import { Tabs } from 'antd';
-import { Users, Clock, CalendarDays, Banknote, ClipboardList, CalendarCheck } from 'lucide-react';
+import { Users, Clock, CalendarDays, Banknote, ClipboardList, CalendarCheck, FileCheck } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import { usePermission } from '../../hooks/usePermission';
 import EmployeeTab from './EmployeeTab';
@@ -8,6 +8,7 @@ import WOTimeEntryForm from './WOTimeEntryForm';
 import StandardTimesheetView from './StandardTimesheetView';
 import LeaveTab from './LeaveTab';
 import PayrollTab from './PayrollTab';
+import DailyReportApprovalTab from './DailyReportApprovalTab';
 import { COLORS } from '../../utils/constants';
 
 const tabLabel = (Icon, text) => (
@@ -49,6 +50,11 @@ export default function HRPage() {
       key: 'payroll',
       label: tabLabel(Banknote, 'Payroll'),
       children: <PayrollTab />,
+    },
+    can('hr.dailyreport.approve') && {
+      key: 'daily-report-approval',
+      label: tabLabel(FileCheck, 'อนุมัติรายงาน'),
+      children: <DailyReportApprovalTab />,
     },
   ].filter(Boolean);
 
