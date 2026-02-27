@@ -6,6 +6,7 @@ Disabled by default (EMAIL_ENABLED=False in config).
 Configure SMTP settings via environment variables to enable.
 """
 
+import asyncio
 import logging
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -88,7 +89,8 @@ async def send_approval_request(
     msg["To"] = to_email
     msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-    try:
+    def _send_sync():
+        """Blocking SMTP send — executed in thread pool to avoid blocking event loop."""
         with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as server:
             server.ehlo()
             if settings.SMTP_PORT == 587:
@@ -97,6 +99,9 @@ async def send_approval_request(
             if settings.SMTP_USER and settings.SMTP_PASSWORD:
                 server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
             server.sendmail(settings.EMAIL_FROM, [to_email], msg.as_string())
+
+    try:
+        await asyncio.to_thread(_send_sync)
         logger.info("Approval email sent to %s for %s %s", to_email, document_type, document_number)
         return True
     except Exception:

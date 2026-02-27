@@ -6,9 +6,10 @@ Smart ERP system for manufacturing/trading businesses — 11 modules, 89 permiss
 
 | Layer | Status | Details |
 |-------|--------|---------|
-| Backend | **100%** ✅ | 60+ API endpoints, 35 business rules, 5 roles × 89 permissions |
-| Frontend | **100%** ✅ | 54 files across 7 batches, all 11 modules |
-| Phase 4 | 🔲 Pending | Multi-tenant + Production deployment |
+| Backend | **100%** ✅ | 80+ API endpoints, 46 business rules, 5 roles × 105 permissions |
+| Frontend | **100%** ✅ | 70+ files, all 11 modules + Planning + Setup Wizard |
+| Phase 4 | **100%** ✅ | Org, Planning, Leave, Multi-tenant, Deploy |
+| Deploy | **Ready** | Vercel (frontend) + Railway (backend) |
 
 ## Tech Stack
 
@@ -17,11 +18,12 @@ Smart ERP system for manufacturing/trading businesses — 11 modules, 89 permiss
 | Frontend | React 18 + Vite + Ant Design + Zustand |
 | Backend | FastAPI (Python 3.12) |
 | Database | PostgreSQL 16 |
-| Cache | Redis |
+| Cache | Redis (optional — graceful degradation) |
 | ORM | SQLAlchemy 2.0 + Alembic |
 | Auth | JWT Bearer Token (Access + Refresh) |
 | Icons | Lucide React (no emoji, no Ant Design Icons) |
 | Deploy | Vercel (Frontend) + Railway (Backend) |
+| Monitoring | Sentry (optional) |
 
 ## Modules (11)
 
@@ -108,11 +110,23 @@ sss-corp-erp/
 
 | Email | Password | Role | Permissions |
 |-------|----------|------|-------------|
-| owner@sss-corp.com | owner123 | owner | ALL 89 |
-| manager@sss-corp.com | manager123 | manager | ~52 |
-| supervisor@sss-corp.com | supervisor123 | supervisor | ~38 |
-| staff@sss-corp.com | staff123 | staff | ~22 |
-| viewer@sss-corp.com | viewer123 | viewer | ~15 |
+| owner@sss-corp.com | owner123 | owner | ALL 105 |
+| manager@sss-corp.com | manager123 | manager | ~57 |
+| supervisor@sss-corp.com | supervisor123 | supervisor | ~41 |
+| staff@sss-corp.com | staff123 | staff | ~28 |
+| viewer@sss-corp.com | viewer123 | viewer | ~18 |
+
+## Optional Services
+
+The following services are **optional** and the system degrades gracefully without them:
+
+| Service | Purpose | Without it |
+|---------|---------|------------|
+| **Redis** | Rate limiting, session cache | App works normally; rate limiting disabled |
+| **Sentry** | Error monitoring | Errors logged locally only |
+| **SMTP Email** | Approval notifications | No email sent; approvals still work via UI |
+
+> **Note:** Only PostgreSQL is required. Redis, Sentry, and SMTP are all opt-in via environment variables.
 
 ## Key Design Decisions
 
@@ -129,7 +143,7 @@ sss-corp-erp/
 |------|---------|
 | `CLAUDE.md` | AI instructions — read before any work |
 | `UI_GUIDELINES.md` | Theme, colors, icons, layout, language rules (v4) |
-| `BUSINESS_POLICY.md` | Business rules — 35 rules (source of truth) |
+| `BUSINESS_POLICY.md` | Business rules — 46 rules (source of truth) |
 | `TODO.md` | Implementation tracker + checklist |
 | `docs/PROGRESSION_UPDATE_BATCH4-7.md` | Frontend Batch 4-7 progression |
 

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { App, Button, Card, Form, Input, Steps, Typography, Result } from 'antd';
+import { App, Button, Card, Form, Input, Steps, Typography, Result, Spin } from 'antd';
 import { Building2, UserPlus, CheckCircle } from 'lucide-react';
 import axios from 'axios';
 import useAuthStore from '../../stores/authStore';
@@ -15,9 +15,27 @@ export default function SetupWizardPage() {
   const setTokens = useAuthStore((s) => s.setTokens);
   const [current, setCurrent] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [orgForm] = Form.useForm();
   const [userForm] = Form.useForm();
   const [result, setResult] = useState(null);
+
+  // Guard: redirect if org already exists
+  useEffect(() => {
+    axios.get(`${API_URL}/api/health`)
+      .then(({ data }) => {
+        // If health returns and we can check org existence
+        return axios.get(`${API_URL}/api/admin/organization`).catch(() => null);
+      })
+      .then((res) => {
+        if (res?.data?.id) {
+          message.info('ระบบถูกตั้งค่าแล้ว');
+          navigate('/login', { replace: true });
+        }
+      })
+      .catch(() => { /* No org yet — show wizard */ })
+      .finally(() => setChecking(false));
+  }, []);
 
   const handleSubmit = async () => {
     try {
@@ -59,6 +77,14 @@ export default function SetupWizardPage() {
     { title: 'ผู้ดูแลระบบ', icon: <UserPlus size={16} /> },
     { title: 'เสร็จสิ้น', icon: <CheckCircle size={16} /> },
   ];
+
+  if (checking) {
+    return (
+      <div style={{ minHeight: '100vh', background: COLORS.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Spin size="large" tip="กำลังตรวจสอบระบบ..." />
+      </div>
+    );
+  }
 
   return (
     <div
