@@ -68,7 +68,7 @@ export default function TimesheetFormModal({ open, onClose, onSuccess }) {
       okText="บันทึก"
       cancelText="ยกเลิก"
       width={560}
-      destroyOnClose
+      destroyOnHidden
     >
       <Alert
         type="info" showIcon

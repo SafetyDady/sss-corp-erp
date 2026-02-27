@@ -196,6 +196,9 @@ function AppLayout() {
 
 function ProtectedRoute({ children }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const hasHydrated = useAuthStore((s) => s._hasHydrated);
+
+  if (!hasHydrated) return <PageLoader />;
   if (!isAuthenticated) return <Navigate to="/login" />;
   return children;
 }

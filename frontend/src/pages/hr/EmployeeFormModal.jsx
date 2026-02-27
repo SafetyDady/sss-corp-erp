@@ -70,7 +70,7 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
       okText={editItem ? 'บันทึก' : 'เพิ่มพนักงาน'}
       cancelText="ยกเลิก"
       width={520}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" initialValues={{ hourly_rate: 0, daily_working_hours: 8 }}
         requiredMark={(label, { required }) => (

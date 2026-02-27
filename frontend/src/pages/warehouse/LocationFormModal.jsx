@@ -38,7 +38,7 @@ export default function LocationFormModal({ open, editItem, warehouses, onClose,
       onCancel={onClose}
       onOk={() => form.submit()}
       confirmLoading={loading}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" onFinish={onFinish}>
         <Form.Item name="warehouse_id" label={'\u0E04\u0E25\u0E31\u0E07'}

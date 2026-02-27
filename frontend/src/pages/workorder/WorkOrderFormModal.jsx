@@ -38,7 +38,7 @@ export default function WorkOrderFormModal({ open, editItem, onClose, onSuccess 
       onCancel={onClose}
       onOk={() => form.submit()}
       confirmLoading={loading}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" onFinish={onFinish}>
         <Form.Item name="customer_name" label={'\u0E0A\u0E37\u0E48\u0E2D\u0E25\u0E39\u0E01\u0E04\u0E49\u0E32'}

@@ -64,7 +64,7 @@ export default function ToolFormModal({ open, editItem, onClose, onSuccess }) {
       okText={editItem ? 'บันทึก' : 'เพิ่ม'}
       cancelText="ยกเลิก"
       width={500}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" initialValues={{ rate_per_hour: 0, is_active: true }}>
         <Form.Item name="code" label="รหัสเครื่องมือ"

@@ -28,7 +28,7 @@ export default function MovementCreateModal({ open, products, onClose, onSuccess
       onCancel={onClose}
       onOk={() => form.submit()}
       confirmLoading={loading}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" onFinish={onFinish}>
         <Form.Item name="product_id" label={'\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32'}

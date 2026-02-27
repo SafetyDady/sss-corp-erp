@@ -57,7 +57,7 @@ export default function LeaveFormModal({ open, onClose, onSuccess }) {
       okText="ยื่นคำขอ"
       cancelText="ยกเลิก"
       width={500}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical">
         <Form.Item name="employee_id" label="พนักงาน"

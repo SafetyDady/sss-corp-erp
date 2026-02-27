@@ -89,7 +89,7 @@ export default function POFormModal({ open, onClose, onSuccess }) {
       onOk={() => form.submit()}
       confirmLoading={loading}
       width={700}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" onFinish={onFinish}>
         <Form.Item name="supplier_name" label={'\u0E0A\u0E37\u0E48\u0E2D\u0E0B\u0E31\u0E1E\u0E1E\u0E25\u0E32\u0E22\u0E40\u0E2D\u0E2D\u0E23\u0E4C'}

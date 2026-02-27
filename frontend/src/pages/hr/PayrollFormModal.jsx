@@ -43,7 +43,7 @@ export default function PayrollFormModal({ open, onClose, onSuccess }) {
       okText="สร้าง"
       cancelText="ยกเลิก"
       width={480}
-      destroyOnClose
+      destroyOnHidden
     >
       <Alert
         type="info" showIcon

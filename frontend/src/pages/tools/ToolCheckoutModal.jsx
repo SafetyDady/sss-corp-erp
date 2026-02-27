@@ -59,7 +59,7 @@ export default function ToolCheckoutModal({ open, tool, onClose, onSuccess }) {
       okText="เบิก"
       cancelText="ยกเลิก"
       width={500}
-      destroyOnClose
+      destroyOnHidden
     >
       {tool && (
         <Alert

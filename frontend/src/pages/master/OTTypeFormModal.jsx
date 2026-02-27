@@ -62,7 +62,7 @@ export default function OTTypeFormModal({ open, editItem, onClose, onSuccess }) 
       okText={editItem ? 'บันทึก' : 'เพิ่ม'}
       cancelText="ยกเลิก"
       width={480}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" initialValues={{ factor: 1.5, max_ceiling: 3.0 }}>
         <Form.Item name="name" label="ชื่อประเภท OT"

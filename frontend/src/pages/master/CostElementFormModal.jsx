@@ -63,7 +63,7 @@ export default function CostElementFormModal({ open, editItem, onClose, onSucces
       okText={editItem ? 'บันทึก' : 'เพิ่ม'}
       cancelText="ยกเลิก"
       width={480}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical">
         <Form.Item name="code" label="รหัส"

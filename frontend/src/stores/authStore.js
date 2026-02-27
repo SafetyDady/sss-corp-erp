@@ -15,6 +15,7 @@ const useAuthStore = create(
       permissions: [],
       isAuthenticated: false,
       isLoading: false,
+      _hasHydrated: false,
 
       // Actions
       setTokens: (accessToken, refreshToken) => {
@@ -80,6 +81,11 @@ const useAuthStore = create(
     }),
     {
       name: 'sss-auth',
+      onRehydrateStorage: () => {
+        return () => {
+          useAuthStore.setState({ _hasHydrated: true });
+        };
+      },
       storage: {
         getItem: (name) => {
           const str = sessionStorage.getItem(name);
@@ -95,6 +101,11 @@ const useAuthStore = create(
         user: state.user,
         permissions: state.permissions,
         isAuthenticated: state.isAuthenticated,
+      }),
+      merge: (persisted, current) => ({
+        ...current,
+        ...(persisted || {}),
+        _hasHydrated: true,
       }),
     }
   )

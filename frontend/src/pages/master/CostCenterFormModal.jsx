@@ -64,7 +64,7 @@ export default function CostCenterFormModal({ open, editItem, onClose, onSuccess
       okText={editItem ? 'บันทึก' : 'เพิ่ม'}
       cancelText="ยกเลิก"
       width={480}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" initialValues={{ overhead_rate: 0 }}>
         <Form.Item name="code" label="รหัส"

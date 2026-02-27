@@ -80,7 +80,7 @@ export default function SOFormModal({ open, onClose, onSuccess }) {
     <Modal
       title={'\u0E2A\u0E23\u0E49\u0E32\u0E07\u0E43\u0E1A\u0E2A\u0E31\u0E48\u0E07\u0E02\u0E32\u0E22'}
       open={open} onCancel={onClose} onOk={() => form.submit()}
-      confirmLoading={loading} width={700} destroyOnClose
+      confirmLoading={loading} width={700} destroyOnHidden
     >
       <Form form={form} layout="vertical" onFinish={onFinish}>
         <Form.Item name="customer_id" label={'\u0E25\u0E39\u0E01\u0E04\u0E49\u0E32'}
