@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Card, Row, Col, Statistic, Table, App, Typography, Space } from 'antd';
+import { Button, Card, Row, Col, Table, App, Typography, Space } from 'antd';
 import {
   FileText, Package, Users, Wrench, ClipboardList, CalendarOff,
   CalendarCheck, Clock, ArrowRight, Edit,
@@ -10,6 +10,7 @@ import useAuthStore from '../stores/authStore';
 import { usePermission } from '../hooks/usePermission';
 import { COLORS } from '../utils/constants';
 import PageHeader from '../components/PageHeader';
+import StatCard from '../components/StatCard';
 import StatusBadge from '../components/StatusBadge';
 import api from '../services/api';
 
@@ -166,19 +167,13 @@ function StaffDashboard() {
       <Row gutter={[12, 12]} style={{ marginBottom: 24 }}>
         {summaryCards.map((card, i) => (
           <Col xs={12} sm={12} md={6} key={i}>
-            <Card
-              size="small"
-              style={{ background: COLORS.card, border: `1px solid ${COLORS.border}` }}
-              loading={loading}
-            >
-              <Statistic
-                title={<span style={{ color: COLORS.textSecondary, fontSize: 12 }}>{card.title}</span>}
-                value={card.value}
-                suffix={card.suffix}
-                prefix={<span style={{ color: card.color }}>{card.icon}</span>}
-                valueStyle={{ color: card.color, fontSize: 18 }}
-              />
-            </Card>
+            <StatCard
+              title={card.title}
+              value={card.value}
+              subtitle={card.suffix}
+              icon={card.icon}
+              color={card.color}
+            />
           </Col>
         ))}
       </Row>
@@ -192,17 +187,17 @@ function StaffDashboard() {
           <Button
             type="primary"
             icon={<Edit size={14} />}
-            onClick={() => navigate('/my/daily-report')}
+            onClick={() => navigate('/me')}
           >
             กรอก Report วันนี้
           </Button>
-          <Button icon={<CalendarOff size={14} />} onClick={() => navigate('/my/leave')}>
+          <Button icon={<CalendarOff size={14} />} onClick={() => navigate('/me')}>
             ขอลา
           </Button>
-          <Button icon={<CalendarCheck size={14} />} onClick={() => navigate('/my/tasks')}>
+          <Button icon={<CalendarCheck size={14} />} onClick={() => navigate('/me')}>
             ดูงานวันนี้
           </Button>
-          <Button icon={<Clock size={14} />} onClick={() => navigate('/my/timesheet')}>
+          <Button icon={<Clock size={14} />} onClick={() => navigate('/me')}>
             Timesheet
           </Button>
         </Space>
@@ -214,7 +209,7 @@ function StaffDashboard() {
         size="small"
         style={{ background: COLORS.card, border: `1px solid ${COLORS.border}` }}
         extra={
-          <Button type="link" size="small" onClick={() => navigate('/my/daily-report')}>
+          <Button type="link" size="small" onClick={() => navigate('/me')}>
             ดูทั้งหมด <ArrowRight size={12} />
           </Button>
         }
@@ -300,14 +295,12 @@ function AdminDashboard() {
       <Row gutter={[16, 16]}>
         {statCards.map((stat, i) => (
           <Col xs={24} sm={12} lg={6} key={i}>
-            <Card style={{ background: COLORS.card, border: `1px solid ${COLORS.border}` }}>
-              <Statistic
-                title={<span style={{ color: COLORS.textSecondary }}>{stat.title}</span>}
-                value={stat.value}
-                prefix={<span style={{ color: stat.color }}>{stat.icon}</span>}
-                valueStyle={{ color: stat.color }}
-              />
-            </Card>
+            <StatCard
+              title={stat.title}
+              value={stat.value}
+              icon={stat.icon}
+              color={stat.color}
+            />
           </Col>
         ))}
       </Row>

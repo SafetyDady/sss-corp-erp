@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Card, Statistic, Row, Col, Table, Button, App, DatePicker, Space, Tooltip, Spin, Divider, Alert } from 'antd';
-import { Download, RefreshCw, DollarSign, TrendingUp, Layers, Banknote } from 'lucide-react';
+import { Card, Row, Col, Table, Button, App, DatePicker, Space, Tooltip, Spin, Divider, Alert, Tabs } from 'antd';
+import { Download, RefreshCw, DollarSign, TrendingUp, Layers, Banknote, BookOpen, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
 import PageHeader from '../../components/PageHeader';
+import StatCard from '../../components/StatCard';
 import EmptyState from '../../components/EmptyState';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
@@ -136,98 +137,136 @@ export default function FinancePage() {
           {/* Summary Cards */}
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
             <Col xs={24} sm={12} lg={6}>
-              <Card size="small" style={{ background: COLORS.card, borderColor: COLORS.border }}>
-                <Statistic
-                  title={<span style={{ color: COLORS.textSecondary }}>ต้นทุนรวม</span>}
-                  value={grandTotal}
-                  formatter={(v) => formatCurrency(v)}
-                  prefix={<DollarSign size={16} style={{ color: COLORS.accent }} />}
-                  valueStyle={{ color: COLORS.accent, fontFamily: 'monospace', fontSize: 20 }}
-                />
-              </Card>
+              <StatCard
+                title="ต้นทุนรวม"
+                value={formatCurrency(grandTotal)}
+                icon={<DollarSign size={20} />}
+                color={COLORS.accent}
+              />
             </Col>
             <Col xs={24} sm={12} lg={6}>
-              <Card size="small" style={{ background: COLORS.card, borderColor: COLORS.border }}>
-                <Statistic
-                  title={<span style={{ color: COLORS.textSecondary }}>ค่าแรง (Labor)</span>}
-                  value={totalLabor}
-                  formatter={(v) => formatCurrency(v)}
-                  prefix={<Banknote size={16} style={{ color: COLORS.success }} />}
-                  valueStyle={{ color: COLORS.success, fontFamily: 'monospace', fontSize: 20 }}
-                />
-              </Card>
+              <StatCard
+                title="ค่าแรง (Labor)"
+                value={formatCurrency(totalLabor)}
+                icon={<Banknote size={20} />}
+                color={COLORS.success}
+              />
             </Col>
             <Col xs={24} sm={12} lg={6}>
-              <Card size="small" style={{ background: COLORS.card, borderColor: COLORS.border }}>
-                <Statistic
-                  title={<span style={{ color: COLORS.textSecondary }}>ค่าวัสดุ (Material)</span>}
-                  value={totalMaterial}
-                  formatter={(v) => formatCurrency(v)}
-                  prefix={<Layers size={16} style={{ color: COLORS.purple }} />}
-                  valueStyle={{ color: COLORS.purple, fontFamily: 'monospace', fontSize: 20 }}
-                />
-              </Card>
+              <StatCard
+                title="ค่าวัสดุ (Material)"
+                value={formatCurrency(totalMaterial)}
+                icon={<Layers size={20} />}
+                color={COLORS.purple}
+              />
             </Col>
             <Col xs={24} sm={12} lg={6}>
-              <Card size="small" style={{ background: COLORS.card, borderColor: COLORS.border }}>
-                <Statistic
-                  title={<span style={{ color: COLORS.textSecondary }}>ค่าเครื่องมือ (Tool)</span>}
-                  value={totalTool}
-                  formatter={(v) => formatCurrency(v)}
-                  prefix={<TrendingUp size={16} style={{ color: COLORS.warning }} />}
-                  valueStyle={{ color: COLORS.warning, fontFamily: 'monospace', fontSize: 20 }}
-                />
-              </Card>
+              <StatCard
+                title="ค่าเครื่องมือ (Tool)"
+                value={formatCurrency(totalTool)}
+                icon={<TrendingUp size={20} />}
+                color={COLORS.warning}
+              />
             </Col>
           </Row>
 
-          {/* Cost Breakdown Table */}
-          <Divider orientation="left" style={{ color: COLORS.textSecondary, fontSize: 14 }}>
-            ต้นทุนแยกตามศูนย์ต้นทุน
-          </Divider>
-          <Table
-            dataSource={costBreakdown}
-            columns={costColumns}
-            rowKey="cost_center_code"
-            locale={{ emptyText: <EmptyState message="ยังไม่มีข้อมูลต้นทุน" hint="สร้าง Work Order และบันทึก Timesheet เพื่อเริ่มสะสมข้อมูลต้นทุน" /> }}
-            pagination={false}
-            size="middle"
-            summary={() => {
-              if (costBreakdown.length === 0) return null;
-              const overhead = costBreakdown.reduce((s, r) => s + (parseFloat(r.overhead_cost) || 0), 0);
-              return (
-                <Table.Summary fixed>
-                  <Table.Summary.Row>
-                    <Table.Summary.Cell index={0}>
-                      <span style={{ fontWeight: 600 }}>รวมทั้งหมด</span>
-                    </Table.Summary.Cell>
-                    <Table.Summary.Cell index={1} align="right">
-                      <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{formatCurrency(totalLabor)}</span>
-                    </Table.Summary.Cell>
-                    <Table.Summary.Cell index={2} align="right">
-                      <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{formatCurrency(totalMaterial)}</span>
-                    </Table.Summary.Cell>
-                    <Table.Summary.Cell index={3} align="right">
-                      <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{formatCurrency(totalTool)}</span>
-                    </Table.Summary.Cell>
-                    <Table.Summary.Cell index={4} align="right">
-                      <span style={{ fontFamily: 'monospace', fontWeight: 600, color: COLORS.warning }}>{formatCurrency(overhead)}</span>
-                    </Table.Summary.Cell>
-                    <Table.Summary.Cell index={5} align="right">
-                      <span style={{ fontFamily: 'monospace', fontWeight: 700, color: COLORS.accent, fontSize: 15 }}>{formatCurrency(grandTotal)}</span>
-                    </Table.Summary.Cell>
-                  </Table.Summary.Row>
-                </Table.Summary>
-              );
-            }}
-          />
-
-          {/* Info about Job Costing */}
-          <Alert
-            type="info" showIcon
-            message="Job Costing Summary"
-            description="ข้อมูลต้นทุนรวบรวมจาก: Timesheet (ค่าแรง), Material Consumption (ค่าวัสดุ), Tool Checkout (ค่าเครื่องมือ), Overhead Rate (ค่าโสหุ้ย) — ดูรายละเอียดเพิ่มเติมได้ที่หน้า Work Order Detail"
-            style={{ marginTop: 20, background: COLORS.accentMuted, border: 'none' }}
+          {/* Finance Tabs */}
+          <Tabs
+            defaultActiveKey="job-costing"
+            type="card"
+            items={[
+              {
+                key: 'job-costing',
+                label: (
+                  <span><DollarSign size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Job Costing</span>
+                ),
+                children: (
+                  <>
+                    <Divider orientation="left" style={{ color: COLORS.textSecondary, fontSize: 14 }}>
+                      ต้นทุนแยกตามศูนย์ต้นทุน
+                    </Divider>
+                    <Table
+                      dataSource={costBreakdown}
+                      columns={costColumns}
+                      rowKey="cost_center_code"
+                      locale={{ emptyText: <EmptyState message="ยังไม่มีข้อมูลต้นทุน" hint="สร้าง Work Order และบันทึก Timesheet เพื่อเริ่มสะสมข้อมูลต้นทุน" /> }}
+                      pagination={false}
+                      size="middle"
+                      summary={() => {
+                        if (costBreakdown.length === 0) return null;
+                        const overhead = costBreakdown.reduce((s, r) => s + (parseFloat(r.overhead_cost) || 0), 0);
+                        return (
+                          <Table.Summary fixed>
+                            <Table.Summary.Row>
+                              <Table.Summary.Cell index={0}>
+                                <span style={{ fontWeight: 600 }}>รวมทั้งหมด</span>
+                              </Table.Summary.Cell>
+                              <Table.Summary.Cell index={1} align="right">
+                                <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{formatCurrency(totalLabor)}</span>
+                              </Table.Summary.Cell>
+                              <Table.Summary.Cell index={2} align="right">
+                                <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{formatCurrency(totalMaterial)}</span>
+                              </Table.Summary.Cell>
+                              <Table.Summary.Cell index={3} align="right">
+                                <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{formatCurrency(totalTool)}</span>
+                              </Table.Summary.Cell>
+                              <Table.Summary.Cell index={4} align="right">
+                                <span style={{ fontFamily: 'monospace', fontWeight: 600, color: COLORS.warning }}>{formatCurrency(overhead)}</span>
+                              </Table.Summary.Cell>
+                              <Table.Summary.Cell index={5} align="right">
+                                <span style={{ fontFamily: 'monospace', fontWeight: 700, color: COLORS.accent, fontSize: 15 }}>{formatCurrency(grandTotal)}</span>
+                              </Table.Summary.Cell>
+                            </Table.Summary.Row>
+                          </Table.Summary>
+                        );
+                      }}
+                    />
+                    <Alert
+                      type="info" showIcon
+                      message="Job Costing Summary"
+                      description="ข้อมูลต้นทุนรวบรวมจาก: Timesheet (ค่าแรง), Material Consumption (ค่าวัสดุ), Tool Checkout (ค่าเครื่องมือ), Overhead Rate (ค่าโสหุ้ย) — ดูรายละเอียดเพิ่มเติมได้ที่หน้า Work Order Detail"
+                      style={{ marginTop: 20, background: COLORS.accentMuted, border: 'none' }}
+                    />
+                  </>
+                ),
+              },
+              {
+                key: 'gl',
+                label: (
+                  <span><BookOpen size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />General Ledger</span>
+                ),
+                children: (
+                  <EmptyState
+                    message="General Ledger"
+                    hint="GL module อยู่ระหว่างพัฒนา — ระบบจะรวม Journal Entry, Chart of Accounts"
+                  />
+                ),
+              },
+              {
+                key: 'ap',
+                label: (
+                  <span><ArrowDownLeft size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />AP</span>
+                ),
+                children: (
+                  <EmptyState
+                    message="Accounts Payable"
+                    hint="AP module อยู่ระหว่างพัฒนา — ติดตามยอดค้างจ่ายจาก PO"
+                  />
+                ),
+              },
+              {
+                key: 'ar',
+                label: (
+                  <span><ArrowUpRight size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />AR</span>
+                ),
+                children: (
+                  <EmptyState
+                    message="Accounts Receivable"
+                    hint="AR module อยู่ระหว่างพัฒนา — ติดตามยอดค้างรับจาก SO"
+                  />
+                ),
+              },
+            ]}
           />
         </>
       )}

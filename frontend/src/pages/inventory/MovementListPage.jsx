@@ -10,7 +10,7 @@ import EmptyState from '../../components/EmptyState';
 import MovementCreateModal from './MovementCreateModal';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 
-export default function MovementListPage() {
+export default function MovementListPage({ embedded = false }) {
   const { can } = usePermission();
   const { message } = App.useApp();
   const [items, setItems] = useState([]);
@@ -99,17 +99,26 @@ export default function MovementListPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Stock Movements"
-        subtitle={'\u0E1B\u0E23\u0E30\u0E27\u0E31\u0E15\u0E34\u0E01\u0E32\u0E23\u0E40\u0E04\u0E25\u0E37\u0E48\u0E2D\u0E19\u0E44\u0E2B\u0E27\u0E2A\u0E15\u0E47\u0E2D\u0E01'}
-        actions={
-          can('inventory.movement.create') && (
-            <Button type="primary" icon={<Plus size={14} />} onClick={() => setModalOpen(true)}>
-              {'\u0E2A\u0E23\u0E49\u0E32\u0E07\u0E23\u0E32\u0E22\u0E01\u0E32\u0E23'}
-            </Button>
-          )
-        }
-      />
+      {!embedded && (
+        <PageHeader
+          title="Stock Movements"
+          subtitle={'\u0E1B\u0E23\u0E30\u0E27\u0E31\u0E15\u0E34\u0E01\u0E32\u0E23\u0E40\u0E04\u0E25\u0E37\u0E48\u0E2D\u0E19\u0E44\u0E2B\u0E27\u0E2A\u0E15\u0E47\u0E2D\u0E01'}
+          actions={
+            can('inventory.movement.create') && (
+              <Button type="primary" icon={<Plus size={14} />} onClick={() => setModalOpen(true)}>
+                {'\u0E2A\u0E23\u0E49\u0E32\u0E07\u0E23\u0E32\u0E22\u0E01\u0E32\u0E23'}
+              </Button>
+            )
+          }
+        />
+      )}
+      {embedded && can('inventory.movement.create') && (
+        <div style={{ marginBottom: 16, textAlign: 'right' }}>
+          <Button type="primary" icon={<Plus size={14} />} onClick={() => setModalOpen(true)}>
+            {'\u0E2A\u0E23\u0E49\u0E32\u0E07\u0E23\u0E32\u0E22\u0E01\u0E32\u0E23'}
+          </Button>
+        </div>
+      )}
       <div style={{ marginBottom: 16, display: 'flex', gap: 12 }}>
         <SearchInput onSearch={setSearch} />
         <Select

@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-02-27 v4 (Phase 4 complete — Production ready)
+> อัปเดตล่าสุด: 2026-02-28 v5 (Phase 5 complete — Staff Portal & Daily Report)
 
 ---
 
@@ -10,7 +10,7 @@
 
 **SSS Corp ERP** — ระบบ ERP สำหรับธุรกิจ Manufacturing/Trading ขนาดเล็ก-กลาง
 - Multi-tenant (Shared DB + org_id)
-- **11 Modules, 105 Permissions, 5 Roles**
+- **11 Modules, 108 Permissions, 5 Roles**
 - Job Costing: Material + ManHour + Tools Recharge + Admin Overhead
 - อ้างอิงเพิ่มเติม: `UI_GUIDELINES.md` (theme/icons), `BUSINESS_POLICY.md` (business rules)
 
@@ -145,7 +145,7 @@ sss-corp-erp/
 
 ---
 
-## RBAC — 5 Roles x 105 Permissions (Full Matrix)
+## RBAC — 5 Roles x 108 Permissions (Full Matrix)
 
 ### Inventory (9 permissions)
 
@@ -945,10 +945,17 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/components/StatusBadge.jsx` | Reusable status badge (30 statuses) |
 | `backend/app/models/organization.py` | Org, Department, OrgConfig models |
 | `backend/app/models/planning.py` | WOMasterPlan, DailyPlan, Reservations |
+| `backend/app/models/daily_report.py` | DailyWorkReport model (Phase 5) |
 | `backend/app/services/email.py` | SMTP email notification service |
 | `backend/app/api/setup.py` | One-time setup wizard API |
 | `backend/app/api/planning.py` | Daily plans + reservations API |
+| `backend/app/api/daily_report.py` | Daily Work Report API (Phase 5) |
 | `frontend/src/pages/setup/SetupWizardPage.jsx` | First-time org setup wizard |
+| `frontend/src/pages/my/MyDailyReportPage.jsx` | Staff — Daily Work Report (Phase 5) |
+| `frontend/src/pages/my/MyLeavePage.jsx` | Staff — My Leave (Phase 5) |
+| `frontend/src/pages/my/MyTimesheetPage.jsx` | Staff — My Timesheet (Phase 5) |
+| `frontend/src/pages/my/MyTasksPage.jsx` | Staff — My Tasks (Phase 5) |
+| `frontend/src/pages/hr/DailyReportApprovalTab.jsx` | Supervisor — Batch approve (Phase 5) |
 
 ---
 
@@ -971,4 +978,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v4 (Phase 0-4 complete — Production ready)*
+*End of CLAUDE.md — SSS Corp ERP v5 (Phase 0-5 complete — Staff Portal & Daily Report)*

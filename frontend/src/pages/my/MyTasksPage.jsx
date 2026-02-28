@@ -15,7 +15,7 @@ const { Text, Title } = Typography;
  * MyTasksPage — งานของฉันวันนี้ (จาก Daily Plan)
  * Route: /my/tasks
  */
-export default function MyTasksPage() {
+export default function MyTasksPage({ embedded = false }) {
   const { message } = App.useApp();
   const employeeId = useAuthStore((s) => s.employeeId);
 
@@ -47,7 +47,7 @@ export default function MyTasksPage() {
   if (!employeeId) {
     return (
       <div>
-        <PageHeader title="งานของฉันวันนี้" subtitle="My Tasks" />
+        {!embedded && <PageHeader title="งานของฉันวันนี้" subtitle="My Tasks" />}
         <EmptyState
           message="ไม่พบข้อมูลพนักงาน"
           hint="กรุณาติดต่อ HR เพื่อเชื่อมบัญชีกับข้อมูลพนักงาน"
@@ -58,7 +58,7 @@ export default function MyTasksPage() {
 
   return (
     <div>
-      <PageHeader title="งานของฉันวันนี้" subtitle="My Tasks" />
+      {!embedded && <PageHeader title="งานของฉันวันนี้" subtitle="My Tasks" />}
 
       {/* Date Navigation */}
       <Card style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, marginBottom: 16 }}>

@@ -21,7 +21,7 @@ const { RangePicker } = DatePicker;
  * MyLeavePage — ใบลาของฉัน + โควต้า
  * Route: /my/leave
  */
-export default function MyLeavePage() {
+export default function MyLeavePage({ embedded = false }) {
   const { message } = App.useApp();
   const employeeId = useAuthStore((s) => s.employeeId);
 
@@ -132,7 +132,7 @@ export default function MyLeavePage() {
   if (!employeeId) {
     return (
       <div>
-        <PageHeader title="ใบลาของฉัน" subtitle="My Leave" />
+        {!embedded && <PageHeader title="ใบลาของฉัน" subtitle="My Leave" />}
         <EmptyState
           message="ไม่พบข้อมูลพนักงาน"
           hint="กรุณาติดต่อ HR เพื่อเชื่อมบัญชีกับข้อมูลพนักงาน"
@@ -179,15 +179,24 @@ export default function MyLeavePage() {
 
   return (
     <div>
-      <PageHeader
-        title="ใบลาของฉัน"
-        subtitle="My Leave"
-        actions={
+      {!embedded && (
+        <PageHeader
+          title="ใบลาของฉัน"
+          subtitle="My Leave"
+          actions={
+            <Button type="primary" icon={<Plus size={14} />} onClick={() => setModalOpen(true)}>
+              ขอลาหยุด
+            </Button>
+          }
+        />
+      )}
+      {embedded && (
+        <div style={{ marginBottom: 16, textAlign: 'right' }}>
           <Button type="primary" icon={<Plus size={14} />} onClick={() => setModalOpen(true)}>
             ขอลาหยุด
           </Button>
-        }
-      />
+        </div>
+      )}
 
       {/* Quota Cards */}
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

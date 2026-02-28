@@ -1,6 +1,6 @@
 # SSS Corp ERP — BUSINESS POLICY (Source of Truth)
 
-Updated: 2026-02-27 | Based on SmartERP Master Document v2 + Phase 4 additions
+Updated: 2026-02-28 | Based on SmartERP Master Document v2 + Phase 4-5 additions
 
 ---
 
@@ -63,10 +63,10 @@ WO Total Cost
 
 | Role | Permissions | Notes |
 |------|------------|-------|
-| owner | ALL 105 | Full access (89 original + 16 Phase 4) |
-| manager | ~57 | No admin.*, no *.delete + planning create/update |
-| supervisor | ~41 | Read + approve + limited create + planning read |
-| staff | ~28 | Read + own create (timesheet, leave, movement) |
+| owner | ALL 108 | Full access (89 original + 16 Phase 4 + 3 Phase 5) |
+| manager | ~60 | No admin.*, no *.delete + planning create/update |
+| supervisor | ~44 | Read + approve + limited create + planning read |
+| staff | ~31 | Read + own create (timesheet, leave, movement, dailyreport) |
 | viewer | ~18 | Read + selected export only |
 
 ### New Permissions (Phase 4 — 16 added)
@@ -78,6 +78,12 @@ WO Total Cost
 | admin.config.* | 2 | read / update (Org + Work + Approval config) |
 | workorder.plan.* | 4 | create / read / update / delete (Master + Daily Plan) |
 | workorder.reservation.* | 2 | create / read (Material + Tool reservation) |
+
+### New Permissions (Phase 5 — 3 added)
+
+| Permission Group | Count | Details |
+|-----------------|:-----:|---------|
+| hr.dailyreport.* | 3 | create / read / approve |
 
 ---
 

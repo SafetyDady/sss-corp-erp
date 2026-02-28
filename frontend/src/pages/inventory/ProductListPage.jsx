@@ -11,7 +11,7 @@ import EmptyState from '../../components/EmptyState';
 import ProductFormModal from './ProductFormModal';
 import { formatCurrency } from '../../utils/formatters';
 
-export default function ProductListPage() {
+export default function ProductListPage({ embedded = false }) {
   const { can } = usePermission();
   const { message } = App.useApp();
   const navigate = useNavigate();
@@ -89,25 +89,35 @@ export default function ProductListPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Inventory"
-        subtitle={'\u0E08\u0E31\u0E14\u0E01\u0E32\u0E23\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32\u0E41\u0E25\u0E30\u0E27\u0E31\u0E15\u0E16\u0E38\u0E14\u0E34\u0E1A'}
-        actions={
-          <Space>
-            {can('inventory.movement.read') && (
-              <Button icon={<ArrowRightLeft size={14} />} onClick={() => navigate('/inventory/movements')}>
-                Stock Movements
-              </Button>
-            )}
-            {can('inventory.product.create') && (
-              <Button type="primary" icon={<Plus size={14} />}
-                onClick={() => { setEditItem(null); setModalOpen(true); }}>
-                {'\u0E40\u0E1E\u0E34\u0E48\u0E21\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32'}
-              </Button>
-            )}
-          </Space>
-        }
-      />
+      {!embedded && (
+        <PageHeader
+          title="Inventory"
+          subtitle={'\u0E08\u0E31\u0E14\u0E01\u0E32\u0E23\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32\u0E41\u0E25\u0E30\u0E27\u0E31\u0E15\u0E16\u0E38\u0E14\u0E34\u0E1A'}
+          actions={
+            <Space>
+              {can('inventory.movement.read') && (
+                <Button icon={<ArrowRightLeft size={14} />} onClick={() => navigate('/inventory/movements')}>
+                  Stock Movements
+                </Button>
+              )}
+              {can('inventory.product.create') && (
+                <Button type="primary" icon={<Plus size={14} />}
+                  onClick={() => { setEditItem(null); setModalOpen(true); }}>
+                  {'\u0E40\u0E1E\u0E34\u0E48\u0E21\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32'}
+                </Button>
+              )}
+            </Space>
+          }
+        />
+      )}
+      {embedded && can('inventory.product.create') && (
+        <div style={{ marginBottom: 16, textAlign: 'right' }}>
+          <Button type="primary" icon={<Plus size={14} />}
+            onClick={() => { setEditItem(null); setModalOpen(true); }}>
+            {'\u0E40\u0E1E\u0E34\u0E48\u0E21\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32'}
+          </Button>
+        </div>
+      )}
       <div style={{ marginBottom: 16 }}>
         <SearchInput onSearch={setSearch} />
       </div>

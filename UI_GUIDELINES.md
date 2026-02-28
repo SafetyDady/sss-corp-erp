@@ -2,7 +2,7 @@
 
 > ไฟล์นี้เป็นส่วนเสริมของ CLAUDE.md — กำหนดแนวทาง UI ทั้งหมด
 > AI ต้องอ่านร่วมกับ CLAUDE.md เสมอ
-> อัปเดต: 2026-02-27 v5 — Synced with Phase 4 (70+ pages, 20+ routes)
+> อัปเดต: 2026-02-28 v6 — Synced with Phase 5 (80+ pages, 25+ routes, Staff Portal)
 
 ---
 
@@ -210,7 +210,18 @@ import SearchInput from '../../components/SearchInput';
 
 ## Icon System — Lucide React
 
-### Module Icons (Sidebar — 13 items)
+### Module Icons (Sidebar — 17+ items, grouped)
+
+#### Group: "ของฉัน" (Staff Portal — Phase 5)
+
+| Module | Icon | Import | Route | Permission |
+|--------|------|--------|-------|-----------|
+| My Daily Report | FileText | `FileText` | `/my/daily-report` | null (all authenticated) |
+| My Leave | CalendarDays | `CalendarDays` | `/my/leave` | null (all authenticated) |
+| My Timesheet | Clock | `Clock` | `/my/timesheet` | null (all authenticated) |
+| My Tasks | CheckCircle | `CheckCircle` | `/my/tasks` | null (all authenticated) |
+
+#### Group: "ระบบงาน" (System — existing modules)
 
 | Module | Icon | Import | Route | Permission |
 |--------|------|--------|-------|-----------|
@@ -650,7 +661,7 @@ frontend/src/
     │   ├── CustomerListPage.jsx
     │   └── CustomerFormModal.jsx
     ├── hr/
-    │   ├── HRPage.jsx              # 4 tabs (RBAC-filtered)
+    │   ├── HRPage.jsx              # 5 tabs (RBAC-filtered) — +DailyReportApproval (Phase 5)
     │   ├── EmployeeTab.jsx
     │   ├── EmployeeFormModal.jsx
     │   ├── TimesheetTab.jsx
@@ -659,7 +670,9 @@ frontend/src/
     │   ├── LeaveFormModal.jsx
     │   ├── PayrollTab.jsx
     │   ├── PayrollFormModal.jsx
-    │   ├── StandardTimesheetView.jsx  # Phase 4.4 — auto-generated timesheet
+    │   ├── LeaveBalanceTab.jsx        # Phase 5.7 — HR manage leave quotas
+    │   ├── DailyReportApprovalTab.jsx # Phase 5.4 — Supervisor batch approve
+    │   ├── StandardTimesheetView.jsx   # Phase 4.4 — auto-generated timesheet
     │   └── WOTimeEntryForm.jsx        # Phase 4.4 — batch WO time entry
     ├── tools/
     │   ├── ToolListPage.jsx
@@ -689,6 +702,12 @@ frontend/src/
     │   ├── RoleTab.jsx
     │   ├── AuditLogTab.jsx
     │   └── OrgSettingsTab.jsx         # Phase 4.1 — org/work/approval config
+    ├── my/                             # Phase 5 — Staff Portal ("ของฉัน")
+    │   ├── MePage.jsx                 # Staff Portal container/router
+    │   ├── MyDailyReportPage.jsx       # Daily Work Report (create/edit/submit)
+    │   ├── MyLeavePage.jsx             # My Leave requests (own data only)
+    │   ├── MyTimesheetPage.jsx         # My Timesheet (read-only own data)
+    │   └── MyTasksPage.jsx             # My Tasks (assigned daily plans)
     └── finance/
         └── FinancePage.jsx
 ```
@@ -835,6 +854,16 @@ frontend/src/
 | `/api/hr/timesheet/batch` | POST | `/api/hr/timesheet/batch` |
 | `/api/hr/standard-timesheet` | GET | `/api/hr/standard-timesheet` |
 
+### Daily Report (Phase 5)
+| Frontend Path | Method | Backend Endpoint |
+|---------------|--------|------------------|
+| `/api/daily-report` | GET, POST | `/api/daily-report` |
+| `/api/daily-report/{id}` | GET, PUT | `/api/daily-report/{id}` |
+| `/api/daily-report/{id}/submit` | POST | `/api/daily-report/{id}/submit` |
+| `/api/daily-report/{id}/approve` | POST | `/api/daily-report/{id}/approve` |
+| `/api/daily-report/batch-approve` | POST | `/api/daily-report/batch-approve` |
+| `/api/daily-report/{id}/reject` | POST | `/api/daily-report/{id}/reject` |
+
 ---
 
 ## Business Rules Enforced in Frontend
@@ -861,4 +890,4 @@ frontend/src/
 
 ---
 
-*End of UI_GUIDELINES.md — SSS Corp ERP v5 (Phase 4 complete)*
+*End of UI_GUIDELINES.md — SSS Corp ERP v6 (Phase 5 complete — Staff Portal & Daily Report)*

@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Package, Warehouse, FileText, ShoppingCart,
   DollarSign, BarChart3, Users, Wrench, Database, Settings,
   UserCheck, LogOut, User, ChevronLeft, ChevronRight, CalendarRange,
-  ClipboardList, CalendarOff, Clock, CalendarCheck,
+  ClipboardList, CalendarOff, Clock, CalendarCheck, Boxes,
 } from 'lucide-react';
 import useAuthStore from './stores/authStore';
 import { usePermission } from './hooks/usePermission';
@@ -41,23 +41,20 @@ const MyDailyReportPage = lazy(() => import('./pages/my/MyDailyReportPage'));
 const MyLeavePage = lazy(() => import('./pages/my/MyLeavePage'));
 const MyTimesheetPage = lazy(() => import('./pages/my/MyTimesheetPage'));
 const MyTasksPage = lazy(() => import('./pages/my/MyTasksPage'));
+const MePage = lazy(() => import('./pages/my/MePage'));
+const SupplyChainPage = lazy(() => import('./pages/supply-chain/SupplyChainPage'));
 
 const MY_MENU_ITEMS = [
-  { key: '/my/daily-report', icon: <ClipboardList size={18} />, label: 'รายงานประจำวัน', permission: 'hr.dailyreport.create' },
-  { key: '/my/leave', icon: <CalendarOff size={18} />, label: 'ใบลาของฉัน', permission: 'hr.leave.create' },
-  { key: '/my/timesheet', icon: <Clock size={18} />, label: 'Timesheet', permission: 'hr.timesheet.read' },
-  { key: '/my/tasks', icon: <CalendarCheck size={18} />, label: 'งานของฉัน', permission: 'workorder.plan.read' },
+  { key: '/me', icon: <User size={18} />, label: 'ME', permission: null },
 ];
 
 const SYSTEM_MENU_ITEMS = [
   { key: '/', icon: <LayoutDashboard size={18} />, label: 'Dashboard', permission: null },
-  { key: '/inventory', icon: <Package size={18} />, label: 'Inventory', permission: 'inventory.product.read' },
-  { key: '/warehouse', icon: <Warehouse size={18} />, label: 'Warehouse', permission: 'warehouse.warehouse.read' },
+  { key: '/supply-chain', icon: <Boxes size={18} />, label: 'Supply Chain', permission: 'inventory.product.read' },
   { key: '/work-orders', icon: <FileText size={18} />, label: 'Work Orders', permission: 'workorder.order.read' },
   { key: '/purchasing', icon: <ShoppingCart size={18} />, label: 'Purchasing', permission: 'purchasing.po.read' },
   { key: '/sales', icon: <DollarSign size={18} />, label: 'Sales', permission: 'sales.order.read' },
   { key: '/hr', icon: <Users size={18} />, label: 'HR', permission: 'hr.employee.read' },
-  { key: '/tools', icon: <Wrench size={18} />, label: 'Tools', permission: 'tools.tool.read' },
   { key: '/customers', icon: <UserCheck size={18} />, label: 'Customers', permission: 'customer.customer.read' },
   { key: '/planning', icon: <CalendarRange size={18} />, label: 'Planning', permission: 'workorder.plan.read' },
   { key: '/master', icon: <Database size={18} />, label: 'Master Data', permission: 'master.costcenter.read' },
@@ -100,7 +97,7 @@ function AppLayout() {
   const visibleItems = [
     ...(myItems.length > 0
       ? [
-          { key: 'grp-my', type: 'group', label: collapsed ? null : 'ของฉัน', children: myItems },
+          { key: 'grp-my', type: 'group', label: collapsed ? null : 'ME', children: myItems },
         ]
       : []),
     { key: 'grp-system', type: 'group', label: collapsed ? null : 'ระบบงาน', children: systemItems },
@@ -108,7 +105,8 @@ function AppLayout() {
 
   const selectedKey = (() => {
     const path = location.pathname;
-    if (path.startsWith('/my/')) return path;
+    if (path === '/me' || path.startsWith('/my/')) return '/me';
+    if (path.startsWith('/supply-chain') || path.startsWith('/inventory') || path.startsWith('/warehouse') || path.startsWith('/tools')) return '/supply-chain';
     return '/' + path.split('/')[1];
   })();
 
@@ -204,14 +202,17 @@ function AppLayout() {
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<DashboardPage />} />
-              <Route path="/my/daily-report" element={<MyDailyReportPage />} />
-              <Route path="/my/leave" element={<MyLeavePage />} />
-              <Route path="/my/timesheet" element={<MyTimesheetPage />} />
-              <Route path="/my/tasks" element={<MyTasksPage />} />
-              <Route path="/inventory" element={<ProductListPage />} />
-              <Route path="/inventory/movements" element={<MovementListPage />} />
-              <Route path="/warehouse" element={<WarehouseListPage />} />
-              <Route path="/warehouse/locations" element={<LocationListPage />} />
+              <Route path="/me" element={<MePage />} />
+              <Route path="/my/daily-report" element={<MePage />} />
+              <Route path="/my/leave" element={<MePage />} />
+              <Route path="/my/timesheet" element={<MePage />} />
+              <Route path="/my/tasks" element={<MePage />} />
+              <Route path="/supply-chain" element={<SupplyChainPage />} />
+              <Route path="/inventory" element={<Navigate to="/supply-chain" replace />} />
+              <Route path="/inventory/movements" element={<Navigate to="/supply-chain" replace />} />
+              <Route path="/warehouse" element={<Navigate to="/supply-chain" replace />} />
+              <Route path="/warehouse/locations" element={<Navigate to="/supply-chain" replace />} />
+              <Route path="/tools" element={<Navigate to="/supply-chain" replace />} />
               <Route path="/work-orders" element={<WorkOrderListPage />} />
               <Route path="/work-orders/:id" element={<WorkOrderDetailPage />} />
               <Route path="/purchasing" element={<POListPage />} />
@@ -219,7 +220,6 @@ function AppLayout() {
               <Route path="/sales" element={<SOListPage />} />
               <Route path="/sales/:id" element={<SODetailPage />} />
               <Route path="/hr" element={<HRPage />} />
-              <Route path="/tools" element={<ToolListPage />} />
               <Route path="/master" element={<MasterDataPage />} />
               <Route path="/customers" element={<CustomerListPage />} />
               <Route path="/finance" element={<FinancePage />} />

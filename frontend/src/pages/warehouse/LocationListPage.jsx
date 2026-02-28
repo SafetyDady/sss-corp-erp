@@ -8,7 +8,7 @@ import SearchInput from '../../components/SearchInput';
 import EmptyState from '../../components/EmptyState';
 import LocationFormModal from './LocationFormModal';
 
-export default function LocationListPage() {
+export default function LocationListPage({ embedded = false }) {
   const { can } = usePermission();
   const { message } = App.useApp();
   const [items, setItems] = useState([]);
@@ -87,18 +87,28 @@ export default function LocationListPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Locations"
-        subtitle={'\u0E08\u0E31\u0E14\u0E01\u0E32\u0E23\u0E15\u0E33\u0E41\u0E2B\u0E19\u0E48\u0E07\u0E08\u0E31\u0E14\u0E40\u0E01\u0E47\u0E1A'}
-        actions={
-          can('warehouse.location.create') && (
-            <Button type="primary" icon={<Plus size={14} />}
-              onClick={() => { setEditItem(null); setModalOpen(true); }}>
-              {'\u0E40\u0E1E\u0E34\u0E48\u0E21\u0E15\u0E33\u0E41\u0E2B\u0E19\u0E48\u0E07'}
-            </Button>
-          )
-        }
-      />
+      {!embedded && (
+        <PageHeader
+          title="Locations"
+          subtitle={'\u0E08\u0E31\u0E14\u0E01\u0E32\u0E23\u0E15\u0E33\u0E41\u0E2B\u0E19\u0E48\u0E07\u0E08\u0E31\u0E14\u0E40\u0E01\u0E47\u0E1A'}
+          actions={
+            can('warehouse.location.create') && (
+              <Button type="primary" icon={<Plus size={14} />}
+                onClick={() => { setEditItem(null); setModalOpen(true); }}>
+                {'\u0E40\u0E1E\u0E34\u0E48\u0E21\u0E15\u0E33\u0E41\u0E2B\u0E19\u0E48\u0E07'}
+              </Button>
+            )
+          }
+        />
+      )}
+      {embedded && can('warehouse.location.create') && (
+        <div style={{ marginBottom: 16, textAlign: 'right' }}>
+          <Button type="primary" icon={<Plus size={14} />}
+            onClick={() => { setEditItem(null); setModalOpen(true); }}>
+            {'\u0E40\u0E1E\u0E34\u0E48\u0E21\u0E15\u0E33\u0E41\u0E2B\u0E19\u0E48\u0E07'}
+          </Button>
+        </div>
+      )}
       <div style={{ marginBottom: 16 }}>
         <SearchInput onSearch={setSearch} />
       </div>

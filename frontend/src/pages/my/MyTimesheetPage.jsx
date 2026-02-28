@@ -18,7 +18,7 @@ const DAY_NAMES = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
  * MyTimesheetPage — Timesheet ของฉัน (read-only)
  * Route: /my/timesheet
  */
-export default function MyTimesheetPage() {
+export default function MyTimesheetPage({ embedded = false }) {
   const { message } = App.useApp();
   const employeeId = useAuthStore((s) => s.employeeId);
 
@@ -154,7 +154,7 @@ export default function MyTimesheetPage() {
   if (!employeeId) {
     return (
       <div>
-        <PageHeader title="Timesheet ของฉัน" subtitle="My Timesheet" />
+        {!embedded && <PageHeader title="Timesheet ของฉัน" subtitle="My Timesheet" />}
         <EmptyState
           message="ไม่พบข้อมูลพนักงาน"
           hint="กรุณาติดต่อ HR เพื่อเชื่อมบัญชีกับข้อมูลพนักงาน"
@@ -226,7 +226,7 @@ export default function MyTimesheetPage() {
 
   return (
     <div>
-      <PageHeader title="Timesheet ของฉัน" subtitle="My Timesheet (read-only)" />
+      {!embedded && <PageHeader title="Timesheet ของฉัน" subtitle="My Timesheet (read-only)" />}
 
       {/* Month Navigation */}
       <Card style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, marginBottom: 16 }}>

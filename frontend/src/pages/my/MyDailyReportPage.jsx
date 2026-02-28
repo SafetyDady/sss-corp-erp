@@ -21,7 +21,7 @@ const { TextArea } = Input;
  * MyDailyReportPage — Staff กรอก Daily Work Report ประจำวัน
  * Route: /my/daily-report
  */
-export default function MyDailyReportPage() {
+export default function MyDailyReportPage({ embedded = false }) {
   const { message } = App.useApp();
   const employeeId = useAuthStore((s) => s.employeeId);
 
@@ -257,7 +257,7 @@ export default function MyDailyReportPage() {
   if (!employeeId) {
     return (
       <div>
-        <PageHeader title="รายงานประจำวัน" subtitle="Daily Work Report" />
+        {!embedded && <PageHeader title="รายงานประจำวัน" subtitle="Daily Work Report" />}
         <EmptyState
           message="ไม่พบข้อมูลพนักงาน"
           hint="กรุณาติดต่อ HR เพื่อเชื่อมบัญชีกับข้อมูลพนักงาน"
@@ -285,7 +285,7 @@ export default function MyDailyReportPage() {
 
   return (
     <div>
-      <PageHeader title="รายงานประจำวัน" subtitle="Daily Work Report" />
+      {!embedded && <PageHeader title="รายงานประจำวัน" subtitle="Daily Work Report" />}
 
       {/* Date Navigation */}
       <Card style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, marginBottom: 16 }}>

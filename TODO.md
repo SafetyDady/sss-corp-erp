@@ -1,7 +1,7 @@
 # TODO.md — SSS Corp ERP Implementation Tracker
 
 > อ้างอิง: `CLAUDE.md` → Implementation Phases + Business Rules
-> อัปเดตล่าสุด: 2026-02-27 (Phase 4 complete — Production ready)
+> อัปเดตล่าสุด: 2026-02-28 (Phase 5 complete — Staff Portal & Daily Report)
 
 ---
 
@@ -435,6 +435,80 @@
 
 ---
 
+## Phase 5 — Staff Portal & Daily Report ✅
+
+### 5.1 Employee hire_date + /me API ✅
+
+- [x] Model: Employee + `hire_date` (nullable for existing, required for new)
+- [x] Schema: EmployeeCreate/Update — hire_date field
+- [x] API: `GET /api/auth/me` — returns employee fields (hire_date, department, etc.)
+- [x] Frontend: EmployeeFormModal — hire_date DatePicker (required for new)
+- [x] Migration: `c9d0e1f2a3b4_phase5_1_employee_hire_date.py`
+- [x] BR#47: hire_date required for new employees ✅
+
+### 5.2 Daily Work Report Backend ✅
+
+- [x] Model: `DailyWorkReport` + `DailyWorkReportLine` (REGULAR/OT line items)
+- [x] Schema: DailyWorkReport CRUD + line items + status transitions
+- [x] Service: Create, update, submit, approve, reject, batch-approve
+- [x] Service: Auto-create Timesheet WO Time Entry on approve (BR#52)
+- [x] Service: Auto-update StandardTimesheet OT hours on approve (BR#53)
+- [x] API: `GET/POST /api/daily-report` — hr.dailyreport.create/read
+- [x] API: `GET/PUT /api/daily-report/{id}` — read/update
+- [x] API: `POST /api/daily-report/{id}/submit` — submit for approval
+- [x] API: `POST /api/daily-report/{id}/approve` — hr.dailyreport.approve
+- [x] API: `POST /api/daily-report/batch-approve` — hr.dailyreport.approve
+- [x] API: `POST /api/daily-report/{id}/reject` — hr.dailyreport.approve
+- [x] Migration: `d0e1f2a3b4c5_phase5_2_daily_work_report.py`
+- [x] Permissions: `hr.dailyreport.*` (create/read/approve) = 3 new
+- [x] BR#49-50: 1 report per employee per day ✅
+- [x] BR#51: Time overlap validation within same line type ✅
+- [x] BR#52: Auto-create Timesheet WO Time Entry on approve ✅
+- [x] BR#53: Auto-update StandardTimesheet OT hours on approve ✅
+- [x] BR#54: Edit only DRAFT/REJECTED status ✅
+
+### 5.3 Staff Portal Frontend ✅
+
+- [x] `pages/my/MePage.jsx` — Staff Portal container/router
+- [x] `pages/my/MyDailyReportPage.jsx` — Daily Work Report (create/edit/submit)
+- [x] `pages/my/MyLeavePage.jsx` — My Leave requests (own data only)
+- [x] `pages/my/MyTimesheetPage.jsx` — My Timesheet (read-only own data)
+- [x] `pages/my/MyTasksPage.jsx` — My Tasks (assigned daily plans)
+- [x] Routes: `/my/daily-report`, `/my/leave`, `/my/timesheet`, `/my/tasks`
+- [x] BR#48: Staff sees only own data ("ของฉัน" menu group) ✅
+
+### 5.4 Daily Report Approval Tab ✅
+
+- [x] `pages/hr/DailyReportApprovalTab.jsx` — Supervisor batch approve/reject
+- [x] Added to HRPage.jsx as new tab
+- [x] BR#55: Supervisor sees only own department reports ✅
+
+### 5.5 WO ManHour Summary ✅
+
+- [x] Backend: ManHour summary calculated on-the-fly from Timesheet
+- [x] Frontend: `pages/workorder/MasterPlanSection.jsx` — Plan vs Actual display
+- [x] WorkOrderDetailPage — ManHour summary cards
+
+### 5.6 Sidebar Refactor ✅
+
+- [x] Grouped menu: "ของฉัน" (My Daily Report, My Leave, My Timesheet, My Tasks)
+- [x] Grouped menu: "ระบบงาน" (existing modules)
+- [x] RBAC-filtered: Staff sees "ของฉัน" group, Manager+ sees both
+
+### 5.7 Phase 4 Leftovers ✅
+
+- [x] Leave names + colors in StatusBadge
+- [x] `pages/hr/LeaveBalanceTab.jsx` — HR manage leave quotas
+- [x] `pages/workorder/MasterPlanSection.jsx` — WO detail plan section
+
+### 5.8 E2E Testing ✅
+
+- [x] 15 end-to-end test scenarios PASSED
+- [x] Staff Portal flow: create report → submit → supervisor approve → auto timesheet
+- [x] All business rules BR#47-55 verified
+
+---
+
 ## Summary
 
 | Phase | Backend | Frontend | Migrations | Status |
@@ -444,12 +518,13 @@
 | Phase 2 — HR + Job Costing | ~15 files | — | 1 | ✅ |
 | Phase 3 — Business Flow + Frontend | ~10 files | 54 files | — | ✅ |
 | Phase 4 — Org + Planning + Production | ~25 files | ~20 files | 6 | ✅ |
-| **Total** | **~70 files** | **~70 files** | **10** | **✅** |
+| Phase 5 — Staff Portal & Daily Report | ~10 files | ~12 files | 2 | ✅ |
+| **Total** | **~85 files** | **~82 files** | **12** | **✅** |
 
-**Permissions:** 89 → 105 (16 new)
-**Business Rules:** 35 → 46 (11 new)
-**Routes:** 17 → 20+ (Setup, Planning added)
+**Permissions:** 89 → 105 → 108 (Phase 4: +16, Phase 5: +3 dailyreport)
+**Business Rules:** 35 → 46 → 55 (Phase 4: +11, Phase 5: +9)
+**Routes:** 17 → 20+ → 25+ (Staff Portal: +4 my/* routes)
 
 ---
 
-*Last updated: 2026-02-27 — Phase 4 complete (105 permissions, 46 BRs, ~140 files)*
+*Last updated: 2026-02-28 — Phase 5 complete (108 permissions, 55 BRs, ~167 files)*

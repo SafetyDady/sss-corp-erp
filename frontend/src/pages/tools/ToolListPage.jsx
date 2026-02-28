@@ -12,7 +12,7 @@ import ToolCheckoutModal from './ToolCheckoutModal';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
 
-export default function ToolListPage() {
+export default function ToolListPage({ embedded = false }) {
   const { can } = usePermission();
   const { message } = App.useApp();
   const [items, setItems] = useState([]);
@@ -164,7 +164,7 @@ export default function ToolListPage() {
 
   return (
     <div>
-      <PageHeader title="เครื่องมือ" subtitle="จัดการเครื่องมือ — เบิก, คืน, ดูประวัติ" />
+      {!embedded && <PageHeader title="เครื่องมือ" subtitle="จัดการเครื่องมือ — เบิก, คืน, ดูประวัติ" />}
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <SearchInput onSearch={setSearch} placeholder="ค้นหารหัส, ชื่อเครื่องมือ..." />
         {can('tools.tool.create') && (
