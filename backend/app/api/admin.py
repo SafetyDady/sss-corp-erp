@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import DEFAULT_ORG_ID
 from app.core.database import get_db
-from app.core.permissions import ALL_PERMISSIONS, ROLE_PERMISSIONS, require
+from app.core.permissions import ALL_PERMISSIONS, PERMISSION_DESCRIPTIONS, ROLE_PERMISSIONS, require
 from app.core.security import get_token_payload
 from app.models.user import User
 from app.schemas.organization import (
@@ -256,6 +256,7 @@ async def api_seed_permissions():
     """Return the full permission list (for UI sync)."""
     return {
         "all_permissions": ALL_PERMISSIONS,
+        "descriptions": PERMISSION_DESCRIPTIONS,
         "total": len(ALL_PERMISSIONS),
         "roles": {
             role: sorted(list(perms))

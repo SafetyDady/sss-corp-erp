@@ -615,6 +615,302 @@
 
 ---
 
+## UX Improvement — Admin RoleTab Redesign ✅
+
+### Backend Changes ✅
+
+- [x] `backend/app/core/permissions.py` — Added `PERMISSION_DESCRIPTIONS: dict[str, str]` (108 Thai descriptions)
+  - คำอธิบายภาษาไทยสำหรับทุก permission เช่น "สร้างสินค้า/วัตถุดิบใหม่ในระบบ"
+  - `assert set(PERMISSION_DESCRIPTIONS.keys()) == set(ALL_PERMISSIONS)` — ป้องกัน mismatch
+- [x] `backend/app/api/admin.py` — Added `descriptions` key to `api_seed_permissions()` response
+  - Import `PERMISSION_DESCRIPTIONS` + return ใน seed-permissions API
+  - Backward-compatible — key เดิมยังอยู่ครบ
+
+### Frontend Changes ✅
+
+- [x] `frontend/src/utils/permissionMeta.js` — **NEW FILE**: Permission UI metadata
+  - `MODULE_META` — 11 modules: Thai label + Lucide icon name
+  - `MODULE_ORDER` — display order matching sidebar
+  - `RESOURCE_META` — 25 resources: Thai labels
+  - `ACTION_META` — 7 actions: Thai label + Lucide icon + color
+  - `ACTION_ORDER` — display order: create → read → update → delete → approve → export → execute
+  - `buildPermissionTree()` — flat permission list → module → resource → action hierarchy
+- [x] `frontend/src/pages/admin/RoleTab.jsx` — **FULL REWRITE**: Permission management UI
+  - MODULE → RESOURCE → ACTION hierarchical layout (was flat checkbox grid)
+  - Switch toggle (with icon + color) instead of monospace Checkbox
+  - Per-module Collapse panels with Thai name + Lucide icon + granted/total count
+  - Resource rows with action toggles (green=create, cyan=read, yellow=edit, red=delete, purple=approve)
+  - Tooltip on each action showing Thai description from backend
+  - Search bar — filter by module/resource/action name, description (Thai+English)
+  - "เปิดทั้งหมด" / "ปิดทั้งหมด" buttons per module (Grant All / Revoke All)
+  - Owner card locked — all switches disabled, no save button
+  - Change indicator badge + Save button
+  - `npm run build` → 0 errors
+
+---
+
+## Phase 8 — Dashboard & Analytics 📊 (Planned)
+
+### 8.1 KPI Dashboard
+- [ ] Backend: `GET /api/dashboard/kpi` — aggregated stats (sales total, WO count by status, stock value, pending approvals)
+- [ ] Backend: `GET /api/dashboard/trends` — time-series data (daily/weekly/monthly)
+- [ ] Frontend: KPI stat cards — total revenue, active WOs, low stock items, pending approvals count
+- [ ] Frontend: Real-time refresh (polling every 30s or manual refresh button)
+
+### 8.2 Charts & Visualizations
+- [ ] Install: `recharts` or `@ant-design/charts`
+- [ ] WO Cost Trend — line chart: material vs manhour vs tools vs overhead over time
+- [ ] Inventory Turnover — bar chart: top 10 fast/slow-moving products
+- [ ] Revenue Chart — area chart: monthly sales revenue
+- [ ] Department Cost — pie chart: cost distribution by department/cost center
+- [ ] Employee Productivity — bar chart: hours logged per employee per period
+
+### 8.3 Manager Dashboard v2
+- [ ] Department comparison cards — cost center breakdown
+- [ ] WO pipeline — Gantt-style timeline (OPEN WOs with planned dates)
+- [ ] Approval queue summary — pending items across all modules
+- [ ] Budget vs Actual — cost center budget utilization
+
+### 8.4 Staff Dashboard v2
+- [ ] Personal KPIs — hours logged this week/month, WO assignments, leave balance
+- [ ] My WO list — active work orders assigned to me
+- [ ] Upcoming schedule — daily plan assignments for next 7 days
+
+### 8.5 Finance Dashboard
+- [ ] P&L summary — revenue vs costs by period
+- [ ] Cost analysis — breakdown by cost center, cost element
+- [ ] Budget tracking — planned vs actual spending
+
+### 8.6 Backend Aggregation APIs
+- [ ] Materialized views or on-the-fly aggregation (choose based on data volume)
+- [ ] Cache with Redis (TTL 5 min) for dashboard queries
+- [ ] Date range filtering on all dashboard endpoints
+- [ ] Permission: `finance.report.read` for finance dashboard, role-based for others
+
+---
+
+## Phase 9 — Notification Center 🔔 (Planned)
+
+### 9.1 Notification Model & Migration
+- [ ] Model: `Notification` (id, user_id, org_id, type ENUM, title, message, link, is_read, created_at)
+- [ ] Type ENUM: APPROVAL_REQUEST, APPROVAL_RESULT, STOCK_ALERT, WO_STATUS, LEAVE_RESULT, SYSTEM
+- [ ] Migration: `j_phase9_notification.py`
+- [ ] Index: `(user_id, is_read, created_at DESC)` for fast unread queries
+
+### 9.2 Notification Service
+- [ ] `backend/app/services/notification.py` — create, mark_read, mark_all_read, list, count_unread
+- [ ] Event hooks: create notification on approval request, status change, stock alert
+- [ ] Integration points: PO/SO approve, Leave approve/reject, WO status change, low stock trigger
+- [ ] Batch create for broadcast notifications (e.g., system announcements)
+
+### 9.3 Notification API
+- [ ] `GET /api/notifications` — list with pagination, `?is_read=true|false` filter
+- [ ] `GET /api/notifications/unread-count` — badge count for header
+- [ ] `PATCH /api/notifications/{id}/read` — mark single as read
+- [ ] `POST /api/notifications/read-all` — mark all as read
+- [ ] Permission: authenticated user only (own notifications)
+
+### 9.4 Frontend: Notification Bell
+- [ ] Header component: Bell icon (Lucide `Bell`) + unread badge count
+- [ ] Dropdown panel: notification list with type icon, title, time ago, read/unread styling
+- [ ] Click notification → navigate to `link` URL + mark as read
+- [ ] "Mark all as read" button
+- [ ] Polling: fetch unread count every 30 seconds
+
+### 9.5 Real-time Push (Optional)
+- [ ] WebSocket endpoint: `ws://api/ws/notifications` or SSE: `GET /api/notifications/stream`
+- [ ] Frontend: auto-reconnect on disconnect
+- [ ] Fallback: polling if WebSocket not available
+
+### 9.6 Email Integration
+- [ ] Dual channel: create in-app notification + send email (reuse Phase 4.6 email service)
+- [ ] Email template per notification type
+- [ ] Respect user preferences (in-app only / email only / both)
+
+### 9.7 User Notification Preferences
+- [ ] Model: `NotificationPreference` (user_id, event_type, channel: in_app|email|both|none)
+- [ ] API: `GET/PUT /api/notifications/preferences`
+- [ ] Frontend: Settings page — toggle matrix (event type × channel)
+
+---
+
+## Phase 10 — Export & Print 🖨️ (Planned)
+
+### 10.1 PDF Generation Setup
+- [ ] Choose library: backend (WeasyPrint/ReportLab) or frontend (jsPDF + html2canvas)
+- [ ] If backend: install + base PDF template (company header, footer, page numbers)
+- [ ] If frontend: reusable PDF generator component
+- [ ] Company logo + address configurable via `OrgConfig`
+
+### 10.2 WO Report PDF
+- [ ] Backend: `GET /api/work-orders/{id}/export/pdf` — workorder.order.export
+- [ ] Content: WO header, status, customer, cost summary (4 components), material list, manhour breakdown, tools recharge list
+- [ ] Frontend: "Export PDF" button on WorkOrderDetailPage
+
+### 10.3 PO / SO Document PDF
+- [ ] Backend: `GET /api/purchasing/po/{id}/export/pdf` — purchasing.po.export
+- [ ] Backend: `GET /api/sales/orders/{id}/export/pdf` — sales.order.export
+- [ ] Content: document header, line items table, subtotal/tax/total, approval status
+- [ ] Frontend: "Print" button on PODetailPage / SODetailPage
+
+### 10.4 Payroll PDF
+- [ ] Backend: `GET /api/hr/payroll/{id}/export/pdf` — hr.payroll.export
+- [ ] Content: employee payslip (regular hours, OT hours, deductions, net pay)
+- [ ] Batch export: all employee payslips for a period in single PDF
+
+### 10.5 Excel Export (XLSX)
+- [ ] Install: `openpyxl` (backend) or `sheetjs` (frontend)
+- [ ] Upgrade existing CSV exports to XLSX format
+- [ ] Add export button to: Products, Movements, Employees, Timesheets, Customers
+- [ ] Column formatting: dates, currency, percentages
+
+### 10.6 Print-friendly CSS
+- [ ] `@media print` stylesheet — hide sidebar, header, actions
+- [ ] Print-specific layout: A4 portrait, proper margins
+- [ ] Page breaks for long tables
+
+### 10.7 Report Templates
+- [ ] Admin: upload company logo via `POST /api/admin/organization/logo`
+- [ ] Configurable report header (company name, address, tax ID)
+- [ ] Template stored in `OrgConfig`
+
+---
+
+## Phase 11 — Inventory Enhancement 📦 (Planned)
+
+### 11.1 Reorder Point
+- [ ] Product model: + `min_stock` (Numeric(12,2), nullable), `reorder_qty` (Numeric(12,2), nullable)
+- [ ] Schema: add to ProductCreate/Update
+- [ ] Migration: `k_phase11_inventory_enhance.py`
+
+### 11.2 Low Stock Alert
+- [ ] Backend: `GET /api/inventory/products/low-stock` — products where on_hand <= min_stock
+- [ ] Dashboard widget: Low Stock card with count + link to list
+- [ ] Integration with Notification Center (Phase 9): auto-create STOCK_ALERT notification
+- [ ] Optional: scheduled check (cron/background task)
+
+### 11.3 Stock Aging Report
+- [ ] Backend: `GET /api/inventory/reports/aging` — group by age bracket (0-30, 31-60, 61-90, 90+ days)
+- [ ] Calculate based on last RECEIVE movement date per product
+- [ ] Frontend: Aging report page with table + chart
+- [ ] Permission: `inventory.product.export`
+
+### 11.4 Batch/Lot Tracking
+- [ ] StockMovement model: + `batch_number` (string, nullable)
+- [ ] FIFO costing option: track cost per batch
+- [ ] Frontend: batch_number input on RECEIVE movement form
+- [ ] Batch history: trace movements per batch number
+
+### 11.5 Barcode/QR Code
+- [ ] Install: `python-barcode` (backend) or `react-barcode` (frontend)
+- [ ] Generate barcode from SKU — display on product detail
+- [ ] Print label: SKU + barcode + product name
+- [ ] QR code option: encode product URL for mobile scanning
+
+### 11.6 Stock Take (Cycle Count)
+- [ ] Model: `StockTake` (date, warehouse_id, status DRAFT/IN_PROGRESS/COMPLETED)
+- [ ] Model: `StockTakeLine` (product_id, system_qty, counted_qty, variance)
+- [ ] Workflow: create → count → review variances → approve → auto ADJUST movements
+- [ ] Permission: `inventory.movement.create` for creating, `inventory.movement.delete` for approving adjustments
+
+### 11.7 Multi-warehouse Transfer
+- [ ] TRANSFER movement type: source_warehouse_id → destination_warehouse_id
+- [ ] Two movements created: ISSUE from source + RECEIVE to destination (atomic)
+- [ ] Optional approval for inter-warehouse transfers
+- [ ] Frontend: Transfer form with source/destination warehouse selection
+
+---
+
+## Phase 12 — Mobile Responsive 📱 (Planned)
+
+### 12.1 Responsive Layout
+- [ ] Ant Design Grid: use `xs`, `sm`, `md`, `lg`, `xl` breakpoints
+- [ ] Sidebar: auto-collapse on mobile (< 768px), bottom drawer or hamburger menu
+- [ ] Tables: horizontal scroll on mobile, or card-view for small screens
+- [ ] Form layouts: single column on mobile, multi-column on desktop
+
+### 12.2 Mobile Staff Portal
+- [ ] Daily Report: simplified mobile form (single column, large inputs)
+- [ ] Leave request: mobile-optimized date picker
+- [ ] My Tasks: card-based task list (swipe actions)
+- [ ] Bottom navigation bar: Home / Tasks / Report / Leave / Profile
+
+### 12.3 Mobile Tool Check-in/out
+- [ ] Simplified checkout form: scan QR → select WO → confirm
+- [ ] Check-in: one-tap return with auto-charge display
+- [ ] History: timeline view of recent tool usage
+
+### 12.4 Mobile Approval
+- [ ] Approval list: card-based with swipe right (approve) / swipe left (reject)
+- [ ] Quick view: expandable card detail without page navigation
+- [ ] Batch approve: select multiple → approve all
+
+### 12.5 PWA (Progressive Web App)
+- [ ] `manifest.json` — app name, icons, theme color, display: standalone
+- [ ] Service worker: cache static assets, offline read for cached data
+- [ ] Install prompt: "Add to Home Screen" banner
+- [ ] Offline indicator: show badge when no network
+
+### 12.6 Touch-optimized UI
+- [ ] Minimum tap target: 44x44px for all interactive elements
+- [ ] Touch-friendly date pickers and dropdowns
+- [ ] Pull-to-refresh on list pages
+- [ ] Gesture support: swipe to go back, long-press for context menu
+
+---
+
+## Phase 13 — Audit & Security Enhancement 🔐 (Planned)
+
+### 13.1 Enhanced Audit Trail
+- [ ] Model: `AuditLog` (user_id, org_id, action, resource_type, resource_id, before_value JSON, after_value JSON, ip_address, created_at)
+- [ ] Middleware/decorator: auto-log CUD operations on all models
+- [ ] API: `GET /api/admin/audit-log` — enhanced with filtering (user, resource, date range, action type)
+- [ ] Frontend: AuditLogTab v2 — advanced filters, diff viewer (before/after comparison)
+
+### 13.2 Login History
+- [ ] Model: `LoginHistory` (user_id, ip_address, user_agent, device_type, location, success, created_at)
+- [ ] Record on every login attempt (success/failure)
+- [ ] API: `GET /api/auth/login-history` — own history
+- [ ] Admin: `GET /api/admin/login-history` — all users (admin.user.read)
+- [ ] Frontend: Login history page in user profile
+
+### 13.3 Session Management
+- [ ] Model: `ActiveSession` (user_id, token_hash, device_info, ip_address, last_active, created_at)
+- [ ] API: `GET /api/auth/sessions` — list active sessions
+- [ ] API: `DELETE /api/auth/sessions/{id}` — remote logout (revoke specific session)
+- [ ] API: `DELETE /api/auth/sessions` — logout all other sessions
+- [ ] Frontend: Active sessions list with "Logout" button per session
+
+### 13.4 Password Policy
+- [ ] Config: `OrgSecurityConfig` (min_length, require_uppercase, require_number, require_special, max_age_days, history_count)
+- [ ] Validation on password set/change
+- [ ] Password expiry: force change after N days
+- [ ] Password history: prevent reuse of last N passwords
+- [ ] Frontend: password strength meter on change password form
+
+### 13.5 Two-Factor Authentication (2FA)
+- [ ] Install: `pyotp` (TOTP)
+- [ ] Model: User + `totp_secret` (encrypted), `is_2fa_enabled`
+- [ ] API: `POST /api/auth/2fa/setup` — generate secret + QR code
+- [ ] API: `POST /api/auth/2fa/verify` — verify TOTP code during login
+- [ ] API: `POST /api/auth/2fa/disable` — disable with password confirmation
+- [ ] Frontend: 2FA setup wizard with QR code display + backup codes
+- [ ] Login flow: username/password → if 2FA enabled → TOTP code prompt
+
+### 13.6 API Rate Limiting per User
+- [ ] Per-user rate limit (in addition to global): e.g., 100 req/min per user
+- [ ] Different limits per role (owner gets higher limit)
+- [ ] Rate limit headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
+- [ ] Redis-based counter per user token
+
+### 13.7 Data Export Audit
+- [ ] Log all export/download actions: who, what, when, file type
+- [ ] Integration with audit trail (Phase 13.1)
+- [ ] Admin report: export frequency per user, data sensitivity classification
+- [ ] Optional: require approval for bulk exports
+
+---
+
 ## Summary
 
 | Phase | Backend | Frontend | Migrations | Status |
@@ -627,7 +923,13 @@
 | Phase 5 — Staff Portal & Daily Report | ~10 files | ~12 files | 2 | ✅ |
 | Phase 6 — Data Scope | ~8 files | 14 files | — | ✅ |
 | Phase 7 — My Approval | 2 files | 6 files | — | ✅ |
-| **Total** | **~95 files** | **~102 files** | **12** | **✅** |
+| Phase 8 — Dashboard & Analytics | TBD | TBD | — | 📋 Planned |
+| Phase 9 — Notification Center | TBD | TBD | 1 | 📋 Planned |
+| Phase 10 — Export & Print | TBD | TBD | — | 📋 Planned |
+| Phase 11 — Inventory Enhancement | TBD | TBD | 1-2 | 📋 Planned |
+| Phase 12 — Mobile Responsive | — | TBD | — | 📋 Planned |
+| Phase 13 — Audit & Security | TBD | TBD | 1-2 | 📋 Planned |
+| **Total (Done)** | **~95 files** | **~102 files** | **12** | **7/13 ✅** |
 
 **Permissions:** 89 → 105 → 108 (Phase 4: +16, Phase 5: +3 dailyreport)
 **Business Rules:** 35 → 46 → 55 (Phase 4: +11, Phase 5: +9)
@@ -637,6 +939,14 @@
 **Sidebar (Phase 7):** 3-group layout: ME / อนุมัติ / ระบบงาน (was 2-group)
 **Bug Fix (Phase 7):** Leave reject API fixed — now accepts `{action: "approve"|"reject"}` body
 
+**Planned Phases (8-13):**
+- Phase 8: Dashboard KPI + Charts + Manager/Staff/Finance dashboards
+- Phase 9: In-app notifications + bell icon + WebSocket/SSE + email integration
+- Phase 10: PDF/Excel export + print-friendly + report templates
+- Phase 11: Reorder point + low stock alert + batch tracking + barcode + stock take
+- Phase 12: Mobile responsive + PWA + touch UI + mobile approval
+- Phase 13: Enhanced audit trail + login history + 2FA + password policy
+
 ---
 
-*Last updated: 2026-02-28 — Phase 7 complete — My Approval: Centralized Approval Center (108 permissions, 55 BRs, ~197 files)*
+*Last updated: 2026-02-28 — Phase 7 complete, Phase 8-13 planned (108 permissions, 55 BRs, ~197 files)*

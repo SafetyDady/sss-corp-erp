@@ -973,6 +973,58 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **7.7** SOApprovalTab.jsx — Approve + View detail for SUBMITTED SOs
 - [x] **7.8** App.jsx — Sidebar 3-group (ME/อนุมัติ/ระบบงาน) + `/approval` route + ClipboardCheck icon
 
+### Phase 8 — Dashboard & Analytics 📊 (Planned)
+- [ ] **8.1** KPI Dashboard — real-time stat cards (ยอดขาย, ต้นทุน WO, สถานะ stock, pending approvals)
+- [ ] **8.2** Charts — Recharts/Ant Charts (WO Cost Trend, Inventory Turnover, Revenue)
+- [ ] **8.3** Manager Dashboard v2 — department comparison, cost center breakdown, employee productivity
+- [ ] **8.4** Staff Dashboard v2 — personal KPIs (WO assigned, hours logged, leave balance)
+- [ ] **8.5** Finance Dashboard — P&L summary, cost analysis, budget vs actual
+- [ ] **8.6** Backend: aggregation APIs for dashboard data (materialized views / on-the-fly)
+
+### Phase 9 — Notification Center 🔔 (Planned)
+- [ ] **9.1** Model: `Notification` (user_id, type, title, message, is_read, link, created_at)
+- [ ] **9.2** Backend: Notification service — create on events (approval request, status change, stock alert)
+- [ ] **9.3** API: `GET /api/notifications` + `PATCH /api/notifications/{id}/read` + `POST /api/notifications/read-all`
+- [ ] **9.4** Frontend: Bell icon in header — dropdown with notification list + unread badge count
+- [ ] **9.5** Real-time: WebSocket or SSE for instant push (optional, can start with polling)
+- [ ] **9.6** Integration: connect with existing email service (Phase 4.6) — dual channel (in-app + email)
+- [ ] **9.7** Notification preferences: user can toggle per-event-type (in-app / email / both / none)
+
+### Phase 10 — Export & Print 🖨️ (Planned)
+- [ ] **10.1** PDF generation — backend (WeasyPrint or ReportLab) or frontend (jsPDF + html2canvas)
+- [ ] **10.2** WO Report PDF — cost summary, material list, manhour breakdown, tools recharge
+- [ ] **10.3** PO / SO PDF — document header, line items, totals, approval signatures
+- [ ] **10.4** Payroll PDF — employee payslip, period summary
+- [ ] **10.5** Excel export (xlsx) — all list pages via backend (openpyxl) or frontend (SheetJS)
+- [ ] **10.6** Print-friendly CSS — `@media print` styles for key pages
+- [ ] **10.7** Report templates — admin-configurable headers (company logo, address)
+
+### Phase 11 — Inventory Enhancement 📦 (Planned)
+- [ ] **11.1** Reorder Point — min_stock, reorder_qty fields on Product → alert when on_hand <= min_stock
+- [ ] **11.2** Low Stock Alert — dashboard widget + notification when stock below reorder point
+- [ ] **11.3** Stock Aging Report — inventory value by age bracket (0-30, 31-60, 61-90, 90+ days)
+- [ ] **11.4** Batch/Lot Tracking — batch_number on StockMovement, FIFO/LIFO costing option
+- [ ] **11.5** Barcode/QR — generate barcode for SKU (frontend display + print label)
+- [ ] **11.6** Stock Take — cycle count workflow (count → variance → adjust)
+- [ ] **11.7** Multi-warehouse Transfer — TRANSFER movement between warehouses with approval
+
+### Phase 12 — Mobile Responsive 📱 (Planned)
+- [ ] **12.1** Responsive layout — Ant Design Grid breakpoints, collapsible sidebar mobile-first
+- [ ] **12.2** Mobile Staff Portal — Daily Report create/edit from phone
+- [ ] **12.3** Mobile Tool check-in/out — simplified form for field workers
+- [ ] **12.4** Mobile Approval — swipe approve/reject on approval list
+- [ ] **12.5** PWA — manifest.json, service worker, offline-first for read operations
+- [ ] **12.6** Touch-optimized UI — larger tap targets, bottom navigation bar (mobile only)
+
+### Phase 13 — Audit & Security Enhancement 🔐 (Planned)
+- [ ] **13.1** Enhanced Audit Trail — model-level event logging (who, what, when, before/after values)
+- [ ] **13.2** Login History — device, IP, location, timestamp per user
+- [ ] **13.3** Session Management — active sessions list, remote logout
+- [ ] **13.4** Password Policy — min length, complexity, expiry, history (no reuse)
+- [ ] **13.5** Two-Factor Auth (2FA) — TOTP (Google Authenticator) or email OTP
+- [ ] **13.6** API Rate Limiting per user — prevent abuse (beyond current global rate limit)
+- [ ] **13.7** Data Export Audit — log all export/download actions for compliance
+
 ---
 
 ## Common Pitfalls (อย่าทำ!)
@@ -1008,7 +1060,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `BUSINESS_POLICY.md` | Business rules (source of truth) |
 | `TODO.md` | Implementation tracker + checklist |
 | `SmartERP_Master_Document_v2.xlsx` | Original design spec |
-| `backend/app/core/permissions.py` | RBAC permissions + role mapping |
+| `backend/app/core/permissions.py` | RBAC permissions + role mapping + PERMISSION_DESCRIPTIONS (108 Thai descriptions) |
 | `backend/app/core/security.py` | JWT token creation/validation |
 | `backend/app/core/config.py` | Environment settings + DEFAULT_ORG_ID |
 | `frontend/src/stores/authStore.js` | Auth state + token management |
@@ -1036,6 +1088,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/approval/LeaveApprovalTab.jsx` | Leave approve/reject (Phase 7) |
 | `frontend/src/pages/approval/POApprovalTab.jsx` | PO approve (Phase 7) |
 | `frontend/src/pages/approval/SOApprovalTab.jsx` | SO approve (Phase 7) |
+| `frontend/src/utils/permissionMeta.js` | Permission UI metadata: MODULE_META, RESOURCE_META, ACTION_META, buildPermissionTree() |
 
 ---
 

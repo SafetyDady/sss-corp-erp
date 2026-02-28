@@ -166,6 +166,136 @@ assert len(set(ALL_PERMISSIONS)) == 108, "Duplicate permissions found!"
 
 
 # ============================================================
+# PERMISSION DESCRIPTIONS (Thai) — for Admin UI
+# ============================================================
+
+PERMISSION_DESCRIPTIONS: dict[str, str] = {
+    # --- inventory (9) ---
+    "inventory.product.create": "สร้างสินค้า/วัตถุดิบใหม่ในระบบ",
+    "inventory.product.read": "ดูรายการสินค้าและรายละเอียด",
+    "inventory.product.update": "แก้ไขข้อมูลสินค้า เช่น ชื่อ ราคา ประเภท",
+    "inventory.product.delete": "ลบสินค้าที่ไม่มี movement (Owner เท่านั้น)",
+    "inventory.product.export": "ส่งออกรายการสินค้าเป็นไฟล์",
+    "inventory.movement.create": "สร้างรายการเคลื่อนไหว (รับเข้า/เบิกออก/ใช้งาน)",
+    "inventory.movement.read": "ดูประวัติรายการเคลื่อนไหวสินค้า",
+    "inventory.movement.delete": "กลับรายการเคลื่อนไหว (Reversal — Owner เท่านั้น)",
+    "inventory.movement.export": "ส่งออกรายการเคลื่อนไหวเป็นไฟล์",
+    # --- warehouse (12) ---
+    "warehouse.warehouse.create": "สร้างคลังสินค้าใหม่",
+    "warehouse.warehouse.read": "ดูข้อมูลคลังสินค้า",
+    "warehouse.warehouse.update": "แก้ไขข้อมูลคลังสินค้า",
+    "warehouse.warehouse.delete": "ลบคลังสินค้า (Owner เท่านั้น)",
+    "warehouse.zone.create": "สร้างโซนในคลังสินค้า",
+    "warehouse.zone.read": "ดูโซนในคลังสินค้า",
+    "warehouse.zone.update": "แก้ไขโซนในคลังสินค้า",
+    "warehouse.zone.delete": "ลบโซนในคลังสินค้า (Owner เท่านั้น)",
+    "warehouse.location.create": "สร้างตำแหน่งจัดเก็บในคลัง",
+    "warehouse.location.read": "ดูตำแหน่งจัดเก็บในคลัง",
+    "warehouse.location.update": "แก้ไขตำแหน่งจัดเก็บ",
+    "warehouse.location.delete": "ลบตำแหน่งจัดเก็บ (Owner เท่านั้น)",
+    # --- workorder (12) ---
+    "workorder.order.create": "สร้างใบสั่งงาน (Work Order) ใหม่",
+    "workorder.order.read": "ดูรายการใบสั่งงานและรายละเอียด",
+    "workorder.order.update": "แก้ไขข้อมูลใบสั่งงาน / เปิดงาน",
+    "workorder.order.delete": "ลบใบสั่งงาน DRAFT (Owner เท่านั้น)",
+    "workorder.order.approve": "ปิดใบสั่งงาน (Close WO)",
+    "workorder.order.export": "ส่งออกข้อมูลใบสั่งงาน",
+    "workorder.plan.create": "สร้างแผนงาน (Master Plan / Daily Plan)",
+    "workorder.plan.read": "ดูแผนงานและตารางงานประจำวัน",
+    "workorder.plan.update": "แก้ไขแผนงาน",
+    "workorder.plan.delete": "ลบแผนงาน (Owner เท่านั้น)",
+    "workorder.reservation.create": "จองวัสดุหรือเครื่องมือสำหรับใบสั่งงาน",
+    "workorder.reservation.read": "ดูรายการจองวัสดุ/เครื่องมือ",
+    # --- purchasing (6) ---
+    "purchasing.po.create": "สร้างใบสั่งซื้อ (PO) ใหม่",
+    "purchasing.po.read": "ดูรายการใบสั่งซื้อและรายละเอียด",
+    "purchasing.po.update": "แก้ไขใบสั่งซื้อ / รับสินค้า (GR)",
+    "purchasing.po.delete": "ลบใบสั่งซื้อ (Owner เท่านั้น)",
+    "purchasing.po.approve": "อนุมัติใบสั่งซื้อ",
+    "purchasing.po.export": "ส่งออกข้อมูลใบสั่งซื้อ",
+    # --- sales (6) ---
+    "sales.order.create": "สร้างใบสั่งขาย (SO) ใหม่",
+    "sales.order.read": "ดูรายการใบสั่งขายและรายละเอียด",
+    "sales.order.update": "แก้ไขข้อมูลใบสั่งขาย",
+    "sales.order.delete": "ลบใบสั่งขาย (Owner เท่านั้น)",
+    "sales.order.approve": "อนุมัติใบสั่งขาย",
+    "sales.order.export": "ส่งออกข้อมูลใบสั่งขาย",
+    # --- finance (2) ---
+    "finance.report.read": "ดูรายงานการเงิน (สรุปรายได้/ต้นทุน)",
+    "finance.report.export": "ส่งออกรายงานการเงินเป็น CSV (Owner เท่านั้น)",
+    # --- master (20) ---
+    "master.costcenter.create": "สร้างศูนย์ต้นทุน (Cost Center) ใหม่",
+    "master.costcenter.read": "ดูรายการศูนย์ต้นทุน",
+    "master.costcenter.update": "แก้ไขศูนย์ต้นทุน / ตั้ง Overhead Rate",
+    "master.costcenter.delete": "ลบศูนย์ต้นทุน (Owner เท่านั้น)",
+    "master.costelement.create": "สร้างองค์ประกอบต้นทุน (Cost Element)",
+    "master.costelement.read": "ดูองค์ประกอบต้นทุน",
+    "master.costelement.update": "แก้ไของค์ประกอบต้นทุน",
+    "master.costelement.delete": "ลบองค์ประกอบต้นทุน (Owner เท่านั้น)",
+    "master.ottype.create": "สร้างประเภท OT ใหม่ (ตั้งตัวคูณ/เพดาน)",
+    "master.ottype.read": "ดูรายการประเภท OT",
+    "master.ottype.update": "แก้ไขตัวคูณ OT / เพดานสูงสุด",
+    "master.ottype.delete": "ลบประเภท OT (Owner เท่านั้น)",
+    "master.department.create": "สร้างแผนกใหม่",
+    "master.department.read": "ดูรายการแผนก",
+    "master.department.update": "แก้ไขข้อมูลแผนก",
+    "master.department.delete": "ลบแผนก (Owner เท่านั้น)",
+    "master.leavetype.create": "สร้างประเภทการลาใหม่ (กำหนดโควต้า/สี)",
+    "master.leavetype.read": "ดูรายการประเภทการลา",
+    "master.leavetype.update": "แก้ไขประเภทการลา",
+    "master.leavetype.delete": "ลบประเภทการลา (Owner เท่านั้น)",
+    # --- admin (10) ---
+    "admin.role.create": "สร้างบทบาทใหม่ (สำรองสำหรับอนาคต)",
+    "admin.role.read": "ดูรายการบทบาทและสิทธิ์ทั้งหมด",
+    "admin.role.update": "แก้ไขสิทธิ์ของแต่ละบทบาท",
+    "admin.role.delete": "ลบบทบาท (สำรองสำหรับอนาคต)",
+    "admin.user.create": "สร้างผู้ใช้งานใหม่ (ลงทะเบียน)",
+    "admin.user.read": "ดูรายชื่อผู้ใช้งานในระบบ",
+    "admin.user.update": "เปลี่ยนบทบาทของผู้ใช้งาน",
+    "admin.user.delete": "ลบผู้ใช้งานออกจากระบบ",
+    "admin.config.read": "ดูการตั้งค่าองค์กร (เวลาทำงาน/อนุมัติ)",
+    "admin.config.update": "แก้ไขการตั้งค่าองค์กร",
+    # --- customer (5) ---
+    "customer.customer.create": "สร้างข้อมูลลูกค้าใหม่",
+    "customer.customer.read": "ดูรายชื่อลูกค้าและรายละเอียด",
+    "customer.customer.update": "แก้ไขข้อมูลลูกค้า",
+    "customer.customer.delete": "ลบข้อมูลลูกค้า (Owner เท่านั้น)",
+    "customer.customer.export": "ส่งออกรายชื่อลูกค้า",
+    # --- tools (6) ---
+    "tools.tool.create": "สร้างเครื่องมือใหม่ในระบบ",
+    "tools.tool.read": "ดูรายการเครื่องมือและสถานะ",
+    "tools.tool.update": "แก้ไขข้อมูลเครื่องมือ",
+    "tools.tool.delete": "ลบเครื่องมือ (Owner เท่านั้น)",
+    "tools.tool.execute": "เบิก/คืนเครื่องมือ (Check-out / Check-in)",
+    "tools.tool.export": "ส่งออกรายการเครื่องมือ",
+    # --- hr (20) ---
+    "hr.employee.create": "สร้างข้อมูลพนักงานใหม่",
+    "hr.employee.read": "ดูข้อมูลพนักงาน (ตาม Data Scope)",
+    "hr.employee.update": "แก้ไขข้อมูลพนักงาน / โควต้าลา",
+    "hr.employee.delete": "ลบข้อมูลพนักงาน (Owner เท่านั้น)",
+    "hr.employee.export": "ส่งออกข้อมูลพนักงาน",
+    "hr.timesheet.create": "กรอก Timesheet / บันทึกเวลาทำงาน",
+    "hr.timesheet.read": "ดู Timesheet (ตาม Data Scope)",
+    "hr.timesheet.update": "แก้ไข Timesheet / Supervisor กรอกแทน",
+    "hr.timesheet.approve": "อนุมัติ Timesheet (Supervisor Approve)",
+    "hr.timesheet.execute": "Final Approve / Unlock Timesheet (HR)",
+    "hr.payroll.create": "สร้างรอบ Payroll ใหม่",
+    "hr.payroll.read": "ดูข้อมูล Payroll",
+    "hr.payroll.execute": "รัน Payroll (คำนวณเงินเดือน)",
+    "hr.payroll.export": "ส่งออกข้อมูล Payroll เป็น CSV",
+    "hr.leave.create": "ยื่นคำขอลา",
+    "hr.leave.read": "ดูรายการลา/ยอดคงเหลือ (ตาม Data Scope)",
+    "hr.leave.approve": "อนุมัติ/ปฏิเสธคำขอลา",
+    "hr.dailyreport.create": "สร้าง/แก้ไข Daily Work Report",
+    "hr.dailyreport.read": "ดู Daily Work Report (ตาม Data Scope)",
+    "hr.dailyreport.approve": "อนุมัติ/ปฏิเสธ Daily Work Report",
+}
+
+assert set(PERMISSION_DESCRIPTIONS.keys()) == set(ALL_PERMISSIONS), \
+    f"PERMISSION_DESCRIPTIONS keys mismatch ALL_PERMISSIONS"
+
+
+# ============================================================
 # ROLE → PERMISSION MAPPING  (matches plan v4 matrix)
 # ============================================================
 # Legend:  ✅ = granted  ❌ = denied
