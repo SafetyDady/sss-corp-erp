@@ -33,10 +33,10 @@ export default function CostElementFormModal({ open, editItem, onClose, onSucces
         const payload = { ...values };
         delete payload.code;
         await api.put(`/api/master/cost-elements/${editItem.id}`, payload);
-        message.success(`แก้ไของค์ประกอบต้นทุน "${values.name}" สำเร็จ`);
+        message.success(`แก้ไข Cost Element "${values.name}" สำเร็จ`);
       } else {
         await api.post('/api/master/cost-elements', values);
-        message.success(`เพิ่มองค์ประกอบต้นทุน "${values.name}" สำเร็จ`);
+        message.success(`เพิ่ม Cost Element "${values.name}" สำเร็จ`);
       }
       onSuccess();
     } catch (err) {
@@ -55,7 +55,7 @@ export default function CostElementFormModal({ open, editItem, onClose, onSucces
 
   return (
     <Modal
-      title={editItem ? `แก้ไของค์ประกอบต้นทุน — ${editItem.code}` : 'เพิ่มองค์ประกอบต้นทุนใหม่'}
+      title={editItem ? `แก้ไข Cost Element — ${editItem.code}` : 'เพิ่ม Cost Element ใหม่'}
       open={open}
       onCancel={onClose}
       onOk={handleSubmit}

@@ -34,17 +34,17 @@ export default function CostCenterFormModal({ open, editItem, onClose, onSuccess
         const payload = { ...values };
         delete payload.code;
         await api.put(`/api/master/cost-centers/${editItem.id}`, payload);
-        message.success(`แก้ไขศูนย์ต้นทุน "${values.name}" สำเร็จ`);
+        message.success(`แก้ไข Cost Center "${values.name}" สำเร็จ`);
       } else {
         await api.post('/api/master/cost-centers', values);
-        message.success(`เพิ่มศูนย์ต้นทุน "${values.name}" สำเร็จ`);
+        message.success(`เพิ่ม Cost Center "${values.name}" สำเร็จ`);
       }
       onSuccess();
     } catch (err) {
       if (err.response) {
         const detail = err.response?.data?.detail;
         if (typeof detail === 'string' && detail.toLowerCase().includes('unique')) {
-          message.error('รหัสศูนย์ต้นทุนนี้ถูกใช้แล้ว');
+          message.error('รหัส Cost Center นี้ถูกใช้แล้ว');
         } else {
           message.error(detail || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
         }
@@ -56,7 +56,7 @@ export default function CostCenterFormModal({ open, editItem, onClose, onSuccess
 
   return (
     <Modal
-      title={editItem ? `แก้ไขศูนย์ต้นทุน — ${editItem.code}` : 'เพิ่มศูนย์ต้นทุนใหม่'}
+      title={editItem ? `แก้ไข Cost Center — ${editItem.code}` : 'เพิ่ม Cost Center ใหม่'}
       open={open}
       onCancel={onClose}
       onOk={handleSubmit}
@@ -75,7 +75,7 @@ export default function CostCenterFormModal({ open, editItem, onClose, onSuccess
         </Form.Item>
 
         <Form.Item name="name" label="ชื่อ"
-          rules={[{ required: true, message: 'กรุณากรอกชื่อศูนย์ต้นทุน' }]}>
+          rules={[{ required: true, message: 'กรุณากรอกชื่อ Cost Center' }]}>
           <Input placeholder="เช่น แผนกผลิต" />
         </Form.Item>
 
@@ -85,7 +85,7 @@ export default function CostCenterFormModal({ open, editItem, onClose, onSuccess
 
         <Form.Item name="overhead_rate" label="Overhead Rate (%)"
           rules={[{ required: true, message: 'กรุณากรอก Overhead Rate' }]}
-          extra={<Text type="secondary" style={{ fontSize: 12 }}>BR#30 — แต่ละศูนย์ต้นทุนมี Overhead Rate เป็นของตัวเอง</Text>}
+          extra={<Text type="secondary" style={{ fontSize: 12 }}>BR#30 — แต่ละ Cost Center มี Overhead Rate เป็นของตัวเอง</Text>}
         >
           <InputNumber min={0} max={100} step={0.5} style={{ width: '100%' }} suffix="%" />
         </Form.Item>

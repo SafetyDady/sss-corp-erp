@@ -33,7 +33,7 @@ export default function CostCenterTab() {
       setItems(data.items);
       setTotal(data.total);
     } catch (err) {
-      message.error(err.response?.data?.detail || 'ไม่สามารถโหลดข้อมูลศูนย์ต้นทุนได้');
+      message.error(err.response?.data?.detail || 'ไม่สามารถโหลดข้อมูล Cost Center ได้');
     } finally {
       setLoading(false);
     }
@@ -44,7 +44,7 @@ export default function CostCenterTab() {
   const handleDelete = async (id, name) => {
     try {
       await api.delete(`/api/master/cost-centers/${id}`);
-      message.success(`ลบศูนย์ต้นทุน "${name}" สำเร็จ`);
+      message.success(`ลบ Cost Center "${name}" สำเร็จ`);
       fetchData();
     } catch (err) {
       message.error(err.response?.data?.detail || 'ไม่สามารถลบได้ — อาจมีพนักงานที่ผูกอยู่');
@@ -82,7 +82,7 @@ export default function CostCenterTab() {
       render: (_, record) => (
         <Space size={4}>
           {can('master.costcenter.update') && (
-            <Tooltip title="แก้ไขศูนย์ต้นทุน">
+            <Tooltip title="แก้ไข Cost Center">
               <Button type="text" size="small" icon={<Pencil size={14} />}
                 onClick={() => { setEditItem(record); setModalOpen(true); }} />
             </Tooltip>
@@ -90,11 +90,11 @@ export default function CostCenterTab() {
           {can('master.costcenter.delete') && (
             <Popconfirm
               title="ยืนยันการลบ"
-              description={`ลบศูนย์ต้นทุน "${record.name}" (${record.code})?`}
+              description={`ลบ Cost Center "${record.name}" (${record.code})?`}
               onConfirm={() => handleDelete(record.id, record.name)}
               okText="ลบ" cancelText="ยกเลิก" okButtonProps={{ danger: true }}
             >
-              <Tooltip title="ลบศูนย์ต้นทุน">
+              <Tooltip title="ลบ Cost Center">
                 <Button type="text" size="small" danger icon={<Trash2 size={14} />} />
               </Tooltip>
             </Popconfirm>
@@ -111,7 +111,7 @@ export default function CostCenterTab() {
         {can('master.costcenter.create') && (
           <Button type="primary" icon={<Plus size={14} />}
             onClick={() => { setEditItem(null); setModalOpen(true); }}>
-            เพิ่มศูนย์ต้นทุน
+            เพิ่ม Cost Center
           </Button>
         )}
       </div>
@@ -120,7 +120,7 @@ export default function CostCenterTab() {
         dataSource={items}
         columns={columns}
         rowKey="id"
-        locale={{ emptyText: <EmptyState message="ยังไม่มีศูนย์ต้นทุน" hint="กดปุ่ม 'เพิ่มศูนย์ต้นทุน' เพื่อเริ่มต้น" /> }}
+        locale={{ emptyText: <EmptyState message="ยังไม่มี Cost Center" hint="กดปุ่ม 'เพิ่ม Cost Center' เพื่อเริ่มต้น" /> }}
         pagination={{
           current: pagination.current,
           pageSize: pagination.pageSize,

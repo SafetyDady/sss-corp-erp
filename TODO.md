@@ -647,6 +647,25 @@
   - Change indicator badge + Save button
   - `npm run build` → 0 errors
 
+## UX Improvement — Cost Center / Cost Element: Thai → English ✅
+
+- **Problem**: "ศูนย์ต้นทุน" (Cost Center) และ "องค์ประกอบต้นทุน" (Cost Element) เป็นภาษาไทยที่สับสน ผู้ใช้งานแนะนำให้ใช้ภาษาอังกฤษแทน
+- **Solution**: เปลี่ยนทุกจุดที่แสดงผลจากภาษาไทยเป็นภาษาอังกฤษ "Cost Center" / "Cost Element"
+- **Files updated (11 total)**:
+  - [x] `frontend/src/utils/permissionMeta.js` — RESOURCE_META labels
+  - [x] `frontend/src/pages/master/MasterDataPage.jsx` — tab labels + subtitle
+  - [x] `frontend/src/pages/master/CostCenterFormModal.jsx` — modal titles, messages
+  - [x] `frontend/src/pages/master/CostCenterTab.jsx` — tooltips, popconfirm, button, empty state
+  - [x] `frontend/src/pages/master/CostElementFormModal.jsx` — modal title, messages
+  - [x] `frontend/src/pages/master/CostElementTab.jsx` — tooltips, popconfirm, button, empty state
+  - [x] `frontend/src/pages/master/DepartmentFormModal.jsx` — form label, placeholder, validation
+  - [x] `frontend/src/pages/master/DepartmentTab.jsx` — column header
+  - [x] `frontend/src/pages/hr/EmployeeFormModal.jsx` — form label, placeholder
+  - [x] `frontend/src/pages/finance/FinancePage.jsx` — column title, divider text
+  - [x] `backend/app/core/permissions.py` — 8 permission descriptions
+- [x] Final grep confirmed 0 remaining Thai occurrences
+- [x] `npm run build` → 0 errors
+
 ---
 
 ## Phase 8 — Dashboard & Analytics 📊 (Planned)

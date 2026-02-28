@@ -90,7 +90,7 @@ export default function DepartmentTab() {
       render: (v) => <span style={{ fontWeight: 500 }}>{v}</span>,
     },
     {
-      title: 'ศูนย์ต้นทุน', dataIndex: 'cost_center_id', key: 'cost_center_id',
+      title: 'Cost Center', dataIndex: 'cost_center_id', key: 'cost_center_id',
       render: (id) => {
         const cc = costCenterMap[id];
         return cc ? <Tag>{cc.code} — {cc.name}</Tag> : <span style={{ color: COLORS.textMuted }}>-</span>;

@@ -202,10 +202,10 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
             <InputNumber min={0.5} max={24} step={0.5} style={{ width: '100%' }} suffix="ชม." />
           </Form.Item>
 
-          <Form.Item name="cost_center_id" label="ศูนย์ต้นทุน"
+          <Form.Item name="cost_center_id" label="Cost Center"
             extra={<Text type="secondary" style={{ fontSize: 12 }}>Override (ถ้าว่าง ใช้จากแผนก)</Text>}
           >
-            <Select allowClear placeholder="เลือกศูนย์ต้นทุน" showSearch
+            <Select allowClear placeholder="เลือก Cost Center" showSearch
               optionFilterProp="label"
               options={costCenters.map((c) => ({ value: c.id, label: `${c.code} — ${c.name}` }))} />
           </Form.Item>

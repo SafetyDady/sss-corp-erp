@@ -60,7 +60,7 @@ export default function FinancePage() {
 
   const costColumns = [
     {
-      title: 'ศูนย์ต้นทุน', dataIndex: 'cost_center_name', key: 'cost_center_name',
+      title: 'Cost Center', dataIndex: 'cost_center_name', key: 'cost_center_name',
       render: (v, r) => (
         <div>
           <span style={{ fontWeight: 500 }}>{v}</span>
@@ -183,7 +183,7 @@ export default function FinancePage() {
                 children: (
                   <>
                     <Divider orientation="left" style={{ color: COLORS.textSecondary, fontSize: 14 }}>
-                      ต้นทุนแยกตามศูนย์ต้นทุน
+                      ต้นทุนแยกตาม Cost Center
                     </Divider>
                     <Table
                       dataSource={costBreakdown}

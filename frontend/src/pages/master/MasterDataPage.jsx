@@ -26,12 +26,12 @@ export default function MasterDataPage() {
     },
     can('master.costcenter.read') && {
       key: 'cost-centers',
-      label: tabLabel(Building2, 'ศูนย์ต้นทุน'),
+      label: tabLabel(Building2, 'Cost Center'),
       children: <CostCenterTab />,
     },
     can('master.costelement.read') && {
       key: 'cost-elements',
-      label: tabLabel(Layers, 'องค์ประกอบต้นทุน'),
+      label: tabLabel(Layers, 'Cost Element'),
       children: <CostElementTab />,
     },
     can('master.ottype.read') && {
@@ -50,7 +50,7 @@ export default function MasterDataPage() {
     <div>
       <PageHeader
         title="Master Data"
-        subtitle="ข้อมูลหลัก — แผนก, ศูนย์ต้นทุน, องค์ประกอบต้นทุน, ประเภท OT, ประเภทลา"
+        subtitle="ข้อมูลหลัก — แผนก, Cost Center, Cost Element, ประเภท OT, ประเภทลา"
       />
       {items.length > 0 ? (
         <Tabs defaultActiveKey={items[0]?.key} items={items} destroyOnHidden />

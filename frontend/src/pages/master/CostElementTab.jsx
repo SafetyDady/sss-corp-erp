@@ -33,7 +33,7 @@ export default function CostElementTab() {
       setItems(data.items);
       setTotal(data.total);
     } catch (err) {
-      message.error(err.response?.data?.detail || 'ไม่สามารถโหลดข้อมูลองค์ประกอบต้นทุนได้');
+      message.error(err.response?.data?.detail || 'ไม่สามารถโหลดข้อมูล Cost Element ได้');
     } finally {
       setLoading(false);
     }
@@ -44,7 +44,7 @@ export default function CostElementTab() {
   const handleDelete = async (id, name) => {
     try {
       await api.delete(`/api/master/cost-elements/${id}`);
-      message.success(`ลบองค์ประกอบต้นทุน "${name}" สำเร็จ`);
+      message.success(`ลบ Cost Element "${name}" สำเร็จ`);
       fetchData();
     } catch (err) {
       message.error(err.response?.data?.detail || 'ไม่สามารถลบได้');
@@ -73,7 +73,7 @@ export default function CostElementTab() {
       render: (_, record) => (
         <Space size={4}>
           {can('master.costelement.update') && (
-            <Tooltip title="แก้ไของค์ประกอบต้นทุน">
+            <Tooltip title="แก้ไข Cost Element">
               <Button type="text" size="small" icon={<Pencil size={14} />}
                 onClick={() => { setEditItem(record); setModalOpen(true); }} />
             </Tooltip>
@@ -81,11 +81,11 @@ export default function CostElementTab() {
           {can('master.costelement.delete') && (
             <Popconfirm
               title="ยืนยันการลบ"
-              description={`ลบองค์ประกอบต้นทุน "${record.name}" (${record.code})?`}
+              description={`ลบ Cost Element "${record.name}" (${record.code})?`}
               onConfirm={() => handleDelete(record.id, record.name)}
               okText="ลบ" cancelText="ยกเลิก" okButtonProps={{ danger: true }}
             >
-              <Tooltip title="ลบองค์ประกอบต้นทุน">
+              <Tooltip title="ลบ Cost Element">
                 <Button type="text" size="small" danger icon={<Trash2 size={14} />} />
               </Tooltip>
             </Popconfirm>
@@ -102,7 +102,7 @@ export default function CostElementTab() {
         {can('master.costelement.create') && (
           <Button type="primary" icon={<Plus size={14} />}
             onClick={() => { setEditItem(null); setModalOpen(true); }}>
-            เพิ่มองค์ประกอบต้นทุน
+            เพิ่ม Cost Element
           </Button>
         )}
       </div>
@@ -111,7 +111,7 @@ export default function CostElementTab() {
         dataSource={items}
         columns={columns}
         rowKey="id"
-        locale={{ emptyText: <EmptyState message="ยังไม่มีองค์ประกอบต้นทุน" hint="กดปุ่ม 'เพิ่มองค์ประกอบต้นทุน' เพื่อเริ่มต้น" /> }}
+        locale={{ emptyText: <EmptyState message="ยังไม่มี Cost Element" hint="กดปุ่ม 'เพิ่ม Cost Element' เพื่อเริ่มต้น" /> }}
         pagination={{
           current: pagination.current,
           pageSize: pagination.pageSize,

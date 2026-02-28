@@ -54,7 +54,7 @@ export default function DepartmentFormModal({ open, editItem, onClose, onSuccess
       if (err.response) {
         const detail = err.response?.data?.detail;
         if (typeof detail === 'string' && detail.includes('1:1')) {
-          message.error('ศูนย์ต้นทุนนี้ถูกกำหนดให้แผนกอื่นแล้ว (กฎ 1:1)');
+          message.error('Cost Center นี้ถูกกำหนดให้แผนกอื่นแล้ว (กฎ 1:1)');
         } else if (typeof detail === 'string' && detail.includes('already exists')) {
           message.error('รหัสแผนกนี้ถูกใช้แล้ว กรุณาใช้รหัสอื่น');
         } else {
@@ -95,11 +95,11 @@ export default function DepartmentFormModal({ open, editItem, onClose, onSuccess
           <Input placeholder="เช่น แผนกผลิต, แผนกบุคคล" />
         </Form.Item>
 
-        <Form.Item name="cost_center_id" label="ศูนย์ต้นทุน"
-          rules={[{ required: true, message: 'กรุณาเลือกศูนย์ต้นทุน' }]}
-          extra={<Text type="secondary" style={{ fontSize: 12 }}>1 แผนก : 1 ศูนย์ต้นทุน เท่านั้น</Text>}
+        <Form.Item name="cost_center_id" label="Cost Center"
+          rules={[{ required: true, message: 'กรุณาเลือก Cost Center' }]}
+          extra={<Text type="secondary" style={{ fontSize: 12 }}>1 แผนก : 1 Cost Center เท่านั้น</Text>}
         >
-          <Select placeholder="เลือกศูนย์ต้นทุน" showSearch optionFilterProp="label"
+          <Select placeholder="เลือก Cost Center" showSearch optionFilterProp="label"
             options={costCenters.map((c) => ({ value: c.id, label: `${c.code} — ${c.name}` }))}
           />
         </Form.Item>
