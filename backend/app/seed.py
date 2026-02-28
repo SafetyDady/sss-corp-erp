@@ -24,7 +24,7 @@ from app.core.database import AsyncSessionLocal, engine, Base
 from app.core.config import DEFAULT_ORG_ID
 from app.core.security import hash_password
 from app.models import User, Organization
-from app.models.master import CostCenter, OTType, LeaveType
+from app.models.master import CostCenter, OTType, LeaveType, ShiftType, WorkSchedule, ScheduleType
 from app.models.organization import Department
 from app.models.hr import Employee, LeaveBalance, PayType
 
@@ -61,6 +61,16 @@ EMP_MANAGER_ID    = UUID("00000000-0000-0000-0005-000000000002")
 EMP_SUPERVISOR_ID = UUID("00000000-0000-0000-0005-000000000003")
 EMP_STAFF_ID      = UUID("00000000-0000-0000-0005-000000000004")
 EMP_VIEWER_ID     = UUID("00000000-0000-0000-0005-000000000005")
+
+# Shift Types (Phase 4.9)
+ST_REGULAR_ID   = UUID("00000000-0000-0000-0006-000000000001")
+ST_MORNING_ID   = UUID("00000000-0000-0000-0006-000000000002")
+ST_AFTERNOON_ID = UUID("00000000-0000-0000-0006-000000000003")
+ST_NIGHT_ID     = UUID("00000000-0000-0000-0006-000000000004")
+
+# Work Schedules (Phase 4.9)
+WS_REGULAR_MF_ID    = UUID("00000000-0000-0000-0007-000000000001")
+WS_ROTATING_3S_ID   = UUID("00000000-0000-0000-0007-000000000002")
 
 
 # ============================================================
@@ -391,6 +401,63 @@ async def seed():
             print(f"  [LB]   {lb_count} leave balances created ({current_year})")
         else:
             print(f"  [LB]   All leave balances exist ({current_year})")
+
+        # ── 10. Shift Types (Phase 4.9) ──────────────────────
+        from datetime import time as time_type
+        SHIFT_TYPES = [
+            {"id": ST_REGULAR_ID, "code": "REGULAR", "name": "กะปกติ",
+             "start_time": time_type(8, 0), "end_time": time_type(17, 0),
+             "break_minutes": 60, "working_hours": Decimal("8.00"), "is_overnight": False},
+            {"id": ST_MORNING_ID, "code": "MORNING", "name": "กะเช้า",
+             "start_time": time_type(6, 0), "end_time": time_type(14, 0),
+             "break_minutes": 30, "working_hours": Decimal("7.50"), "is_overnight": False},
+            {"id": ST_AFTERNOON_ID, "code": "AFTERNOON", "name": "กะบ่าย",
+             "start_time": time_type(14, 0), "end_time": time_type(22, 0),
+             "break_minutes": 30, "working_hours": Decimal("7.50"), "is_overnight": False},
+            {"id": ST_NIGHT_ID, "code": "NIGHT", "name": "กะดึก",
+             "start_time": time_type(22, 0), "end_time": time_type(6, 0),
+             "break_minutes": 30, "working_hours": Decimal("7.50"), "is_overnight": True},
+        ]
+        st_count = 0
+        for st_data in SHIFT_TYPES:
+            existing = await db.execute(
+                select(ShiftType).where(ShiftType.id == st_data["id"])
+            )
+            if not existing.scalar_one_or_none():
+                st_obj = ShiftType(org_id=DEFAULT_ORG_ID, **st_data)
+                db.add(st_obj)
+                st_count += 1
+        if st_count > 0:
+            await db.flush()
+            print(f"  [ST]   {st_count} shift types created")
+        else:
+            print(f"  [ST]   All shift types exist")
+
+        # ── 11. Work Schedules (Phase 4.9) ──────────────────
+        WORK_SCHEDULES = [
+            {"id": WS_REGULAR_MF_ID, "code": "REGULAR-MF", "name": "ปกติ จ-ศ",
+             "schedule_type": ScheduleType.FIXED,
+             "working_days": [1, 2, 3, 4, 5],
+             "default_shift_type_id": ST_REGULAR_ID},
+            {"id": WS_ROTATING_3S_ID, "code": "ROTATING-3SHIFT", "name": "3กะหมุน 8วัน",
+             "schedule_type": ScheduleType.ROTATING,
+             "rotation_pattern": ["MORNING", "MORNING", "AFTERNOON", "AFTERNOON", "NIGHT", "NIGHT", "OFF", "OFF"],
+             "cycle_start_date": date(2026, 1, 1)},
+        ]
+        ws_count = 0
+        for ws_data in WORK_SCHEDULES:
+            existing = await db.execute(
+                select(WorkSchedule).where(WorkSchedule.id == ws_data["id"])
+            )
+            if not existing.scalar_one_or_none():
+                ws_obj = WorkSchedule(org_id=DEFAULT_ORG_ID, **ws_data)
+                db.add(ws_obj)
+                ws_count += 1
+        if ws_count > 0:
+            await db.flush()
+            print(f"  [WS]   {ws_count} work schedules created")
+        else:
+            print(f"  [WS]   All work schedules exist")
 
         # ----- COMMIT -----
         await db.commit()

@@ -39,6 +39,8 @@ from app.core.config import DEFAULT_ORG_ID
 from app.core.database import get_db
 from app.core.permissions import require
 from app.core.security import get_token_payload
+from datetime import date
+
 from app.schemas.hr import (
     EmployeeCreate,
     EmployeeListResponse,
@@ -53,6 +55,11 @@ from app.schemas.hr import (
     PayrollRunCreate,
     PayrollRunListResponse,
     PayrollRunResponse,
+    RosterGenerateRequest,
+    RosterGenerateResponse,
+    ShiftRosterListResponse,
+    ShiftRosterResponse,
+    ShiftRosterUpdate,
     StandardTimesheetGenerate,
     StandardTimesheetListResponse,
     TimesheetBatchCreate,
@@ -72,6 +79,7 @@ from app.services.hr import (
     delete_employee,
     execute_payroll,
     final_approve_timesheet,
+    generate_shift_roster,
     generate_standard_timesheets,
     get_employee,
     get_timesheet,
@@ -79,11 +87,13 @@ from app.services.hr import (
     list_leave_balances,
     list_leaves,
     list_payroll_runs,
+    list_shift_rosters,
     list_standard_timesheets,
     list_timesheets,
     unlock_timesheet,
     update_employee,
     update_leave_balance,
+    update_shift_roster,
     update_timesheet,
 )
 from app.services.organization import check_approval_bypass
@@ -762,3 +772,100 @@ async def api_export_payroll(
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=payroll_export.csv"},
     )
+
+
+# ============================================================
+# SHIFT ROSTER ROUTES  (Phase 4.9 — Shift Management)
+# ============================================================
+
+@hr_router.get(
+    "/roster",
+    response_model=ShiftRosterListResponse,
+    dependencies=[Depends(require("hr.roster.read"))],
+)
+async def api_list_rosters(
+    employee_id: Optional[UUID] = Query(default=None),
+    start_date: Optional[date] = Query(default=None),
+    end_date: Optional[date] = Query(default=None),
+    limit: int = Query(default=500, ge=1, le=2000),
+    offset: int = Query(default=0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """List shift rosters with data scope filtering."""
+    from app.api._helpers import resolve_employee_id, resolve_employee, get_department_employee_ids
+
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    role = token.get("role", "staff")
+    user_id = UUID(token["sub"])
+
+    # Data scope: staff=own, supervisor=dept, manager/owner=all
+    scoped_employee_ids = None
+    if role == "staff":
+        emp_id = await resolve_employee_id(db, user_id)
+        if emp_id:
+            scoped_employee_ids = [emp_id]
+        else:
+            return ShiftRosterListResponse(items=[], total=0, limit=limit, offset=offset)
+    elif role == "supervisor":
+        emp = await resolve_employee(db, user_id)
+        if emp and emp.department_id:
+            scoped_employee_ids = await get_department_employee_ids(db, emp.department_id, org_id)
+        else:
+            return ShiftRosterListResponse(items=[], total=0, limit=limit, offset=offset)
+
+    # If specific employee requested, override (still within scope)
+    final_employee_id = employee_id
+    final_employee_ids = scoped_employee_ids
+
+    items, total = await list_shift_rosters(
+        db,
+        employee_id=final_employee_id,
+        employee_ids=final_employee_ids,
+        start_date=start_date,
+        end_date=end_date,
+        org_id=org_id,
+        limit=limit,
+        offset=offset,
+    )
+    return ShiftRosterListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+@hr_router.post(
+    "/roster/generate",
+    response_model=RosterGenerateResponse,
+    dependencies=[Depends(require("hr.roster.create"))],
+)
+async def api_generate_roster(
+    body: RosterGenerateRequest,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Generate shift roster entries based on employee work schedules."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    result = await generate_shift_roster(
+        db,
+        employee_ids=body.employee_ids,
+        start_date=body.start_date,
+        end_date=body.end_date,
+        org_id=org_id,
+        overwrite_existing=body.overwrite_existing,
+    )
+    return RosterGenerateResponse(**result)
+
+
+@hr_router.put(
+    "/roster/{roster_id}",
+    response_model=ShiftRosterResponse,
+    dependencies=[Depends(require("hr.roster.create"))],
+)
+async def api_update_roster(
+    roster_id: UUID,
+    body: ShiftRosterUpdate,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Update a shift roster entry (manual override)."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    update_data = body.model_dump(exclude_unset=True)
+    return await update_shift_roster(db, roster_id, update_data=update_data, org_id=org_id)

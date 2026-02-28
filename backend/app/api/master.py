@@ -46,6 +46,14 @@ from app.schemas.master import (
     OTTypeListResponse,
     OTTypeResponse,
     OTTypeUpdate,
+    ShiftTypeCreate,
+    ShiftTypeListResponse,
+    ShiftTypeResponse,
+    ShiftTypeUpdate,
+    WorkScheduleCreate,
+    WorkScheduleListResponse,
+    WorkScheduleResponse,
+    WorkScheduleUpdate,
 )
 from app.schemas.organization import (
     DepartmentCreate,
@@ -58,22 +66,32 @@ from app.services.master import (
     create_cost_element,
     create_leave_type,
     create_ot_type,
+    create_shift_type,
+    create_work_schedule,
     delete_cost_center,
     delete_cost_element,
     delete_leave_type,
     delete_ot_type,
+    delete_shift_type,
+    delete_work_schedule,
     get_cost_center,
     get_cost_element,
     get_leave_type,
     get_ot_type,
+    get_shift_type,
+    get_work_schedule,
     list_cost_centers,
     list_cost_elements,
     list_leave_types,
     list_ot_types,
+    list_shift_types,
+    list_work_schedules,
     update_cost_center,
     update_cost_element,
     update_leave_type,
     update_ot_type,
+    update_shift_type,
+    update_work_schedule,
 )
 from app.services.organization import (
     create_department,
@@ -520,3 +538,197 @@ async def api_delete_leave_type(
     db: AsyncSession = Depends(get_db),
 ):
     await delete_leave_type(db, lt_id)
+
+
+# ============================================================
+# SHIFT TYPE ROUTES  (Phase 4.9 — Shift Management)
+# ============================================================
+
+@master_router.get(
+    "/shift-types",
+    response_model=ShiftTypeListResponse,
+    dependencies=[Depends(require("master.shifttype.read"))],
+)
+async def api_list_shift_types(
+    limit: int = Query(default=20, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    search: Optional[str] = Query(default=None, max_length=100),
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """List shift types with pagination and search."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    items, total = await list_shift_types(db, limit=limit, offset=offset, search=search, org_id=org_id)
+    return ShiftTypeListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+@master_router.post(
+    "/shift-types",
+    response_model=ShiftTypeResponse,
+    status_code=201,
+    dependencies=[Depends(require("master.shifttype.create"))],
+)
+async def api_create_shift_type(
+    body: ShiftTypeCreate,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Create a new shift type."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await create_shift_type(
+        db,
+        code=body.code,
+        name=body.name,
+        start_time=body.start_time,
+        end_time=body.end_time,
+        break_minutes=body.break_minutes,
+        working_hours=body.working_hours,
+        is_overnight=body.is_overnight,
+        description=body.description,
+        org_id=org_id,
+    )
+
+
+@master_router.get(
+    "/shift-types/{st_id}",
+    response_model=ShiftTypeResponse,
+    dependencies=[Depends(require("master.shifttype.read"))],
+)
+async def api_get_shift_type(
+    st_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Get a single shift type by ID."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await get_shift_type(db, st_id, org_id=org_id)
+
+
+@master_router.put(
+    "/shift-types/{st_id}",
+    response_model=ShiftTypeResponse,
+    dependencies=[Depends(require("master.shifttype.update"))],
+)
+async def api_update_shift_type(
+    st_id: UUID,
+    body: ShiftTypeUpdate,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Update a shift type."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    update_data = body.model_dump(exclude_unset=True)
+    return await update_shift_type(db, st_id, update_data=update_data, org_id=org_id)
+
+
+@master_router.delete(
+    "/shift-types/{st_id}",
+    status_code=204,
+    dependencies=[Depends(require("master.shifttype.delete"))],
+)
+async def api_delete_shift_type(
+    st_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Soft-delete a shift type."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    await delete_shift_type(db, st_id, org_id=org_id)
+
+
+# ============================================================
+# WORK SCHEDULE ROUTES  (Phase 4.9 — Shift Management)
+# ============================================================
+
+@master_router.get(
+    "/work-schedules",
+    response_model=WorkScheduleListResponse,
+    dependencies=[Depends(require("master.schedule.read"))],
+)
+async def api_list_work_schedules(
+    limit: int = Query(default=20, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    search: Optional[str] = Query(default=None, max_length=100),
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """List work schedules with pagination and search."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    items, total = await list_work_schedules(db, limit=limit, offset=offset, search=search, org_id=org_id)
+    return WorkScheduleListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+@master_router.post(
+    "/work-schedules",
+    response_model=WorkScheduleResponse,
+    status_code=201,
+    dependencies=[Depends(require("master.schedule.create"))],
+)
+async def api_create_work_schedule(
+    body: WorkScheduleCreate,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Create a new work schedule (FIXED or ROTATING)."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await create_work_schedule(
+        db,
+        code=body.code,
+        name=body.name,
+        schedule_type=body.schedule_type.value,
+        working_days=body.working_days,
+        default_shift_type_id=body.default_shift_type_id,
+        rotation_pattern=body.rotation_pattern,
+        cycle_start_date=body.cycle_start_date,
+        description=body.description,
+        org_id=org_id,
+    )
+
+
+@master_router.get(
+    "/work-schedules/{ws_id}",
+    response_model=WorkScheduleResponse,
+    dependencies=[Depends(require("master.schedule.read"))],
+)
+async def api_get_work_schedule(
+    ws_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Get a single work schedule by ID."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await get_work_schedule(db, ws_id, org_id=org_id)
+
+
+@master_router.put(
+    "/work-schedules/{ws_id}",
+    response_model=WorkScheduleResponse,
+    dependencies=[Depends(require("master.schedule.update"))],
+)
+async def api_update_work_schedule(
+    ws_id: UUID,
+    body: WorkScheduleUpdate,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Update a work schedule."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    update_data = body.model_dump(exclude_unset=True)
+    if "schedule_type" in update_data and update_data["schedule_type"] is not None:
+        update_data["schedule_type"] = update_data["schedule_type"].value if hasattr(update_data["schedule_type"], "value") else update_data["schedule_type"]
+    return await update_work_schedule(db, ws_id, update_data=update_data, org_id=org_id)
+
+
+@master_router.delete(
+    "/work-schedules/{ws_id}",
+    status_code=204,
+    dependencies=[Depends(require("master.schedule.delete"))],
+)
+async def api_delete_work_schedule(
+    ws_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Soft-delete a work schedule (fails if employees are using it)."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    await delete_work_schedule(db, ws_id, org_id=org_id)

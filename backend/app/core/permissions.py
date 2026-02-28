@@ -108,6 +108,15 @@ ALL_PERMISSIONS: list[str] = [
     "master.leavetype.read",
     "master.leavetype.update",
     "master.leavetype.delete",
+    # Phase 4.9: Shift Management
+    "master.shifttype.create",
+    "master.shifttype.read",
+    "master.shifttype.update",
+    "master.shifttype.delete",
+    "master.schedule.create",
+    "master.schedule.read",
+    "master.schedule.update",
+    "master.schedule.delete",
 
     # --- admin (8 + 2 = 10) ---
     "admin.role.create",
@@ -159,10 +168,13 @@ ALL_PERMISSIONS: list[str] = [
     "hr.dailyreport.create",
     "hr.dailyreport.read",
     "hr.dailyreport.approve",
+    # --- hr.roster (2) --- Phase 4.9: Shift Management
+    "hr.roster.create",
+    "hr.roster.read",
 ]
 
-assert len(ALL_PERMISSIONS) == 108, f"Expected 108 permissions, got {len(ALL_PERMISSIONS)}"
-assert len(set(ALL_PERMISSIONS)) == 108, "Duplicate permissions found!"
+assert len(ALL_PERMISSIONS) == 118, f"Expected 118 permissions, got {len(ALL_PERMISSIONS)}"
+assert len(set(ALL_PERMISSIONS)) == 118, "Duplicate permissions found!"
 
 
 # ============================================================
@@ -244,6 +256,15 @@ PERMISSION_DESCRIPTIONS: dict[str, str] = {
     "master.leavetype.read": "ดูรายการประเภทการลา",
     "master.leavetype.update": "แก้ไขประเภทการลา",
     "master.leavetype.delete": "ลบประเภทการลา (Owner เท่านั้น)",
+    # Phase 4.9: Shift Management
+    "master.shifttype.create": "สร้างประเภทกะใหม่",
+    "master.shifttype.read": "ดูรายการประเภทกะ",
+    "master.shifttype.update": "แก้ไขประเภทกะ",
+    "master.shifttype.delete": "ลบประเภทกะ (Owner เท่านั้น)",
+    "master.schedule.create": "สร้างตารางกะ/แพทเทิร์นหมุนเวียน",
+    "master.schedule.read": "ดูตารางกะ",
+    "master.schedule.update": "แก้ไขตารางกะ",
+    "master.schedule.delete": "ลบตารางกะ (Owner เท่านั้น)",
     # --- admin (10) ---
     "admin.role.create": "สร้างบทบาทใหม่ (สำรองสำหรับอนาคต)",
     "admin.role.read": "ดูรายการบทบาทและสิทธิ์ทั้งหมด",
@@ -289,6 +310,9 @@ PERMISSION_DESCRIPTIONS: dict[str, str] = {
     "hr.dailyreport.create": "สร้าง/แก้ไข Daily Work Report",
     "hr.dailyreport.read": "ดู Daily Work Report (ตาม Data Scope)",
     "hr.dailyreport.approve": "อนุมัติ/ปฏิเสธ Daily Work Report",
+    # Phase 4.9: Shift Roster
+    "hr.roster.create": "สร้าง/แก้ไขตารางเข้ากะรายวัน",
+    "hr.roster.read": "ดูตารางเข้ากะ (ตาม Data Scope)",
 }
 
 assert set(PERMISSION_DESCRIPTIONS.keys()) == set(ALL_PERMISSIONS), \
@@ -301,7 +325,7 @@ assert set(PERMISSION_DESCRIPTIONS.keys()) == set(ALL_PERMISSIONS), \
 # Legend:  ✅ = granted  ❌ = denied
 
 def _owner() -> set[str]:
-    """Owner: ALL 108 permissions."""
+    """Owner: ALL 118 permissions."""
     return set(ALL_PERMISSIONS)
 
 
@@ -333,6 +357,8 @@ def _manager() -> set[str]:
         "master.ottype.delete",
         "master.department.delete",
         "master.leavetype.delete",
+        "master.shifttype.delete",
+        "master.schedule.delete",
         "customer.customer.delete",
         "tools.tool.delete",
         "hr.employee.delete",
@@ -423,6 +449,11 @@ def _supervisor() -> set[str]:
         "hr.dailyreport.create",
         "hr.dailyreport.read",
         "hr.dailyreport.approve",
+        # Shift Management (Phase 4.9)
+        "master.shifttype.read",
+        "master.schedule.read",
+        "hr.roster.create",
+        "hr.roster.read",
     }
 
 
@@ -474,6 +505,11 @@ def _staff() -> set[str]:
         # Daily Report (Phase 5)
         "hr.dailyreport.create",
         "hr.dailyreport.read",
+        # Shift Management (Phase 4.9)
+        "master.shifttype.read",
+        "master.schedule.read",
+        "hr.roster.create",
+        "hr.roster.read",
     }
 
 
@@ -514,6 +550,9 @@ def _viewer() -> set[str]:
         "tools.tool.export",
         # Daily Report (Phase 5)
         "hr.dailyreport.read",
+        # Shift Management (Phase 4.9) — read only
+        "master.shifttype.read",
+        "master.schedule.read",
     }
 
 

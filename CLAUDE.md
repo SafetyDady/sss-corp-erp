@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-02-28 v8 (Phase 7 — My Approval: Centralized Approval Center)
+> อัปเดตล่าสุด: 2026-03-01 v9 (Phase 4.9 — Shift Management: ShiftType, WorkSchedule, ShiftRoster)
 
 ---
 
@@ -10,7 +10,7 @@
 
 **SSS Corp ERP** — ระบบ ERP สำหรับธุรกิจ Manufacturing/Trading ขนาดเล็ก-กลาง
 - Multi-tenant (Shared DB + org_id)
-- **11 Modules, 108 Permissions, 5 Roles**
+- **11 Modules, 118 Permissions, 5 Roles**
 - Job Costing: Material + ManHour + Tools Recharge + Admin Overhead
 - อ้างอิงเพิ่มเติม: `UI_GUIDELINES.md` (theme/icons), `BUSINESS_POLICY.md` (business rules)
 
@@ -152,7 +152,7 @@ sss-corp-erp/
 
 ---
 
-## RBAC — 5 Roles x 108 Permissions (Full Matrix)
+## RBAC — 5 Roles x 118 Permissions (Full Matrix)
 
 ### Inventory (9 permissions)
 
@@ -231,7 +231,7 @@ sss-corp-erp/
 | finance.report.read | ✅ | ✅ | ✅ | ✅ | ✅ |
 | finance.report.export | ✅ | ❌ | ❌ | ❌ | ❌ |
 
-### Master Data (20 permissions)
+### Master Data (28 permissions)
 
 | Permission | owner | manager | supervisor | staff | viewer |
 |-----------|:-----:|:-------:|:----------:|:-----:|:------:|
@@ -255,6 +255,14 @@ sss-corp-erp/
 | master.leavetype.read | ✅ | ✅ | ✅ | ✅ | ✅ |
 | master.leavetype.update | ✅ | ✅ | ❌ | ❌ | ❌ |
 | master.leavetype.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
+| master.shifttype.create | ✅ | ✅ | ❌ | ❌ | ❌ |
+| master.shifttype.read | ✅ | ✅ | ✅ | ✅ | ✅ |
+| master.shifttype.update | ✅ | ✅ | ❌ | ❌ | ❌ |
+| master.shifttype.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
+| master.schedule.create | ✅ | ✅ | ❌ | ❌ | ❌ |
+| master.schedule.read | ✅ | ✅ | ✅ | ✅ | ✅ |
+| master.schedule.update | ✅ | ✅ | ❌ | ❌ | ❌ |
+| master.schedule.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 ### Admin (10 permissions)
 
@@ -292,7 +300,7 @@ sss-corp-erp/
 | tools.tool.execute | ✅ | ✅ | ✅ | ✅ | ❌ |
 | tools.tool.export | ✅ | ✅ | ✅ | ❌ | ✅ |
 
-### HR (17 permissions)
+### HR (22 permissions)
 
 | Permission | owner | manager | supervisor | staff | viewer |
 |-----------|:-----:|:-------:|:----------:|:-----:|:------:|
@@ -316,16 +324,18 @@ sss-corp-erp/
 | hr.dailyreport.create | ✅ | ✅ | ✅ | ✅ | ❌ |
 | hr.dailyreport.read | ✅ | ✅ | ✅ | ✅ | ❌ |
 | hr.dailyreport.approve | ✅ | ✅ | ✅ | ❌ | ❌ |
+| hr.roster.create | ✅ | ✅ | ✅ | ✅ | ❌ |
+| hr.roster.read | ✅ | ✅ | ✅ | ✅ | ❌ |
 
 ### Permission Count Summary
 
 | Role | Count | Description |
 |------|-------|-------------|
-| owner | 108 | ALL permissions |
-| manager | ~60 | ไม่มี admin.*, ไม่มี *.delete + planning create/update |
-| supervisor | ~44 | read + approve + limited create + planning read |
-| staff | ~31 | read + own create (timesheet, leave, movement, dailyreport) |
-| viewer | ~18 | read + selected export only |
+| owner | 118 | ALL permissions |
+| manager | ~68 | ไม่มี admin.*, ไม่มี *.delete + planning create/update |
+| supervisor | ~52 | read + approve + limited create + planning read |
+| staff | ~33 | read + own create (timesheet, leave, movement, dailyreport, roster) |
+| viewer | ~22 | read + selected export only |
 
 ### Permission Usage Pattern
 ```python
@@ -650,6 +660,24 @@ PUT    /api/master/ot-types/{id}           master.ottype.update
 DELETE /api/master/ot-types/{id}           master.ottype.delete
 ```
 
+### Shift Types (Phase 4.9)
+```
+GET    /api/master/shift-types              master.shifttype.read
+POST   /api/master/shift-types              master.shifttype.create
+GET    /api/master/shift-types/{id}         master.shifttype.read
+PUT    /api/master/shift-types/{id}         master.shifttype.update
+DELETE /api/master/shift-types/{id}         master.shifttype.delete
+```
+
+### Work Schedules (Phase 4.9)
+```
+GET    /api/master/work-schedules           master.schedule.read
+POST   /api/master/work-schedules           master.schedule.create
+GET    /api/master/work-schedules/{id}      master.schedule.read
+PUT    /api/master/work-schedules/{id}      master.schedule.update
+DELETE /api/master/work-schedules/{id}      master.schedule.delete
+```
+
 ### HR — Timesheet
 ```
 GET    /api/hr/timesheet                    hr.timesheet.read
@@ -672,6 +700,13 @@ GET    /api/hr/payroll/export               hr.payroll.export
 GET    /api/hr/leave                        hr.leave.read        (?status=PENDING|APPROVED|REJECTED)
 POST   /api/hr/leave                        hr.leave.create
 POST   /api/hr/leave/{id}/approve           hr.leave.approve     (body: {action: "approve"|"reject"})
+```
+
+### HR — Shift Roster (Phase 4.9)
+```
+GET    /api/hr/roster                       hr.roster.read       (?employee_id=&start_date=&end_date=)
+POST   /api/hr/roster/generate              hr.roster.create     (body: RosterGenerateRequest)
+PUT    /api/hr/roster/{id}                  hr.roster.create     (manual override)
 ```
 
 ### Tools
@@ -924,6 +959,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **4.6** Email Notification — SMTP service, approval request emails (disabled by default)
 - [x] **4.7** Multi-tenant Enforcement — org_id in JWT, all queries filtered, Setup Wizard v2 (4-step with departments)
 - [x] **4.8** Deploy & Production — Vercel (SPA + headers), Railway (Docker), Sentry, security hardening
+- [x] **4.9** Shift Management — ShiftType (master), WorkSchedule (FIXED/ROTATING), ShiftRoster (daily per-employee), Employee.work_schedule_id
 
 ### Phase 5 — Staff Portal & Daily Report ✅
 - [x] **5.1** Employee hire_date + /me API employee fields (BR#47)
@@ -1060,7 +1096,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `BUSINESS_POLICY.md` | Business rules (source of truth) |
 | `TODO.md` | Implementation tracker + checklist |
 | `SmartERP_Master_Document_v2.xlsx` | Original design spec |
-| `backend/app/core/permissions.py` | RBAC permissions + role mapping + PERMISSION_DESCRIPTIONS (108 Thai descriptions) |
+| `backend/app/core/permissions.py` | RBAC permissions + role mapping + PERMISSION_DESCRIPTIONS (118 Thai descriptions) |
 | `backend/app/core/security.py` | JWT token creation/validation |
 | `backend/app/core/config.py` | Environment settings + DEFAULT_ORG_ID |
 | `frontend/src/stores/authStore.js` | Auth state + token management |
@@ -1089,6 +1125,9 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/approval/POApprovalTab.jsx` | PO approve (Phase 7) |
 | `frontend/src/pages/approval/SOApprovalTab.jsx` | SO approve (Phase 7) |
 | `frontend/src/utils/permissionMeta.js` | Permission UI metadata: MODULE_META, RESOURCE_META, ACTION_META, buildPermissionTree() |
+| `frontend/src/pages/master/ShiftTypeTab.jsx` | ShiftType master data CRUD (Phase 4.9) |
+| `frontend/src/pages/master/WorkScheduleTab.jsx` | WorkSchedule master data CRUD — FIXED/ROTATING (Phase 4.9) |
+| `frontend/src/pages/hr/RosterTab.jsx` | Shift Roster viewer + generate + manual override (Phase 4.9) |
 
 ---
 

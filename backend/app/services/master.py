@@ -1,6 +1,6 @@
 """
 SSS Corp ERP — Master Data Service (Business Logic)
-CostCenter, CostElement, OTType
+CostCenter, CostElement, OTType, LeaveType, ShiftType, WorkSchedule
 
 Business Rules enforced:
   BR#24 — Special OT Factor ≤ Maximum Ceiling
@@ -8,6 +8,7 @@ Business Rules enforced:
   BR#30 — Overhead Rate per Cost Center (not one rate for all)
 """
 
+from datetime import date, time
 from decimal import Decimal
 from typing import Optional
 from uuid import UUID
@@ -16,7 +17,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.master import CostCenter, CostElement, LeaveType, OTType
+from app.models.master import CostCenter, CostElement, LeaveType, OTType, ShiftType, WorkSchedule, ScheduleType
 
 
 # ============================================================
@@ -438,4 +439,270 @@ async def update_leave_type(
 async def delete_leave_type(db: AsyncSession, lt_id: UUID) -> None:
     lt = await get_leave_type(db, lt_id)
     lt.is_active = False
+    await db.commit()
+
+
+# ============================================================
+# SHIFT TYPE CRUD  (Phase 4.9 — Shift Management)
+# ============================================================
+
+async def create_shift_type(
+    db: AsyncSession,
+    *,
+    code: str,
+    name: str,
+    start_time: time,
+    end_time: time,
+    break_minutes: int = 60,
+    working_hours: Decimal = Decimal("8.00"),
+    is_overnight: bool = False,
+    description: Optional[str] = None,
+    org_id: UUID,
+) -> ShiftType:
+    existing = await db.execute(
+        select(ShiftType).where(
+            ShiftType.org_id == org_id,
+            ShiftType.code == code,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Shift type with code '{code}' already exists",
+        )
+
+    st = ShiftType(
+        code=code,
+        name=name,
+        start_time=start_time,
+        end_time=end_time,
+        break_minutes=break_minutes,
+        working_hours=working_hours,
+        is_overnight=is_overnight,
+        description=description,
+        org_id=org_id,
+    )
+    db.add(st)
+    await db.commit()
+    await db.refresh(st)
+    return st
+
+
+async def get_shift_type(db: AsyncSession, st_id: UUID, *, org_id: Optional[UUID] = None) -> ShiftType:
+    query = select(ShiftType).where(ShiftType.id == st_id)
+    if org_id:
+        query = query.where(ShiftType.org_id == org_id)
+    result = await db.execute(query)
+    st = result.scalar_one_or_none()
+    if not st:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shift type not found",
+        )
+    return st
+
+
+async def list_shift_types(
+    db: AsyncSession,
+    *,
+    limit: int = 20,
+    offset: int = 0,
+    search: Optional[str] = None,
+    org_id: Optional[UUID] = None,
+) -> tuple[list[ShiftType], int]:
+    query = select(ShiftType).where(ShiftType.is_active == True)
+    if org_id:
+        query = query.where(ShiftType.org_id == org_id)
+
+    if search:
+        pattern = f"%{search}%"
+        query = query.where(
+            (ShiftType.code.ilike(pattern)) | (ShiftType.name.ilike(pattern))
+        )
+
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    query = query.order_by(ShiftType.created_at.desc()).limit(limit).offset(offset)
+    result = await db.execute(query)
+    items = list(result.scalars().all())
+    return items, total
+
+
+async def update_shift_type(
+    db: AsyncSession,
+    st_id: UUID,
+    *,
+    update_data: dict,
+    org_id: Optional[UUID] = None,
+) -> ShiftType:
+    st = await get_shift_type(db, st_id, org_id=org_id)
+
+    for field, value in update_data.items():
+        if value is not None:
+            setattr(st, field, value)
+
+    await db.commit()
+    await db.refresh(st)
+    return st
+
+
+async def delete_shift_type(db: AsyncSession, st_id: UUID, *, org_id: Optional[UUID] = None) -> None:
+    st = await get_shift_type(db, st_id, org_id=org_id)
+    st.is_active = False
+    await db.commit()
+
+
+# ============================================================
+# WORK SCHEDULE CRUD  (Phase 4.9 — Shift Management)
+# ============================================================
+
+async def create_work_schedule(
+    db: AsyncSession,
+    *,
+    code: str,
+    name: str,
+    schedule_type: str,
+    working_days: Optional[list] = None,
+    default_shift_type_id: Optional[UUID] = None,
+    rotation_pattern: Optional[list] = None,
+    cycle_start_date: Optional[date] = None,
+    description: Optional[str] = None,
+    org_id: UUID,
+) -> WorkSchedule:
+    # Validate based on schedule type
+    if schedule_type == "FIXED":
+        if not working_days:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="FIXED schedule requires working_days",
+            )
+        if not default_shift_type_id:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="FIXED schedule requires default_shift_type_id",
+            )
+    elif schedule_type == "ROTATING":
+        if not rotation_pattern or len(rotation_pattern) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="ROTATING schedule requires rotation_pattern",
+            )
+        if not cycle_start_date:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="ROTATING schedule requires cycle_start_date",
+            )
+
+    existing = await db.execute(
+        select(WorkSchedule).where(
+            WorkSchedule.org_id == org_id,
+            WorkSchedule.code == code,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Work schedule with code '{code}' already exists",
+        )
+
+    ws = WorkSchedule(
+        code=code,
+        name=name,
+        schedule_type=ScheduleType(schedule_type),
+        working_days=working_days,
+        default_shift_type_id=default_shift_type_id,
+        rotation_pattern=rotation_pattern,
+        cycle_start_date=cycle_start_date,
+        description=description,
+        org_id=org_id,
+    )
+    db.add(ws)
+    await db.commit()
+    await db.refresh(ws)
+    return ws
+
+
+async def get_work_schedule(db: AsyncSession, ws_id: UUID, *, org_id: Optional[UUID] = None) -> WorkSchedule:
+    query = select(WorkSchedule).where(WorkSchedule.id == ws_id)
+    if org_id:
+        query = query.where(WorkSchedule.org_id == org_id)
+    result = await db.execute(query)
+    ws = result.scalar_one_or_none()
+    if not ws:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Work schedule not found",
+        )
+    return ws
+
+
+async def list_work_schedules(
+    db: AsyncSession,
+    *,
+    limit: int = 20,
+    offset: int = 0,
+    search: Optional[str] = None,
+    org_id: Optional[UUID] = None,
+) -> tuple[list[WorkSchedule], int]:
+    query = select(WorkSchedule).where(WorkSchedule.is_active == True)
+    if org_id:
+        query = query.where(WorkSchedule.org_id == org_id)
+
+    if search:
+        pattern = f"%{search}%"
+        query = query.where(
+            (WorkSchedule.code.ilike(pattern)) | (WorkSchedule.name.ilike(pattern))
+        )
+
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    query = query.order_by(WorkSchedule.created_at.desc()).limit(limit).offset(offset)
+    result = await db.execute(query)
+    items = list(result.scalars().all())
+    return items, total
+
+
+async def update_work_schedule(
+    db: AsyncSession,
+    ws_id: UUID,
+    *,
+    update_data: dict,
+    org_id: Optional[UUID] = None,
+) -> WorkSchedule:
+    ws = await get_work_schedule(db, ws_id, org_id=org_id)
+
+    for field, value in update_data.items():
+        if value is not None:
+            if field == "schedule_type":
+                setattr(ws, field, ScheduleType(value))
+            else:
+                setattr(ws, field, value)
+
+    await db.commit()
+    await db.refresh(ws)
+    return ws
+
+
+async def delete_work_schedule(db: AsyncSession, ws_id: UUID, *, org_id: Optional[UUID] = None) -> None:
+    from app.models.hr import Employee
+    ws = await get_work_schedule(db, ws_id, org_id=org_id)
+
+    # Check if any employee uses this schedule
+    emp_result = await db.execute(
+        select(func.count()).select_from(Employee).where(
+            Employee.work_schedule_id == ws_id
+        )
+    )
+    count = emp_result.scalar() or 0
+    if count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot delete: {count} employee(s) are using this work schedule",
+        )
+
+    ws.is_active = False
     await db.commit()

@@ -1,6 +1,6 @@
 """
 SSS Corp ERP — Master Data Schemas (Pydantic v2)
-CostCenter, CostElement, OTType
+CostCenter, CostElement, OTType, LeaveType, ShiftType, WorkSchedule
 
 Business Rules:
   BR#24 — Special OT Factor ≤ Maximum Ceiling
@@ -8,8 +8,9 @@ Business Rules:
   BR#30 — Overhead Rate per Cost Center (not one rate for all)
 """
 
-from datetime import datetime
+from datetime import date, datetime, time
 from decimal import Decimal
+from enum import Enum
 from typing import Optional
 from uuid import UUID
 
@@ -200,6 +201,146 @@ class LeaveTypeResponse(BaseModel):
 
 class LeaveTypeListResponse(BaseModel):
     items: list[LeaveTypeResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+# ============================================================
+# SCHEDULE TYPE ENUM  (Phase 4.9)
+# ============================================================
+
+class ScheduleTypeEnum(str, Enum):
+    FIXED = "FIXED"
+    ROTATING = "ROTATING"
+
+
+# ============================================================
+# SHIFT TYPE SCHEMAS  (Phase 4.9 — Shift Management)
+# ============================================================
+
+class ShiftTypeCreate(BaseModel):
+    code: str = Field(min_length=1, max_length=50, description="Unique code per org")
+    name: str = Field(min_length=1, max_length=255)
+    start_time: time
+    end_time: time
+    break_minutes: int = Field(default=60, ge=0, description="Break duration in minutes")
+    working_hours: Decimal = Field(
+        default=Decimal("8.00"), gt=0, le=24, decimal_places=2,
+        description="Net working hours per shift"
+    )
+    is_overnight: bool = False
+    description: Optional[str] = None
+
+    @field_validator("code")
+    @classmethod
+    def normalize_code(cls, v):
+        return v.strip().upper()
+
+
+class ShiftTypeUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+    break_minutes: Optional[int] = Field(default=None, ge=0)
+    working_hours: Optional[Decimal] = Field(default=None, gt=0, le=24, decimal_places=2)
+    is_overnight: Optional[bool] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class ShiftTypeResponse(BaseModel):
+    id: UUID
+    code: str
+    name: str
+    start_time: time
+    end_time: time
+    break_minutes: int
+    working_hours: Decimal
+    is_overnight: bool
+    description: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ShiftTypeListResponse(BaseModel):
+    items: list[ShiftTypeResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+# ============================================================
+# WORK SCHEDULE SCHEMAS  (Phase 4.9 — Shift Management)
+# ============================================================
+
+class WorkScheduleCreate(BaseModel):
+    code: str = Field(min_length=1, max_length=50, description="Unique code per org")
+    name: str = Field(min_length=1, max_length=255)
+    schedule_type: ScheduleTypeEnum = ScheduleTypeEnum.FIXED
+    working_days: Optional[list[int]] = None  # FIXED: [1,2,3,4,5] = Mon-Fri
+    default_shift_type_id: Optional[UUID] = None
+    rotation_pattern: Optional[list[str]] = None  # ROTATING: ["MORNING","OFF",...]
+    cycle_start_date: Optional[date] = None
+    description: Optional[str] = None
+
+    @field_validator("code")
+    @classmethod
+    def normalize_code(cls, v):
+        return v.strip().upper()
+
+    @field_validator("working_days")
+    @classmethod
+    def validate_working_days(cls, v, info):
+        if v is not None:
+            for day in v:
+                if day < 1 or day > 7:
+                    raise ValueError("working_days values must be 1-7 (Mon=1, Sun=7)")
+        return v
+
+    @field_validator("rotation_pattern")
+    @classmethod
+    def validate_rotation_pattern(cls, v, info):
+        if v is not None and len(v) == 0:
+            raise ValueError("rotation_pattern must not be empty")
+        return v
+
+
+class WorkScheduleUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    schedule_type: Optional[ScheduleTypeEnum] = None
+    working_days: Optional[list[int]] = None
+    default_shift_type_id: Optional[UUID] = None
+    rotation_pattern: Optional[list[str]] = None
+    cycle_start_date: Optional[date] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class WorkScheduleResponse(BaseModel):
+    id: UUID
+    code: str
+    name: str
+    schedule_type: ScheduleTypeEnum
+    working_days: Optional[list[int]] = None
+    default_shift_type_id: Optional[UUID] = None
+    rotation_pattern: Optional[list[str]] = None
+    cycle_start_date: Optional[date] = None
+    description: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class WorkScheduleListResponse(BaseModel):
+    items: list[WorkScheduleResponse]
     total: int
     limit: int
     offset: int

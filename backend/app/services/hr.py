@@ -58,6 +58,7 @@ async def create_employee(
     daily_rate: Optional[Decimal] = None,
     monthly_salary: Optional[Decimal] = None,
     hire_date=None,
+    work_schedule_id: Optional[UUID] = None,
 ) -> Employee:
     existing = await db.execute(
         select(Employee).where(
@@ -86,6 +87,7 @@ async def create_employee(
         daily_rate=daily_rate,
         monthly_salary=monthly_salary,
         hire_date=hire_date,
+        work_schedule_id=work_schedule_id,
     )
     db.add(emp)
     await db.commit()
@@ -681,19 +683,20 @@ async def generate_standard_timesheets(
     """
     Auto-generate StandardTimesheet records for working days.
     Checks approved leaves and marks days accordingly.
+    Phase 4.9: Also checks ShiftRoster for employees with work_schedule_id.
     Returns count of records created.
     """
-    from app.models.hr import DayStatus, StandardTimesheet, LeaveBalance
-    from app.models.master import LeaveType as LeaveTypeModel
+    from app.models.hr import DayStatus, ShiftRoster, StandardTimesheet, LeaveBalance
+    from app.models.master import LeaveType as LeaveTypeModel, ShiftType
     from app.models.organization import OrgWorkConfig
 
-    # Get org work config
+    # Get org work config (fallback for employees without schedule)
     wc_result = await db.execute(
         select(OrgWorkConfig).where(OrgWorkConfig.org_id == org_id)
     )
     work_config = wc_result.scalar_one_or_none()
-    working_days = work_config.working_days if work_config else [1, 2, 3, 4, 5, 6]
-    hours_per_day = work_config.hours_per_day if work_config else Decimal("8.00")
+    org_working_days = work_config.working_days if work_config else [1, 2, 3, 4, 5, 6]
+    org_hours = work_config.hours_per_day if work_config else Decimal("8.00")
 
     # Get employees
     emp_query = select(Employee).where(Employee.is_active == True)
@@ -733,10 +736,33 @@ async def generate_standard_timesheets(
             for lt in lt_result.scalars().all():
                 leave_type_map[lt.id] = lt
 
+    # Phase 4.9: Get shift rosters in the period for all relevant employees
+    emp_ids = [e.id for e in employees]
+    roster_map = {}  # {(employee_id, date): roster}
+    if emp_ids:
+        roster_result = await db.execute(
+            select(ShiftRoster).where(
+                ShiftRoster.employee_id.in_(emp_ids),
+                ShiftRoster.roster_date >= period_start,
+                ShiftRoster.roster_date <= period_end,
+            )
+        )
+        for r in roster_result.scalars().all():
+            roster_map[(r.employee_id, r.roster_date)] = r
+
+    # Phase 4.9: Get shift type working hours lookup
+    shift_hours_map = {}  # {shift_type_id: working_hours}
+    shift_type_ids = {r.shift_type_id for r in roster_map.values() if r.shift_type_id}
+    if shift_type_ids:
+        st_result = await db.execute(
+            select(ShiftType).where(ShiftType.id.in_(shift_type_ids))
+        )
+        for st in st_result.scalars().all():
+            shift_hours_map[st.id] = st.working_hours
+
     created_count = 0
     current_date = period_start
     while current_date <= period_end:
-        # Check if this day is a working day (isoweekday: 1=Mon..7=Sun)
         iso_weekday = current_date.isoweekday()
 
         for emp in employees:
@@ -752,11 +778,21 @@ async def generate_standard_timesheets(
 
             leave = leave_map.get((emp.id, current_date))
 
-            if iso_weekday not in working_days:
-                # Non-working day (e.g. Sunday) — skip unless there's a leave record
+            # Phase 4.9: Resolve work status using roster or OrgWorkConfig fallback
+            roster = roster_map.get((emp.id, current_date))
+            if roster:
+                # Employee has a roster entry for this date
+                is_working = roster.is_working_day
+                emp_hours = Decimal(str(shift_hours_map.get(roster.shift_type_id, 0))) if roster.shift_type_id else Decimal("0.00")
+            else:
+                # Fallback to OrgWorkConfig
+                is_working = iso_weekday in org_working_days
+                emp_hours = emp.daily_working_hours or org_hours
+
+            if not is_working:
+                # Non-working day — skip unless there's a leave record
                 if not leave:
                     continue
-                # Holiday/non-working day with leave — still create record
                 actual_status = DayStatus.HOLIDAY
                 scheduled_hours = Decimal("0.00")
                 leave_ref = None
@@ -768,15 +804,15 @@ async def generate_standard_timesheets(
                     scheduled_hours = Decimal("0.00")
                 else:
                     actual_status = DayStatus.LEAVE_PAID
-                    scheduled_hours = hours_per_day
+                    scheduled_hours = emp_hours
                 leave_ref = leave.id
             else:
                 # Normal working day
                 actual_status = DayStatus.WORK
-                scheduled_hours = hours_per_day
+                scheduled_hours = emp_hours
                 leave_ref = None
 
-            st = StandardTimesheet(
+            st_entry = StandardTimesheet(
                 employee_id=emp.id,
                 work_date=current_date,
                 scheduled_hours=scheduled_hours,
@@ -784,7 +820,7 @@ async def generate_standard_timesheets(
                 leave_id=leave_ref,
                 org_id=org_id,
             )
-            db.add(st)
+            db.add(st_entry)
             created_count += 1
 
         current_date += timedelta(days=1)
@@ -1094,3 +1130,255 @@ async def execute_payroll(
     await db.commit()
     await db.refresh(pr)
     return pr
+
+
+# ============================================================
+# SHIFT ROSTER  (Phase 4.9 — Shift Management)
+# ============================================================
+
+async def generate_shift_roster(
+    db: AsyncSession,
+    *,
+    employee_ids: Optional[list[UUID]] = None,
+    start_date: date,
+    end_date: date,
+    org_id: UUID,
+    overwrite_existing: bool = False,
+) -> dict:
+    """
+    Auto-generate ShiftRoster entries based on employee's WorkSchedule.
+    For FIXED: checks isoweekday in working_days → creates roster with default shift.
+    For ROTATING: calculates cycle position from cycle_start_date.
+    Returns {created_count, skipped_count, employee_count}.
+    """
+    from app.models.hr import ShiftRoster
+    from app.models.master import ShiftType, WorkSchedule, ScheduleType
+
+    # Get employees with work_schedule_id
+    emp_query = select(Employee).where(
+        Employee.is_active == True,
+        Employee.org_id == org_id,
+        Employee.work_schedule_id.isnot(None),
+    )
+    if employee_ids:
+        emp_query = emp_query.where(Employee.id.in_(employee_ids))
+    emp_result = await db.execute(emp_query)
+    employees = list(emp_result.scalars().all())
+
+    if not employees:
+        return {"created_count": 0, "skipped_count": 0, "employee_count": 0}
+
+    # Get all work schedules
+    schedule_ids = {e.work_schedule_id for e in employees}
+    ws_result = await db.execute(
+        select(WorkSchedule).where(WorkSchedule.id.in_(schedule_ids))
+    )
+    schedules = {ws.id: ws for ws in ws_result.scalars().all()}
+
+    # Get shift types by code for ROTATING pattern lookup
+    st_result = await db.execute(
+        select(ShiftType).where(
+            ShiftType.org_id == org_id,
+            ShiftType.is_active == True,
+        )
+    )
+    shift_by_code = {st.code: st for st in st_result.scalars().all()}
+
+    created_count = 0
+    skipped_count = 0
+
+    for emp in employees:
+        ws = schedules.get(emp.work_schedule_id)
+        if not ws:
+            continue
+
+        current = start_date
+        while current <= end_date:
+            # Check if roster already exists
+            existing = await db.execute(
+                select(ShiftRoster).where(
+                    ShiftRoster.employee_id == emp.id,
+                    ShiftRoster.roster_date == current,
+                )
+            )
+            existing_roster = existing.scalar_one_or_none()
+
+            if existing_roster:
+                if not overwrite_existing or existing_roster.is_manual_override:
+                    skipped_count += 1
+                    current += timedelta(days=1)
+                    continue
+                # Overwrite: delete existing
+                await db.delete(existing_roster)
+
+            # Determine shift for this date
+            shift_type_id = None
+            is_working = False
+
+            if ws.schedule_type == ScheduleType.FIXED:
+                iso_weekday = current.isoweekday()
+                if ws.working_days and iso_weekday in ws.working_days:
+                    is_working = True
+                    shift_type_id = ws.default_shift_type_id
+            elif ws.schedule_type == ScheduleType.ROTATING:
+                if ws.rotation_pattern and ws.cycle_start_date:
+                    days_since = (current - ws.cycle_start_date).days
+                    position = days_since % len(ws.rotation_pattern)
+                    pattern_entry = ws.rotation_pattern[position]
+
+                    if pattern_entry.upper() == "OFF":
+                        is_working = False
+                    else:
+                        is_working = True
+                        shift = shift_by_code.get(pattern_entry.upper())
+                        if shift:
+                            shift_type_id = shift.id
+
+            roster = ShiftRoster(
+                employee_id=emp.id,
+                roster_date=current,
+                shift_type_id=shift_type_id,
+                is_working_day=is_working,
+                is_manual_override=False,
+                org_id=org_id,
+            )
+            db.add(roster)
+            created_count += 1
+
+            current += timedelta(days=1)
+
+    await db.commit()
+    return {
+        "created_count": created_count,
+        "skipped_count": skipped_count,
+        "employee_count": len(employees),
+    }
+
+
+async def list_shift_rosters(
+    db: AsyncSession,
+    *,
+    employee_id: Optional[UUID] = None,
+    employee_ids: Optional[list[UUID]] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    org_id: UUID,
+    limit: int = 500,
+    offset: int = 0,
+) -> tuple[list[dict], int]:
+    """List shift rosters with joined employee and shift type info."""
+    from app.models.hr import ShiftRoster
+    from app.models.master import ShiftType
+
+    query = select(ShiftRoster).where(ShiftRoster.org_id == org_id)
+
+    if employee_id:
+        query = query.where(ShiftRoster.employee_id == employee_id)
+    if employee_ids:
+        query = query.where(ShiftRoster.employee_id.in_(employee_ids))
+    if start_date:
+        query = query.where(ShiftRoster.roster_date >= start_date)
+    if end_date:
+        query = query.where(ShiftRoster.roster_date <= end_date)
+
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    query = query.order_by(ShiftRoster.roster_date, ShiftRoster.employee_id).limit(limit).offset(offset)
+    result = await db.execute(query)
+    rosters = list(result.scalars().all())
+
+    # Join employee names and shift type info
+    emp_ids = {r.employee_id for r in rosters}
+    st_ids = {r.shift_type_id for r in rosters if r.shift_type_id}
+
+    emp_map = {}
+    if emp_ids:
+        emp_result = await db.execute(select(Employee).where(Employee.id.in_(emp_ids)))
+        emp_map = {e.id: e for e in emp_result.scalars().all()}
+
+    st_map = {}
+    if st_ids:
+        st_result = await db.execute(select(ShiftType).where(ShiftType.id.in_(st_ids)))
+        st_map = {s.id: s for s in st_result.scalars().all()}
+
+    items = []
+    for r in rosters:
+        emp = emp_map.get(r.employee_id)
+        st = st_map.get(r.shift_type_id) if r.shift_type_id else None
+        items.append({
+            "id": r.id,
+            "employee_id": r.employee_id,
+            "employee_name": emp.full_name if emp else None,
+            "roster_date": r.roster_date,
+            "shift_type_id": r.shift_type_id,
+            "shift_type_code": st.code if st else None,
+            "shift_type_name": st.name if st else None,
+            "is_working_day": r.is_working_day,
+            "is_manual_override": r.is_manual_override,
+            "note": r.note,
+            "created_at": r.created_at,
+            "updated_at": r.updated_at,
+        })
+
+    return items, total
+
+
+async def update_shift_roster(
+    db: AsyncSession,
+    roster_id: UUID,
+    *,
+    update_data: dict,
+    org_id: UUID,
+) -> dict:
+    """Update a shift roster entry (manual override)."""
+    from app.models.hr import ShiftRoster
+    from app.models.master import ShiftType
+
+    result = await db.execute(
+        select(ShiftRoster).where(
+            ShiftRoster.id == roster_id,
+            ShiftRoster.org_id == org_id,
+        )
+    )
+    roster = result.scalar_one_or_none()
+    if not roster:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shift roster entry not found",
+        )
+
+    for field, value in update_data.items():
+        if value is not None:
+            setattr(roster, field, value)
+
+    # Mark as manual override
+    roster.is_manual_override = True
+
+    await db.commit()
+    await db.refresh(roster)
+
+    # Get joined info
+    emp = await db.execute(select(Employee).where(Employee.id == roster.employee_id))
+    emp_obj = emp.scalar_one_or_none()
+
+    st = None
+    if roster.shift_type_id:
+        st_result = await db.execute(select(ShiftType).where(ShiftType.id == roster.shift_type_id))
+        st = st_result.scalar_one_or_none()
+
+    return {
+        "id": roster.id,
+        "employee_id": roster.employee_id,
+        "employee_name": emp_obj.full_name if emp_obj else None,
+        "roster_date": roster.roster_date,
+        "shift_type_id": roster.shift_type_id,
+        "shift_type_code": st.code if st else None,
+        "shift_type_name": st.name if st else None,
+        "is_working_day": roster.is_working_day,
+        "is_manual_override": roster.is_manual_override,
+        "note": roster.note,
+        "created_at": roster.created_at,
+        "updated_at": roster.updated_at,
+    }

@@ -57,6 +57,9 @@ export const RESOURCE_META = {
   payroll:     'Payroll',
   leave:       'การลา',
   dailyreport: 'รายงานประจำวัน',
+  shifttype:   'ประเภทกะ',
+  schedule:    'ตารางกะ',
+  roster:      'ตารางเข้ากะ',
 };
 
 // ============================================================

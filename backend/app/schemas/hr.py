@@ -67,6 +67,7 @@ class EmployeeCreate(BaseModel):
     daily_rate: Optional[Decimal] = Field(default=None, ge=0, decimal_places=2)
     monthly_salary: Optional[Decimal] = Field(default=None, ge=0, decimal_places=2)
     hire_date: Optional[date] = None  # Phase 5: nullable for migration, frontend enforces
+    work_schedule_id: Optional[UUID] = None  # Phase 4.9: Shift Management
 
     @field_validator("employee_code")
     @classmethod
@@ -88,6 +89,7 @@ class EmployeeUpdate(BaseModel):
     monthly_salary: Optional[Decimal] = Field(default=None, ge=0, decimal_places=2)
     is_active: Optional[bool] = None
     hire_date: Optional[date] = None
+    work_schedule_id: Optional[UUID] = None  # Phase 4.9: Shift Management
 
 
 class EmployeeResponse(BaseModel):
@@ -106,6 +108,7 @@ class EmployeeResponse(BaseModel):
     monthly_salary: Optional[Decimal] = None
     is_active: bool
     hire_date: Optional[date] = None
+    work_schedule_id: Optional[UUID] = None  # Phase 4.9: Shift Management
     created_at: datetime
     updated_at: datetime
 
@@ -357,3 +360,59 @@ class PayrollRunListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+# ============================================================
+# SHIFT ROSTER SCHEMAS  (Phase 4.9 — Shift Management)
+# ============================================================
+
+class ShiftRosterResponse(BaseModel):
+    id: UUID
+    employee_id: UUID
+    employee_name: Optional[str] = None  # joined from Employee
+    roster_date: date
+    shift_type_id: Optional[UUID] = None
+    shift_type_code: Optional[str] = None  # joined from ShiftType
+    shift_type_name: Optional[str] = None  # joined from ShiftType
+    is_working_day: bool
+    is_manual_override: bool
+    note: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ShiftRosterListResponse(BaseModel):
+    items: list[ShiftRosterResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class ShiftRosterUpdate(BaseModel):
+    shift_type_id: Optional[UUID] = None
+    is_working_day: Optional[bool] = None
+    note: Optional[str] = None
+
+
+class RosterGenerateRequest(BaseModel):
+    employee_ids: Optional[list[UUID]] = None  # None = all employees with work_schedule_id
+    start_date: date
+    end_date: date
+    overwrite_existing: bool = False
+
+    @field_validator("end_date")
+    @classmethod
+    def end_gte_start(cls, v, info):
+        start = info.data.get("start_date")
+        if start and v < start:
+            raise ValueError("end_date must be >= start_date")
+        return v
+
+
+class RosterGenerateResponse(BaseModel):
+    created_count: int
+    skipped_count: int
+    employee_count: int

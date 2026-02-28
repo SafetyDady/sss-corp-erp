@@ -3,6 +3,7 @@ SSS Corp ERP — HR Models
 Phase 2: Employee, Timesheet, Leave, PayrollRun
 Phase 4.1: Employee + department_id, supervisor_id, pay_type, daily_rate, monthly_salary
 Phase 4.3: LeaveBalance + Leave upgrade (leave_type_id, days_count)
+Phase 4.9: ShiftRoster + Employee.work_schedule_id (Shift Management)
 
 Business Rules:
   BR#15 — ManHour Cost = Σ((Regular + OT × Factor) × Rate)
@@ -146,6 +147,12 @@ class Employee(Base, TimestampMixin, OrgMixin):
     # Phase 5: hire_date for tenure calculation (BR#55)
     hire_date: Mapped[date | None] = mapped_column(
         Date, nullable=True  # nullable for existing employees, new ones should fill
+    )
+    # Phase 4.9: Shift Management — link employee to a work schedule
+    work_schedule_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("work_schedules.id", ondelete="SET NULL"),
+        nullable=True,
     )
 
     __table_args__ = (
@@ -417,3 +424,43 @@ class StandardTimesheet(Base, TimestampMixin, OrgMixin):
 
     def __repr__(self) -> str:
         return f"<StandardTimesheet emp={self.employee_id} date={self.work_date} {self.actual_status.value}>"
+
+
+# ============================================================
+# SHIFT ROSTER  (Phase 4.9 — Shift Management)
+# ============================================================
+
+class ShiftRoster(Base, TimestampMixin, OrgMixin):
+    """
+    Daily shift assignment per employee — auto-generated from WorkSchedule
+    or manually overridden by HR/supervisor/staff.
+    roster_date = the date the shift starts (for night shifts: 22:00 Mon = roster_date Mon).
+    """
+    __tablename__ = "shift_rosters"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    employee_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("employees.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    roster_date: Mapped[date] = mapped_column(Date, nullable=False)
+    shift_type_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("shift_types.id", ondelete="SET NULL"),
+        nullable=True,  # null = day off
+    )
+    is_working_day: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
+    is_manual_override: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("employee_id", "roster_date", name="uq_shift_roster_emp_date"),
+        Index("ix_shift_roster_emp_date", "employee_id", "roster_date"),
+    )

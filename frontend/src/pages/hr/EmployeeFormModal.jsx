@@ -18,6 +18,7 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
   const [costCenters, setCostCenters] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [workSchedules, setWorkSchedules] = useState([]);
   const payType = Form.useWatch('pay_type', form);
   const hireDateVal = Form.useWatch('hire_date', form);
 
@@ -43,10 +44,12 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
         api.get('/api/master/cost-centers', { params: { limit: 500, offset: 0 } }),
         api.get('/api/master/departments', { params: { limit: 500, offset: 0 } }),
         api.get('/api/hr/employees', { params: { limit: 500, offset: 0 } }),
-      ]).then(([ccRes, deptRes, empRes]) => {
+        api.get('/api/master/work-schedules', { params: { limit: 100, offset: 0 } }).catch(() => ({ data: { items: [] } })),
+      ]).then(([ccRes, deptRes, empRes, wsRes]) => {
         setCostCenters((ccRes.data.items || []).filter((c) => c.is_active));
         setDepartments((deptRes.data.items || []).filter((d) => d.is_active));
         setEmployees((empRes.data.items || []).filter((e) => e.is_active));
+        setWorkSchedules((wsRes.data.items || []).filter((w) => w.is_active));
       }).catch(() => {});
 
       if (editItem) {
@@ -59,6 +62,7 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
           cost_center_id: editItem.cost_center_id || undefined,
           department_id: editItem.department_id || undefined,
           supervisor_id: editItem.supervisor_id || undefined,
+          work_schedule_id: editItem.work_schedule_id || undefined,
           pay_type: editItem.pay_type || 'DAILY',
           daily_rate: editItem.daily_rate ? parseFloat(editItem.daily_rate) : undefined,
           monthly_salary: editItem.monthly_salary ? parseFloat(editItem.monthly_salary) : undefined,
@@ -161,6 +165,16 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
                 .map((e) => ({ value: e.id, label: `${e.employee_code} — ${e.full_name}` }))} />
           </Form.Item>
         </div>
+
+        <Form.Item name="work_schedule_id" label="ตารางกะ"
+          extra={<Text type="secondary" style={{ fontSize: 12 }}>ถ้าว่าง ใช้ OrgWorkConfig เดิม (จ-ศ 8ชม.)</Text>}
+        >
+          <Select allowClear placeholder="เลือกตารางกะ" showSearch optionFilterProp="label"
+            options={workSchedules.map((w) => ({
+              value: w.id,
+              label: `${w.code} — ${w.name} (${w.schedule_type})`,
+            }))} />
+        </Form.Item>
 
         <Divider style={{ margin: '12px 0', borderColor: COLORS.border }}>ค่าตอบแทน</Divider>
 

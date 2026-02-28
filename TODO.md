@@ -1,7 +1,7 @@
 # TODO.md — SSS Corp ERP Implementation Tracker
 
 > อ้างอิง: `CLAUDE.md` → Implementation Phases + Business Rules
-> อัปเดตล่าสุด: 2026-02-28 (Phase 7 — My Approval: Centralized Approval Center)
+> อัปเดตล่าสุด: 2026-03-01 (Phase 4.9 — Shift Management)
 
 ---
 
@@ -432,6 +432,31 @@
 - [x] Security: CORS_ORIGINS, rate limiting, X-Frame-Options, X-Content-Type-Options
 - [x] Env files: `.env.example` for backend + frontend
 - [x] Package version: 1.0.0
+
+### 4.9 Shift Management ✅
+
+- [x] Model: `ShiftType` (code, name, start_time, end_time, break_minutes, working_hours, is_overnight)
+- [x] Model: `WorkSchedule` (code, name, schedule_type FIXED/ROTATING, working_days, rotation_pattern, cycle_start_date)
+- [x] Model: `ShiftRoster` (employee_id, roster_date, shift_type_id, is_working_day, is_manual_override, note)
+- [x] Model: Employee + `work_schedule_id` FK (nullable — backward compatible)
+- [x] Schema: ShiftType/WorkSchedule Create/Update/Response/ListResponse
+- [x] Schema: ShiftRoster Response/Update + RosterGenerateRequest/Response
+- [x] Service: ShiftType CRUD (5 functions) + WorkSchedule CRUD (5 functions)
+- [x] Service: generate_shift_roster (FIXED/ROTATING auto-gen) + list_shift_rosters + update_shift_roster
+- [x] Service: StandardTimesheet integration — roster fallback chain (ShiftRoster → OrgWorkConfig)
+- [x] API: `GET/POST/GET/{id}/PUT/{id}/DELETE/{id} /api/master/shift-types` — master.shifttype.*
+- [x] API: `GET/POST/GET/{id}/PUT/{id}/DELETE/{id} /api/master/work-schedules` — master.schedule.*
+- [x] API: `GET /api/hr/roster` + `POST /api/hr/roster/generate` + `PUT /api/hr/roster/{id}` — hr.roster.*
+- [x] Seed: 4 ShiftTypes (REGULAR/MORNING/AFTERNOON/NIGHT) + 2 WorkSchedules (REGULAR-MF/ROTATING-3SHIFT)
+- [x] Permissions: `master.shifttype.*` (4) + `master.schedule.*` (4) + `hr.roster.*` (2) = 10 new (108→118)
+- [x] Frontend: ShiftTypeTab.jsx + ShiftTypeFormModal.jsx (Master Data tabs)
+- [x] Frontend: WorkScheduleTab.jsx + WorkScheduleFormModal.jsx (Master Data tabs)
+- [x] Frontend: RosterTab.jsx + RosterGenerateModal.jsx (HR tab)
+- [x] Frontend: EmployeeFormModal.jsx — work_schedule_id dropdown
+- [x] Frontend: MasterDataPage.jsx + HRPage.jsx — new tabs added
+- [x] Frontend: permissionMeta.js — 3 new resources (shifttype, schedule, roster)
+- [x] Migration: `e1f2a3b4c5d6_phase4_9_shift_management.py`
+- [x] Build: `npm run build` — 0 errors ✅
 
 ---
 
