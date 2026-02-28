@@ -100,11 +100,11 @@ export default function TimesheetFormModal({ open, onClose, onSuccess }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <Form.Item name="regular_hours" label="ชั่วโมงปกติ"
             rules={[{ required: true, message: 'กรุณากรอกชั่วโมง' }]}>
-            <InputNumber min={0} max={24} step={0.5} style={{ width: '100%' }} addonAfter="ชม." />
+            <InputNumber min={0} max={24} step={0.5} style={{ width: '100%' }} suffix="ชม." />
           </Form.Item>
 
           <Form.Item name="ot_hours" label="ชั่วโมง OT">
-            <InputNumber min={0} max={24} step={0.5} style={{ width: '100%' }} addonAfter="ชม." />
+            <InputNumber min={0} max={24} step={0.5} style={{ width: '100%' }} suffix="ชม." />
           </Form.Item>
         </div>
 

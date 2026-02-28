@@ -136,7 +136,7 @@ export default function OrgSettingsTab() {
             rules={[{ required: true, message: 'กรุณากรอกชั่วโมง' }]}
           >
             <InputNumber min={1} max={24} step={0.5} style={{ width: 200 }}
-              addonAfter="ชม." disabled={!canEdit} />
+              suffix="ชม." disabled={!canEdit} />
           </Form.Item>
 
           {canEdit && (

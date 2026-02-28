@@ -168,7 +168,7 @@ export default function DailyPlanFormModal({ open, editItem, onClose, onSuccess 
           value={v}
           onChange={(val) => updateWorker(record.key, 'planned_hours', val)}
           style={{ width: '100%' }}
-          addonAfter="ชม."
+          suffix="ชม."
         />
       ),
     },

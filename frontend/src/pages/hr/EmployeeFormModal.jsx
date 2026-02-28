@@ -199,7 +199,7 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <Form.Item name="daily_working_hours" label="ชม.ทำงาน/วัน"
             rules={[{ required: true, message: 'กรุณากรอกชั่วโมงทำงาน' }]}>
-            <InputNumber min={0.5} max={24} step={0.5} style={{ width: '100%' }} addonAfter="ชม." />
+            <InputNumber min={0.5} max={24} step={0.5} style={{ width: '100%' }} suffix="ชม." />
           </Form.Item>
 
           <Form.Item name="cost_center_id" label="ศูนย์ต้นทุน"

@@ -87,7 +87,7 @@ export default function ToolFormModal({ open, editItem, onClose, onSuccess }) {
           rules={[{ required: true, message: 'กรุณากรอกอัตราค่าใช้จ่าย' }]}
           extra={<Text type="secondary" style={{ fontSize: 12 }}>BR#28 — ค่าเครื่องมือคำนวณจาก rate_per_hour x ชั่วโมงที่เบิก</Text>}
         >
-          <InputNumber min={0} step={10} style={{ width: '100%' }} addonAfter="บาท/ชม." />
+          <InputNumber min={0} step={10} style={{ width: '100%' }} suffix="บาท/ชม." />
         </Form.Item>
 
         {editItem && (

@@ -87,7 +87,7 @@ export default function CostCenterFormModal({ open, editItem, onClose, onSuccess
           rules={[{ required: true, message: 'กรุณากรอก Overhead Rate' }]}
           extra={<Text type="secondary" style={{ fontSize: 12 }}>BR#30 — แต่ละศูนย์ต้นทุนมี Overhead Rate เป็นของตัวเอง</Text>}
         >
-          <InputNumber min={0} max={100} step={0.5} style={{ width: '100%' }} addonAfter="%" />
+          <InputNumber min={0} max={100} step={0.5} style={{ width: '100%' }} suffix="%" />
         </Form.Item>
 
         {editItem && (

@@ -239,7 +239,7 @@ export default function SetupWizardPage() {
                   min={0}
                   max={100}
                   style={{ width: 100 }}
-                  addonAfter="%"
+                  suffix="%"
                 />
                 <Button
                   type="text"
