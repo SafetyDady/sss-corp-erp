@@ -26,20 +26,27 @@ export default function DepartmentTab() {
 
   const fetchLookups = useCallback(async () => {
     try {
-      const [ccRes, empRes] = await Promise.all([
+      const promises = [
         api.get('/api/master/cost-centers', { params: { limit: 500, offset: 0 } }),
-        api.get('/api/hr/employees', { params: { limit: 500, offset: 0 } }),
-      ]);
+      ];
+      // Only fetch employees if user has permission (staff doesn't have hr.employee.read)
+      const hasEmpPerm = can('hr.employee.read');
+      if (hasEmpPerm) {
+        promises.push(api.get('/api/hr/employees', { params: { limit: 500, offset: 0 } }));
+      }
+      const results = await Promise.all(promises);
       const ccMap = {};
-      (ccRes.data.items || []).forEach((c) => { ccMap[c.id] = c; });
+      (results[0].data.items || []).forEach((c) => { ccMap[c.id] = c; });
       setCostCenterMap(ccMap);
-      const empMap = {};
-      (empRes.data.items || []).forEach((e) => { empMap[e.id] = e; });
-      setEmployeeMap(empMap);
+      if (hasEmpPerm && results[1]) {
+        const empMap = {};
+        (results[1].data.items || []).forEach((e) => { empMap[e.id] = e; });
+        setEmployeeMap(empMap);
+      }
     } catch {
       // Silent fail — lookups are optional for display
     }
-  }, []);
+  }, [can]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);

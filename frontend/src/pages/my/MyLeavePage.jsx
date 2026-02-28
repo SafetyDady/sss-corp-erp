@@ -159,9 +159,9 @@ export default function MyLeavePage({ embedded = false }) {
     },
     {
       title: 'จำนวน',
-      dataIndex: 'days',
-      key: 'days',
-      render: (v) => `${v} วัน`,
+      dataIndex: 'days_count',
+      key: 'days_count',
+      render: (v) => `${v ?? '-'} วัน`,
     },
     {
       title: 'สถานะ',

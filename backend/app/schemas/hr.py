@@ -241,7 +241,7 @@ class StandardTimesheetGenerate(BaseModel):
 
 class LeaveCreate(BaseModel):
     employee_id: UUID
-    leave_type: str = Field(min_length=1, max_length=50)
+    leave_type: Optional[str] = None
     leave_type_id: Optional[UUID] = None
     start_date: date
     end_date: date

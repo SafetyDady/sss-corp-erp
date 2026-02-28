@@ -35,7 +35,7 @@ export default function PlanningPage() {
         subtitle="วางแผนงาน — แผนงานรายวัน, จองวัสดุ, จองเครื่องมือ"
       />
       {items.length > 0 ? (
-        <Tabs defaultActiveKey={items[0]?.key} items={items} />
+        <Tabs defaultActiveKey={items[0]?.key} items={items} destroyInactiveTabPane />
       ) : (
         <div style={{ textAlign: 'center', padding: 48, color: COLORS.textMuted }}>
           คุณไม่มีสิทธิ์เข้าถึงข้อมูล Planning

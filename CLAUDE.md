@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-02-28 v7 (Phase 6 complete + Enhanced Seed + Setup v2 + Scalability)
+> อัปเดตล่าสุด: 2026-02-28 v8 (Phase 7 — My Approval: Centralized Approval Center)
 
 ---
 
@@ -39,9 +39,10 @@ sss-corp-erp/
 ├── frontend/                     ← Vercel deploys this (Root Dir = frontend/)
 │   ├── src/
 │   │   ├── components/           # Shared UI (StatusBadge, ScopeBadge, EmployeeContextSelector, etc.)
-│   │   ├── pages/                # Route pages (~75 files, 20+ routes)
+│   │   ├── pages/                # Route pages (~80 files, 20+ routes)
 │   │   │   ├── setup/            # SetupWizardPage (Phase 4.7)
 │   │   │   ├── planning/         # PlanningPage, DailyPlan, Reservation (Phase 4.5)
+│   │   │   ├── approval/         # ApprovalPage + 4 approval tabs (Phase 7)
 │   │   │   └── ...               # inventory, warehouse, workorder, hr, etc.
 │   │   ├── hooks/                # usePermission, useAuth, etc.
 │   │   ├── stores/               # Zustand stores
@@ -668,9 +669,9 @@ DELETE /api/hr/employees/{id}              hr.employee.delete
 GET    /api/hr/payroll                      hr.payroll.read
 POST   /api/hr/payroll/run                  hr.payroll.execute
 GET    /api/hr/payroll/export               hr.payroll.export
-GET    /api/hr/leave                        hr.leave.read
+GET    /api/hr/leave                        hr.leave.read        (?status=PENDING|APPROVED|REJECTED)
 POST   /api/hr/leave                        hr.leave.create
-POST   /api/hr/leave/{id}/approve           hr.leave.approve
+POST   /api/hr/leave/{id}/approve           hr.leave.approve     (body: {action: "approve"|"reject"})
 ```
 
 ### Tools
@@ -959,6 +960,19 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **6.17** EmployeeContextSelector scalability — department grouping for manager/owner + server-side search with 300ms debounce
 - [x] **6.18** DailyReportApprovalTab + MePage — employee filter on approval tab + department name display on MePage
 
+### Phase 7 — My Approval: Centralized Approval Center ✅
+**Backend (7.1-7.2):**
+- [x] **7.1** BUG-1 Fix: Leave approve API now accepts `{action: "approve"|"reject"}` body — reject was broken before
+- [x] **7.2** Leave list API: added `status` query param for server-side filtering (PENDING/APPROVED/REJECTED)
+
+**Frontend (7.3-7.8):**
+- [x] **7.3** ApprovalPage.jsx — Main tab container with 5 tabs + badge counts (Promise.all limit=1)
+- [x] **7.4** TimesheetApprovalTab.jsx — Approve (SUBMITTED) + Final (APPROVED) with EmployeeContextSelector
+- [x] **7.5** LeaveApprovalTab.jsx — Approve/Reject with Popconfirm, PENDING filter
+- [x] **7.6** POApprovalTab.jsx — Approve + View detail for SUBMITTED POs
+- [x] **7.7** SOApprovalTab.jsx — Approve + View detail for SUBMITTED SOs
+- [x] **7.8** App.jsx — Sidebar 3-group (ME/อนุมัติ/ระบบงาน) + `/approval` route + ClipboardCheck icon
+
 ---
 
 ## Common Pitfalls (อย่าทำ!)
@@ -1017,6 +1031,11 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/components/ScopeBadge.jsx` | Role-aware scope indicator badge (Phase 6) |
 | `frontend/src/components/EmployeeContextSelector.jsx` | Role-scoped employee dropdown + dept grouping + server-side search (Phase 6) |
 | `backend/app/seed.py` | Enhanced dev seed: 3 depts, 5 users, 5 employees, OT/Leave types, LeaveBalances |
+| `frontend/src/pages/approval/ApprovalPage.jsx` | Centralized Approval Center — 5 tabs + badge counts (Phase 7) |
+| `frontend/src/pages/approval/TimesheetApprovalTab.jsx` | Timesheet approve/final (Phase 7) |
+| `frontend/src/pages/approval/LeaveApprovalTab.jsx` | Leave approve/reject (Phase 7) |
+| `frontend/src/pages/approval/POApprovalTab.jsx` | PO approve (Phase 7) |
+| `frontend/src/pages/approval/SOApprovalTab.jsx` | SO approve (Phase 7) |
 
 ---
 
@@ -1039,4 +1058,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v7 (Phase 0-6 complete + Enhanced Seed + Setup v2 + Scalability)*
+*End of CLAUDE.md — SSS Corp ERP v8 (Phase 0-7 complete — My Approval: Centralized Approval Center)*

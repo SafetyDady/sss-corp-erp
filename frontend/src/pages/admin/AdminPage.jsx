@@ -47,7 +47,7 @@ export default function AdminPage() {
         subtitle="จัดการผู้ใช้งาน, บทบาท, สิทธิ์, ตั้งค่าองค์กร, และ Audit Log"
       />
       {items.length > 0 ? (
-        <Tabs defaultActiveKey={items[0]?.key} items={items} />
+        <Tabs defaultActiveKey={items[0]?.key} items={items} destroyInactiveTabPane />
       ) : (
         <div style={{ textAlign: 'center', padding: 48, color: COLORS.textMuted }}>
           คุณไม่มีสิทธิ์เข้าถึงหน้า Admin

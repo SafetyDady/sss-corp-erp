@@ -1,7 +1,7 @@
 # TODO.md — SSS Corp ERP Implementation Tracker
 
 > อ้างอิง: `CLAUDE.md` → Implementation Phases + Business Rules
-> อัปเดตล่าสุด: 2026-02-28 (Phase 6 complete + Enhanced Seed + Setup v2 + Scalability)
+> อัปเดตล่าสุด: 2026-02-28 (Phase 7 — My Approval: Centralized Approval Center)
 
 ---
 
@@ -548,6 +548,73 @@
 
 ---
 
+## Phase 7 — My Approval: Centralized Approval Center ✅
+
+### 7.1 BUG-1 Fix: Leave Approve API ✅
+
+- [x] `backend/app/api/hr.py` — `LeaveApproveRequest` schema with `action: approve|reject`
+- [x] `api_approve_leave()` now accepts body and passes `approve=(body.action == "approve")` to service
+- [x] Service layer (`approve_leave()`) already had `approve: bool = True` param — no change needed
+- [x] **Fixed bug**: Reject always became Approve because API never sent `approve=False`
+
+### 7.2 Leave List API — status filter ✅
+
+- [x] `backend/app/api/hr.py` — Added `status: Optional[str]` query param to `api_list_leaves()`
+- [x] `backend/app/services/hr.py` — Added `status` param to `list_leaves()` with `.where(Leave.status == status)` filter
+- [x] Regex validation: `^(PENDING|APPROVED|REJECTED)$`
+
+### 7.3 ApprovalPage.jsx — Main Tab Container ✅
+
+- [x] `frontend/src/pages/approval/ApprovalPage.jsx` — Created
+- [x] 5 permission-gated tabs: Daily Report, Timesheet, Leave, PO, SO
+- [x] Badge count via `Promise.all` (5 APIs, `limit=1` for total count)
+- [x] `onAction={fetchCounts}` callback — re-fetches counts after child approve/reject
+- [x] Reuses `DailyReportApprovalTab` from `pages/hr/`
+- [x] PageHeader with `ScopeBadge`
+
+### 7.4 TimesheetApprovalTab.jsx ✅
+
+- [x] `frontend/src/pages/approval/TimesheetApprovalTab.jsx` — Created
+- [x] Status filter: SUBMITTED (Supervisor approve) / APPROVED (HR Final)
+- [x] `EmployeeContextSelector` for employee filtering
+- [x] Approve (Check icon, green) + Final (ShieldCheck icon, purple) buttons
+- [x] Calls `onAction?.()` after each action to update parent badge count
+
+### 7.5 LeaveApprovalTab.jsx ✅
+
+- [x] `frontend/src/pages/approval/LeaveApprovalTab.jsx` — Created
+- [x] Fixed `status: 'PENDING'` server-side filter (uses backend 7.2)
+- [x] Approve (Check, green) + Reject (XCircle, red with Popconfirm)
+- [x] Sends `{ action: "approve" | "reject" }` body (uses backend 7.1 fix)
+- [x] Leave type color-coded Tags
+
+### 7.6 POApprovalTab.jsx ✅
+
+- [x] `frontend/src/pages/approval/POApprovalTab.jsx` — Created
+- [x] Fixed `status: 'SUBMITTED'` filter
+- [x] Approve button + View detail button (navigate to `/purchasing/${id}`)
+- [x] Columns: po_number, supplier_name, order_date, total_amount, status
+
+### 7.7 SOApprovalTab.jsx ✅
+
+- [x] `frontend/src/pages/approval/SOApprovalTab.jsx` — Created
+- [x] Same pattern as PO but uses `/api/sales/orders`
+- [x] Columns: so_number, customer_id, order_date, total_amount, status
+- [x] View navigates to `/sales/${id}`
+
+### 7.8 App.jsx — Sidebar + Route ✅
+
+- [x] Added `ClipboardCheck` to lucide-react import
+- [x] Added lazy import: `ApprovalPage`
+- [x] Added `APPROVAL_MENU_ITEMS` with `_approval_check` pseudo-permission
+- [x] Added `approvalItems` filter (OR of 5 approve permissions)
+- [x] Sidebar: 3-group layout (ME / อนุมัติ / ระบบงาน)
+- [x] `selectedKey`: added `/approval` path matching
+- [x] Route: `<Route path="/approval" element={<ApprovalPage />} />`
+- [x] Frontend build: `npm run build` → 0 errors
+
+---
+
 ## Summary
 
 | Phase | Backend | Frontend | Migrations | Status |
@@ -559,14 +626,17 @@
 | Phase 4 — Org + Planning + Production | ~25 files | ~20 files | 6 | ✅ |
 | Phase 5 — Staff Portal & Daily Report | ~10 files | ~12 files | 2 | ✅ |
 | Phase 6 — Data Scope | ~8 files | 14 files | — | ✅ |
-| **Total** | **~93 files** | **~96 files** | **12** | **✅** |
+| Phase 7 — My Approval | 2 files | 6 files | — | ✅ |
+| **Total** | **~95 files** | **~102 files** | **12** | **✅** |
 
 **Permissions:** 89 → 105 → 108 (Phase 4: +16, Phase 5: +3 dailyreport)
 **Business Rules:** 35 → 46 → 55 (Phase 4: +11, Phase 5: +9)
-**Routes:** 17 → 20+ → 25+ (Staff Portal: +4 my/* routes)
+**Routes:** 17 → 20+ → 25+ → 26+ (Phase 7: +1 /approval route)
 **New Components (Phase 6):** ScopeBadge, EmployeeContextSelector, SupervisorDashboard
-**Enhanced (6.15-6.18):** seed.py rewrite, Setup Wizard v2, EmployeeContextSelector dept grouping + search, DailyReportApprovalTab employee filter, MePage dept name
+**New Components (Phase 7):** ApprovalPage, TimesheetApprovalTab, LeaveApprovalTab, POApprovalTab, SOApprovalTab
+**Sidebar (Phase 7):** 3-group layout: ME / อนุมัติ / ระบบงาน (was 2-group)
+**Bug Fix (Phase 7):** Leave reject API fixed — now accepts `{action: "approve"|"reject"}` body
 
 ---
 
-*Last updated: 2026-02-28 — Phase 6 complete + Enhanced Seed + Setup v2 + Scalability (108 permissions, 55 BRs, ~189 files)*
+*Last updated: 2026-02-28 — Phase 7 complete — My Approval: Centralized Approval Center (108 permissions, 55 BRs, ~197 files)*

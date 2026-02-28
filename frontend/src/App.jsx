@@ -6,6 +6,7 @@ import {
   DollarSign, BarChart3, Users, Wrench, Database, Settings,
   UserCheck, LogOut, User, ChevronLeft, ChevronRight, CalendarRange,
   ClipboardList, CalendarOff, Clock, CalendarCheck, Boxes,
+  ClipboardCheck,
 } from 'lucide-react';
 import useAuthStore from './stores/authStore';
 import { usePermission } from './hooks/usePermission';
@@ -42,10 +43,15 @@ const MyLeavePage = lazy(() => import('./pages/my/MyLeavePage'));
 const MyTimesheetPage = lazy(() => import('./pages/my/MyTimesheetPage'));
 const MyTasksPage = lazy(() => import('./pages/my/MyTasksPage'));
 const MePage = lazy(() => import('./pages/my/MePage'));
+const ApprovalPage = lazy(() => import('./pages/approval/ApprovalPage'));
 const SupplyChainPage = lazy(() => import('./pages/supply-chain/SupplyChainPage'));
 
 const MY_MENU_ITEMS = [
   { key: '/me', icon: <User size={18} />, label: 'ME', permission: '_me_check' },
+];
+
+const APPROVAL_MENU_ITEMS = [
+  { key: '/approval', icon: <ClipboardCheck size={18} />, label: 'My Approval', permission: '_approval_check' },
 ];
 
 const SYSTEM_MENU_ITEMS = [
@@ -90,6 +96,19 @@ function AppLayout() {
     label: item.label,
   }));
 
+  const approvalItems = APPROVAL_MENU_ITEMS.filter((item) => {
+    if (item.permission === '_approval_check') {
+      return can('hr.dailyreport.approve') || can('hr.timesheet.approve') ||
+             can('hr.leave.approve') || can('purchasing.po.approve') ||
+             can('sales.order.approve');
+    }
+    return !item.permission || can(item.permission);
+  }).map((item) => ({
+    key: item.key,
+    icon: item.icon,
+    label: item.label,
+  }));
+
   const systemItems = SYSTEM_MENU_ITEMS.filter(
     (item) => !item.permission || can(item.permission)
   ).map((item) => ({
@@ -99,17 +118,26 @@ function AppLayout() {
   }));
 
   const visibleItems = [
+    // Group 1: ME
     ...(myItems.length > 0
       ? [
           { key: 'grp-my', type: 'group', label: collapsed ? null : 'ME', children: myItems },
         ]
       : []),
+    // Group 2: อนุมัติ
+    ...(approvalItems.length > 0
+      ? [
+          { key: 'grp-approval', type: 'group', label: collapsed ? null : 'อนุมัติ', children: approvalItems },
+        ]
+      : []),
+    // Group 3: ระบบงาน
     { key: 'grp-system', type: 'group', label: collapsed ? null : 'ระบบงาน', children: systemItems },
   ];
 
   const selectedKey = (() => {
     const path = location.pathname;
     if (path === '/me' || path.startsWith('/my/')) return '/me';
+    if (path === '/approval') return '/approval';
     if (path.startsWith('/supply-chain') || path.startsWith('/inventory') || path.startsWith('/warehouse') || path.startsWith('/tools')) return '/supply-chain';
     return '/' + path.split('/')[1];
   })();
@@ -211,6 +239,7 @@ function AppLayout() {
               <Route path="/my/leave" element={<MePage />} />
               <Route path="/my/timesheet" element={<MePage />} />
               <Route path="/my/tasks" element={<MePage />} />
+              <Route path="/approval" element={<ApprovalPage />} />
               <Route path="/supply-chain" element={<SupplyChainPage />} />
               <Route path="/inventory" element={<Navigate to="/supply-chain" replace />} />
               <Route path="/inventory/movements" element={<Navigate to="/supply-chain" replace />} />

@@ -31,6 +31,7 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel, Field
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -505,6 +506,7 @@ async def api_list_leaves(
     limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     employee_id: Optional[UUID] = Query(default=None),
+    status: Optional[str] = Query(default=None, pattern=r"^(PENDING|APPROVED|REJECTED)$"),
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -536,6 +538,7 @@ async def api_list_leaves(
         employee_id=filter_employee_id,
         employee_ids=filter_employee_ids,
         org_id=org_id,
+        status=status,
     )
     return LeaveListResponse(items=items, total=total, limit=limit, offset=offset)
 
@@ -566,7 +569,7 @@ async def api_create_leave(
     leave = await create_leave(
         db,
         employee_id=body.employee_id,
-        leave_type=body.leave_type,
+        leave_type=body.leave_type or None,
         start_date=body.start_date,
         end_date=body.end_date,
         reason=body.reason,
@@ -581,6 +584,10 @@ async def api_create_leave(
     return leave
 
 
+class LeaveApproveRequest(BaseModel):
+    action: str = Field(pattern=r"^(approve|reject)$")
+
+
 @hr_router.post(
     "/leave/{leave_id}/approve",
     response_model=LeaveResponse,
@@ -588,11 +595,15 @@ async def api_create_leave(
 )
 async def api_approve_leave(
     leave_id: UUID,
+    body: LeaveApproveRequest,
     token: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
     user_id = UUID(token["sub"])
-    return await approve_leave(db, leave_id, approved_by=user_id)
+    return await approve_leave(
+        db, leave_id, approved_by=user_id,
+        approve=(body.action == "approve"),
+    )
 
 
 # ============================================================

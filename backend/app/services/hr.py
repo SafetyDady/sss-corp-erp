@@ -418,7 +418,7 @@ async def create_leave(
     db: AsyncSession,
     *,
     employee_id: UUID,
-    leave_type: str,
+    leave_type: Optional[str] = None,
     start_date: date,
     end_date: date,
     reason: Optional[str],
@@ -431,6 +431,18 @@ async def create_leave(
 
     # Phase 4.3: Calculate days count
     days_count = (end_date - start_date).days + 1
+
+    # Auto-resolve leave_type from leave_type_id if not provided
+    if not leave_type and leave_type_id:
+        from app.models.master import LeaveType as LeaveTypeModel
+        lt_result = await db.execute(
+            select(LeaveTypeModel).where(LeaveTypeModel.id == leave_type_id)
+        )
+        lt_obj = lt_result.scalar_one_or_none()
+        if lt_obj:
+            leave_type = lt_obj.code
+    if not leave_type:
+        leave_type = "OTHER"
 
     # Phase 4.3: Quota check (BR#36) if leave_type_id provided
     if leave_type_id:
@@ -516,6 +528,7 @@ async def list_leaves(
     employee_id: Optional[UUID] = None,
     employee_ids: Optional[list[UUID]] = None,
     org_id: Optional[UUID] = None,
+    status: Optional[str] = None,
 ) -> tuple[list[dict], int]:
     """List leaves with joined employee_name + leave_type info."""
     from app.models.master import LeaveType as LeaveTypeModel
@@ -539,6 +552,8 @@ async def list_leaves(
             query = query.where(Leave.employee_id.in_(employee_ids))
         else:
             return [], 0
+    if status:
+        query = query.where(Leave.status == status)
 
     # Count
     count_filters = []
@@ -551,6 +566,8 @@ async def list_leaves(
             count_filters.append(Leave.employee_id.in_(employee_ids))
         else:
             return [], 0
+    if status:
+        count_filters.append(Leave.status == status)
     count_q = select(func.count()).select_from(
         select(Leave.id).where(*count_filters).subquery() if count_filters else select(Leave.id).subquery()
     )
