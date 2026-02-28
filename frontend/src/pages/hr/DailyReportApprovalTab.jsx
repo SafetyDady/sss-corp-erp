@@ -8,6 +8,7 @@ import dayjs from 'dayjs';
 import api from '../../services/api';
 import StatusBadge from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
+import EmployeeContextSelector from '../../components/EmployeeContextSelector';
 import { COLORS } from '../../utils/constants';
 
 const { Text } = Typography;
@@ -25,6 +26,7 @@ export default function DailyReportApprovalTab() {
   const [loading, setLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [statusFilter, setStatusFilter] = useState(null);
+  const [employeeFilter, setEmployeeFilter] = useState(undefined);
   const [approving, setApproving] = useState(false);
 
   // Reject modal
@@ -43,6 +45,7 @@ export default function DailyReportApprovalTab() {
         offset: 0,
       };
       if (statusFilter) params.status = statusFilter;
+      if (employeeFilter) params.employee_id = employeeFilter;
       const res = await api.get('/api/daily-report', { params });
       setReports(res.data.items || []);
       setSelectedIds([]);
@@ -51,7 +54,7 @@ export default function DailyReportApprovalTab() {
     } finally {
       setLoading(false);
     }
-  }, [selectedDate, statusFilter, message]);
+  }, [selectedDate, statusFilter, employeeFilter, message]);
 
   useEffect(() => {
     loadReports();
@@ -187,19 +190,26 @@ export default function DailyReportApprovalTab() {
               onClick={() => setSelectedDate((d) => d.add(1, 'day'))}
             />
           </div>
-          <Select
-            value={statusFilter}
-            onChange={setStatusFilter}
-            placeholder="ทุกสถานะ"
-            allowClear
-            style={{ width: 150 }}
-            options={[
-              { value: 'SUBMITTED', label: 'SUBMITTED' },
-              { value: 'APPROVED', label: 'APPROVED' },
-              { value: 'REJECTED', label: 'REJECTED' },
-              { value: 'DRAFT', label: 'DRAFT' },
-            ]}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <EmployeeContextSelector
+              value={employeeFilter}
+              onChange={setEmployeeFilter}
+              showBadge={false}
+            />
+            <Select
+              value={statusFilter}
+              onChange={setStatusFilter}
+              placeholder="ทุกสถานะ"
+              allowClear
+              style={{ width: 150 }}
+              options={[
+                { value: 'SUBMITTED', label: 'SUBMITTED' },
+                { value: 'APPROVED', label: 'APPROVED' },
+                { value: 'REJECTED', label: 'REJECTED' },
+                { value: 'DRAFT', label: 'DRAFT' },
+              ]}
+            />
+          </div>
         </div>
       </Card>
 

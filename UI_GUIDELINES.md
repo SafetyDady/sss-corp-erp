@@ -2,7 +2,7 @@
 
 > ไฟล์นี้เป็นส่วนเสริมของ CLAUDE.md — กำหนดแนวทาง UI ทั้งหมด
 > AI ต้องอ่านร่วมกับ CLAUDE.md เสมอ
-> อัปเดต: 2026-02-28 v7 — Synced with Phase 6 (Data Scope UI — ScopeBadge, EmployeeContextSelector, SupervisorDashboard)
+> อัปเดต: 2026-02-28 v8 — Synced with Phase 6 + Scalability (dept grouping, server-side search, SetupWizard v2)
 
 ---
 
@@ -216,10 +216,17 @@ Employee dropdown ที่ auto-scope ตาม role:
 | Role | พฤติกรรม |
 |------|---------|
 | staff / viewer | **return null** (ไม่แสดง — เห็นเฉพาะของตัวเอง) |
-| supervisor | แสดง dropdown — เฉพาะพนักงานในแผนก (backend auto-filter) |
-| manager / owner | แสดง dropdown — พนักงานทั้งหมดใน org |
+| supervisor | แสดง dropdown — เฉพาะพนักงานในแผนก (flat list, backend auto-filter) |
+| manager / owner | แสดง dropdown — พนักงานทั้งหมดใน org (**grouped by department**) |
 
-**ใช้ที่:** TimesheetTab, LeaveTab, StandardTimesheetView, LeaveBalanceTab, WOTimeEntryForm
+**Features (Scalability):**
+- **Department grouping** (manager/owner): Antd grouped options — employees grouped by department name, "ไม่ระบุแผนก" for unassigned
+- **Server-side search**: `onSearch` → debounce 300ms → `GET /api/hr/employees?search=xxx` (backend ILIKE filter)
+- **`filterOption={false}`**: disables Antd client-side filter (relies on server)
+- Fetches departments via `GET /api/master/departments` for grouping
+- Width: 300px, initial fetch `limit: 200`
+
+**ใช้ที่:** TimesheetTab, LeaveTab, StandardTimesheetView, LeaveBalanceTab, WOTimeEntryForm, DailyReportApprovalTab
 
 ### EmptyState (`components/EmptyState.jsx`)
 
@@ -945,4 +952,4 @@ frontend/src/
 
 ---
 
-*End of UI_GUIDELINES.md — SSS Corp ERP v7 (Phase 6 complete — Data Scope UI)*
+*End of UI_GUIDELINES.md — SSS Corp ERP v8 (Phase 6 + Scalability — dept grouping, server-side search, Setup v2)*

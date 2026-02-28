@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-02-28 v6 (Phase 6 complete — Data Scope Backend + Frontend)
+> อัปเดตล่าสุด: 2026-02-28 v7 (Phase 6 complete + Enhanced Seed + Setup v2 + Scalability)
 
 ---
 
@@ -436,12 +436,13 @@ Owner เข้า Admin Panel (admin.role.read)
 → ตั้ง Overhead Rate % ต่อ Cost Center (master.costcenter.update)
 ```
 
-### Flow 10: Setup Wizard (Phase 4.7)
+### Flow 10: Setup Wizard v2 (Phase 4.7)
 ```
 First-time access → /setup page
 → Step 1: กรอกชื่อองค์กร + รหัส
-→ Step 2: กรอกชื่อ/อีเมล/รหัสผ่าน Admin
-→ POST /api/setup → สร้าง Organization + User(role=owner)
+→ Step 2: กำหนดแผนก (optional, max 20) — auto-create CostCenter per dept
+→ Step 3: กรอกชื่อ/อีเมล/รหัสผ่าน Admin
+→ POST /api/setup → สร้าง Organization + Departments + CostCenters + OT Types + Leave Types + User(role=owner) + Employee(EMP-001)
 → Auto login → redirect to Dashboard
 Permission: none (once-only, disabled after first org created)
 ```
@@ -810,7 +811,7 @@ alembic downgrade -1                                   # Rollback 1
 
 # --- Seed Data ---
 cd backend
-python -m app.seed                                     # Create test users
+python -m app.seed                                     # Create full org: 3 depts, 5 users, 5 employees, OT/Leave types
 
 # --- Frontend ---
 cd frontend
@@ -920,7 +921,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **4.4** Timesheet Redesign — StandardTimesheet (auto), WO Time Entry batch form
 - [x] **4.5** WO Planning & Reservation — Master Plan, Daily Plan, Material/Tool Reservation (BR#40-46)
 - [x] **4.6** Email Notification — SMTP service, approval request emails (disabled by default)
-- [x] **4.7** Multi-tenant Enforcement — org_id in JWT, all queries filtered, Setup Wizard
+- [x] **4.7** Multi-tenant Enforcement — org_id in JWT, all queries filtered, Setup Wizard v2 (4-step with departments)
 - [x] **4.8** Deploy & Production — Vercel (SPA + headers), Railway (Docker), Sentry, security hardening
 
 ### Phase 5 — Staff Portal & Daily Report ✅
@@ -951,6 +952,12 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **6.12** EmployeeContextSelector — role-scoped employee dropdown
 - [x] **6.13** HR Page scope UI — EmployeeContextSelector on 5 tabs + ScopeBadge
 - [x] **6.14** MePage viewer fix — permission-filtered tabs, ME menu visibility
+
+**Enhanced Seed & Scalability (6.15-6.18):**
+- [x] **6.15** Enhanced Seed Data — seed.py rewrite: full org structure (3 CostCenters, 3 Departments, 5 Employees, OT/Leave types, LeaveBalances)
+- [x] **6.16** Setup Wizard v2 — 4-step wizard (org → departments → admin → done), auto-create CostCenter/OT/Leave/Employee
+- [x] **6.17** EmployeeContextSelector scalability — department grouping for manager/owner + server-side search with 300ms debounce
+- [x] **6.18** DailyReportApprovalTab + MePage — employee filter on approval tab + department name display on MePage
 
 ---
 
@@ -1000,7 +1007,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `backend/app/api/setup.py` | One-time setup wizard API |
 | `backend/app/api/planning.py` | Daily plans + reservations API |
 | `backend/app/api/daily_report.py` | Daily Work Report API (Phase 5) |
-| `frontend/src/pages/setup/SetupWizardPage.jsx` | First-time org setup wizard |
+| `frontend/src/pages/setup/SetupWizardPage.jsx` | First-time org setup wizard v2 (4-step with departments) |
 | `frontend/src/pages/my/MyDailyReportPage.jsx` | Staff — Daily Work Report (Phase 5) |
 | `frontend/src/pages/my/MyLeavePage.jsx` | Staff — My Leave (Phase 5) |
 | `frontend/src/pages/my/MyTimesheetPage.jsx` | Staff — My Timesheet (Phase 5) |
@@ -1008,7 +1015,8 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/hr/DailyReportApprovalTab.jsx` | Supervisor — Batch approve (Phase 5) |
 | `backend/app/api/_helpers.py` | Shared data scope helpers (Phase 6) |
 | `frontend/src/components/ScopeBadge.jsx` | Role-aware scope indicator badge (Phase 6) |
-| `frontend/src/components/EmployeeContextSelector.jsx` | Role-scoped employee dropdown (Phase 6) |
+| `frontend/src/components/EmployeeContextSelector.jsx` | Role-scoped employee dropdown + dept grouping + server-side search (Phase 6) |
+| `backend/app/seed.py` | Enhanced dev seed: 3 depts, 5 users, 5 employees, OT/Leave types, LeaveBalances |
 
 ---
 
@@ -1031,4 +1039,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v6 (Phase 0-6 complete — Data Scope Backend + Frontend)*
+*End of CLAUDE.md — SSS Corp ERP v7 (Phase 0-6 complete + Enhanced Seed + Setup v2 + Scalability)*

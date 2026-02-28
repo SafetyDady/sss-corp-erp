@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Tabs, Card, Typography, Avatar, Row, Col } from 'antd';
-import { User, CalendarCheck, Clock, FileText, ClipboardList, Briefcase, Calendar } from 'lucide-react';
+import { User, CalendarCheck, Clock, FileText, ClipboardList, Briefcase, Calendar, Building2 } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
 import { usePermission } from '../../hooks/usePermission';
 import { COLORS } from '../../utils/constants';
@@ -22,6 +22,7 @@ export default function MePage() {
   const employeeCode = useAuthStore((s) => s.employeeCode);
   const employeeId = useAuthStore((s) => s.employeeId);
   const hireDate = useAuthStore((s) => s.hireDate);
+  const departmentName = useAuthStore((s) => s.departmentName);
   const { can } = usePermission();
 
   const [stats, setStats] = useState({ tasks: 0, pendingLeave: 0, todayHours: 0, reports: 0 });
@@ -127,6 +128,12 @@ export default function MePage() {
                 </span>
               )}
             </Text>
+            {departmentName && (
+              <Text style={{ color: COLORS.textSecondary, fontSize: 12, display: 'block', marginTop: 4 }}>
+                <Building2 size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                แผนก: {departmentName}
+              </Text>
+            )}
             {tenure && (
               <Text style={{ color: COLORS.textMuted, fontSize: 12, display: 'block', marginTop: 4 }}>
                 <Calendar size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />

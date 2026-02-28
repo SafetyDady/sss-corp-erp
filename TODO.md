@@ -1,7 +1,7 @@
 # TODO.md — SSS Corp ERP Implementation Tracker
 
 > อ้างอิง: `CLAUDE.md` → Implementation Phases + Business Rules
-> อัปเดตล่าสุด: 2026-02-28 (Phase 6 complete — Data Scope Backend + Frontend)
+> อัปเดตล่าสุด: 2026-02-28 (Phase 6 complete + Enhanced Seed + Setup v2 + Scalability)
 
 ---
 
@@ -417,8 +417,8 @@
 - [x] All 17+ service `list_*()` functions: `.where(Model.org_id == org_id)` filter
 - [x] All `get_*()` functions: verify org_id matches
 - [x] User.org_id: NOT NULL enforcement
-- [x] Setup Wizard: `POST /api/setup` (no auth, creates first org + admin, returns tokens)
-- [x] Frontend: SetupWizardPage.jsx — multi-step form (org → admin → done)
+- [x] Setup Wizard v2: `POST /api/setup` (no auth, creates first org + depts + OT/Leave + admin + employee, returns tokens)
+- [x] Frontend: SetupWizardPage.jsx — 4-step form (org → departments → admin → done)
 - [x] Route: `/setup` — public, shown only when no org exists
 - [x] Migration: `i_phase4_7_multitenant_enforce.py`
 
@@ -533,6 +533,19 @@
 - [x] App.jsx: ME menu shown only if user has at least 1 my-page permission
 - [x] Bug fixes: COLORS.info → '#3b82f6', unused imports removed, stale closure fixed
 
+### 6.15-6.18 Enhanced Seed + Setup v2 + Scalability ✅
+
+- [x] **seed.py** — Complete rewrite: full org structure (3 CostCenters, 3 Departments, 5 Employees linked to Users+Depts, 3 OT Types, 5 Leave Types, 20 LeaveBalances)
+  - Fixed UUIDs for deterministic/idempotent seeding
+  - Employee mapping: owner→EMP-001(ADMIN dept), manager→EMP-002(ADMIN), supervisor→EMP-003(PROD head), staff→EMP-004(PROD), viewer→EMP-005(ADMIN)
+  - Dept heads: owner=ฝ่ายบริหาร head, supervisor=ฝ่ายผลิต head
+- [x] **setup.py (backend)** — Enhanced: `SetupDepartment` schema, auto-create CostCenter per dept, seed OT/Leave defaults, create Employee(EMP-001) for owner, set department head
+- [x] **SetupWizardPage.jsx** — 4-step wizard (org → departments → admin → done), dynamic dept rows with code/name/OH%, validation
+- [x] **EmployeeContextSelector.jsx** — Department grouping for manager/owner (Antd grouped options), server-side search with 300ms debounce, `filterOption={false}`
+- [x] **DailyReportApprovalTab.jsx** — Added EmployeeContextSelector filter, `employee_id` param to API call
+- [x] **MePage.jsx** — Added department name display (`Building2` icon + `departmentName` from authStore)
+- [x] Frontend build: 0 errors
+
 ---
 
 ## Summary
@@ -552,7 +565,8 @@
 **Business Rules:** 35 → 46 → 55 (Phase 4: +11, Phase 5: +9)
 **Routes:** 17 → 20+ → 25+ (Staff Portal: +4 my/* routes)
 **New Components (Phase 6):** ScopeBadge, EmployeeContextSelector, SupervisorDashboard
+**Enhanced (6.15-6.18):** seed.py rewrite, Setup Wizard v2, EmployeeContextSelector dept grouping + search, DailyReportApprovalTab employee filter, MePage dept name
 
 ---
 
-*Last updated: 2026-02-28 — Phase 6 complete (108 permissions, 55 BRs, ~189 files)*
+*Last updated: 2026-02-28 — Phase 6 complete + Enhanced Seed + Setup v2 + Scalability (108 permissions, 55 BRs, ~189 files)*
