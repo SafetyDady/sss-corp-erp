@@ -226,6 +226,14 @@ async def create_movement(
     # Get product (must be active)
     product = await get_product(db, product_id)
 
+    # BR#65: SERVICE products cannot have stock movements
+    from app.models.inventory import ProductType
+    if product.product_type == ProductType.SERVICE:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Cannot create stock movement for SERVICE products",
+        )
+
     # Calculate qty delta
     qty_delta = _calculate_qty_delta(movement_type, quantity)
 

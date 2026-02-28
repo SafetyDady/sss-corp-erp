@@ -40,6 +40,7 @@ export const RESOURCE_META = {
   order:       'ใบสั่ง',
   plan:        'แผนงาน',
   reservation: 'การจอง',
+  pr:          'ใบขอซื้อ (PR)',
   po:          'ใบสั่งซื้อ (PO)',
   report:      'รายงาน',
   costcenter:  'Cost Center',

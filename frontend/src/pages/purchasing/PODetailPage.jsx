@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Table, Button, App, Space, Descriptions, Spin, Popconfirm } from 'antd';
+import { Card, Table, Button, App, Space, Descriptions, Spin, Popconfirm, Tag } from 'antd';
 import { ArrowLeft, Check, PackageCheck } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
-import { formatCurrency, formatDate } from '../../utils/formatters';
+import { formatCurrency, formatDate, formatDateTime, getApiErrorMsg } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
+import GoodsReceiptModal from './GoodsReceiptModal';
 
 export default function PODetailPage() {
   const { id } = useParams();
@@ -17,6 +18,7 @@ export default function PODetailPage() {
   const [po, setPo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState({});
+  const [grModalOpen, setGrModalOpen] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -28,7 +30,7 @@ export default function PODetailPage() {
       setPo(poRes.data);
       setProducts(Object.fromEntries(prodRes.data.items.map((p) => [p.id, p])));
     } catch (err) {
-      message.error('\u0E44\u0E21\u0E48\u0E1E\u0E1A\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25');
+      message.error('ไม่พบข้อมูล');
       navigate('/purchasing');
     } finally {
       setLoading(false);
@@ -40,20 +42,10 @@ export default function PODetailPage() {
   const handleApprove = async () => {
     try {
       await api.post(`/api/purchasing/po/${id}/approve`);
-      message.success('\u0E2D\u0E19\u0E38\u0E21\u0E31\u0E15\u0E34\u0E2A\u0E33\u0E40\u0E23\u0E47\u0E08');
+      message.success('อนุมัติสำเร็จ');
       fetchData();
     } catch (err) {
-      message.error(err.response?.data?.detail || '\u0E44\u0E21\u0E48\u0E2A\u0E32\u0E21\u0E32\u0E23\u0E16\u0E2D\u0E19\u0E38\u0E21\u0E31\u0E15\u0E34\u0E44\u0E14\u0E49');
-    }
-  };
-
-  const handleReceive = async () => {
-    try {
-      await api.post(`/api/purchasing/po/${id}/receive`);
-      message.success('\u0E23\u0E31\u0E1A\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32\u0E2A\u0E33\u0E40\u0E23\u0E47\u0E08');
-      fetchData();
-    } catch (err) {
-      message.error(err.response?.data?.detail || '\u0E44\u0E21\u0E48\u0E2A\u0E32\u0E21\u0E32\u0E23\u0E16\u0E23\u0E31\u0E1A\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32\u0E44\u0E14\u0E49');
+      message.error(getApiErrorMsg(err, 'ไม่สามารถอนุมัติได้'));
     }
   };
 
@@ -62,55 +54,105 @@ export default function PODetailPage() {
 
   const lineColumns = [
     {
-      title: '\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32', dataIndex: 'product_id', key: 'product_id',
-      render: (v) => products[v]?.name || v,
+      title: 'ประเภท', dataIndex: 'item_type', key: 'item_type', width: 90,
+      render: (v) => <Tag color={(v || 'GOODS') === 'GOODS' ? 'blue' : 'green'}>{v || 'GOODS'}</Tag>,
     },
-    { title: '\u0E08\u0E33\u0E19\u0E27\u0E19\u0E2A\u0E31\u0E48\u0E07', dataIndex: 'quantity', key: 'quantity', width: 100, align: 'right' },
     {
-      title: '\u0E23\u0E32\u0E04\u0E32/\u0E2B\u0E19\u0E48\u0E27\u0E22', dataIndex: 'unit_cost', key: 'unit_cost', width: 120, align: 'right',
+      title: 'สินค้า/บริการ', key: 'product',
+      render: (_, record) => {
+        if (record.product_id && products[record.product_id]) {
+          const p = products[record.product_id];
+          return `${p.sku} - ${p.name}`;
+        }
+        return record.description || record.product_id || '-';
+      },
+    },
+    { title: 'จำนวนสั่ง', dataIndex: 'quantity', key: 'quantity', width: 90, align: 'right' },
+    { title: 'หน่วย', dataIndex: 'unit', key: 'unit', width: 60 },
+    {
+      title: 'ราคา/หน่วย', dataIndex: 'unit_cost', key: 'unit_cost', width: 120, align: 'right',
       render: (v) => formatCurrency(v),
     },
-    { title: '\u0E23\u0E31\u0E1A\u0E41\u0E25\u0E49\u0E27', dataIndex: 'received_qty', key: 'received_qty', width: 100, align: 'right' },
+    {
+      title: 'รวม', key: 'line_total', width: 120, align: 'right',
+      render: (_, record) => formatCurrency((record.unit_cost || 0) * record.quantity),
+    },
+    {
+      title: 'รับแล้ว', dataIndex: 'received_qty', key: 'received_qty', width: 80, align: 'right',
+      render: (v, record) => {
+        const color = (v || 0) >= record.quantity ? COLORS.success : COLORS.warning;
+        return <span style={{ color }}>{v || 0}</span>;
+      },
+    },
+    {
+      title: 'รับโดย', key: 'received_info', width: 130,
+      render: (_, record) => record.received_at ? (
+        <span style={{ fontSize: 11, color: COLORS.textMuted }}>{formatDateTime(record.received_at)}</span>
+      ) : '-',
+    },
   ];
 
   return (
     <div>
       <PageHeader
         title={po.po_number}
-        subtitle={'\u0E23\u0E32\u0E22\u0E25\u0E30\u0E40\u0E2D\u0E35\u0E22\u0E14\u0E43\u0E1A\u0E2A\u0E31\u0E48\u0E07\u0E0B\u0E37\u0E49\u0E2D'}
+        subtitle="รายละเอียดใบสั่งซื้อ"
         actions={
           <Space>
-            <Button icon={<ArrowLeft size={14} />} onClick={() => navigate('/purchasing')}>{'\u0E01\u0E25\u0E31\u0E1A'}</Button>
+            <Button icon={<ArrowLeft size={14} />} onClick={() => navigate('/purchasing')}>กลับ</Button>
             {po.status === 'SUBMITTED' && can('purchasing.po.approve') && (
-              <Popconfirm title={'\u0E2D\u0E19\u0E38\u0E21\u0E31\u0E15\u0E34 PO?'} onConfirm={handleApprove}>
+              <Popconfirm title="อนุมัติ PO?" onConfirm={handleApprove}>
                 <Button type="primary" icon={<Check size={14} />}>Approve</Button>
               </Popconfirm>
             )}
             {po.status === 'APPROVED' && can('purchasing.po.update') && (
-              <Popconfirm title={'\u0E23\u0E31\u0E1A\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32\u0E17\u0E31\u0E49\u0E07\u0E2B\u0E21\u0E14?'} onConfirm={handleReceive}>
-                <Button icon={<PackageCheck size={14} />}>Goods Receipt</Button>
-              </Popconfirm>
+              <Button icon={<PackageCheck size={14} />} onClick={() => setGrModalOpen(true)}>
+                Goods Receipt
+              </Button>
             )}
           </Space>
         }
       />
+
       <Card style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, marginBottom: 24 }}>
-        <Descriptions column={2} size="small">
-          <Descriptions.Item label="PO Number">{po.po_number}</Descriptions.Item>
+        <Descriptions column={3} size="small">
+          <Descriptions.Item label="PO Number">
+            <span style={{ fontFamily: 'monospace' }}>{po.po_number}</span>
+          </Descriptions.Item>
           <Descriptions.Item label="Status"><StatusBadge status={po.status} /></Descriptions.Item>
-          <Descriptions.Item label={'\u0E0B\u0E31\u0E1E\u0E1E\u0E25\u0E32\u0E22\u0E40\u0E2D\u0E2D\u0E23\u0E4C'}>{po.supplier_name}</Descriptions.Item>
-          <Descriptions.Item label={'\u0E22\u0E2D\u0E14\u0E23\u0E27\u0E21'}>{formatCurrency(po.total_amount)}</Descriptions.Item>
-          <Descriptions.Item label={'\u0E27\u0E31\u0E19\u0E17\u0E35\u0E48\u0E2A\u0E31\u0E48\u0E07'}>{formatDate(po.order_date)}</Descriptions.Item>
-          <Descriptions.Item label={'\u0E27\u0E31\u0E19\u0E17\u0E35\u0E48\u0E04\u0E32\u0E14\u0E23\u0E31\u0E1A'}>{formatDate(po.expected_date)}</Descriptions.Item>
+          <Descriptions.Item label="ซัพพลายเออร์">{po.supplier_name}</Descriptions.Item>
+          <Descriptions.Item label="ยอดรวม">{formatCurrency(po.total_amount)}</Descriptions.Item>
+          <Descriptions.Item label="วันที่สั่ง">{formatDate(po.order_date)}</Descriptions.Item>
+          <Descriptions.Item label="วันที่คาดรับ">{formatDate(po.expected_date)}</Descriptions.Item>
+          {po.pr_number && (
+            <Descriptions.Item label="PR อ้างอิง">
+              <Button type="link" size="small" style={{ padding: 0, fontFamily: 'monospace' }}
+                onClick={() => navigate(`/purchasing/pr/${po.pr_id}`)}>
+                {po.pr_number}
+              </Button>
+            </Descriptions.Item>
+          )}
+          {po.note && (
+            <Descriptions.Item label="หมายเหตุ" span={3}>{po.note}</Descriptions.Item>
+          )}
         </Descriptions>
       </Card>
-      <h3 style={{ color: COLORS.text, marginBottom: 16 }}>{'\u0E23\u0E32\u0E22\u0E01\u0E32\u0E23\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32'}</h3>
+
+      <h3 style={{ color: COLORS.text, marginBottom: 16 }}>รายการสินค้า/บริการ</h3>
       <Table
         dataSource={po.lines || []}
         columns={lineColumns}
         rowKey="id"
         pagination={false}
         size="small"
+      />
+
+      <GoodsReceiptModal
+        open={grModalOpen}
+        po={po}
+        products={products}
+        onClose={() => setGrModalOpen(false)}
+        onSuccess={() => { setGrModalOpen(false); fetchData(); }}
       />
     </div>
   );

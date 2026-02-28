@@ -117,7 +117,7 @@ export default function POApprovalTab({ onAction }) {
               type="text"
               size="small"
               icon={<Eye size={14} />}
-              onClick={() => navigate(`/purchasing/${record.id}`)}
+              onClick={() => navigate(`/purchasing/po/${record.id}`)}
             />
           </Tooltip>
         </Space>

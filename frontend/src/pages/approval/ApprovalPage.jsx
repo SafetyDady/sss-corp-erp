@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Tabs, Badge } from 'antd';
-import { FileText, Clock, CalendarDays, ShoppingCart, DollarSign } from 'lucide-react';
+import { FileText, Clock, CalendarDays, ClipboardList, ShoppingCart, DollarSign } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import ScopeBadge from '../../components/ScopeBadge';
 import { usePermission } from '../../hooks/usePermission';
@@ -10,9 +10,10 @@ import api from '../../services/api';
 // Reuse existing
 import DailyReportApprovalTab from '../hr/DailyReportApprovalTab';
 
-// New tabs
+// Tabs
 import TimesheetApprovalTab from './TimesheetApprovalTab';
 import LeaveApprovalTab from './LeaveApprovalTab';
+import PRApprovalTab from './PRApprovalTab';
 import POApprovalTab from './POApprovalTab';
 import SOApprovalTab from './SOApprovalTab';
 
@@ -36,13 +37,14 @@ export default function ApprovalPage() {
     daily: 0,
     timesheet: 0,
     leave: 0,
+    pr: 0,
     po: 0,
     so: 0,
   });
 
   const fetchCounts = useCallback(async () => {
     try {
-      const [daily, ts, leave, po, so] = await Promise.all([
+      const [daily, ts, leave, pr, po, so] = await Promise.all([
         can('hr.dailyreport.approve')
           ? api.get('/api/daily-report', { params: { status: 'SUBMITTED', limit: 1 } })
           : { data: { total: 0 } },
@@ -51,6 +53,9 @@ export default function ApprovalPage() {
           : { data: { total: 0 } },
         can('hr.leave.approve')
           ? api.get('/api/hr/leave', { params: { status: 'PENDING', limit: 1 } })
+          : { data: { total: 0 } },
+        can('purchasing.pr.approve')
+          ? api.get('/api/purchasing/pr', { params: { status: 'SUBMITTED', limit: 1 } })
           : { data: { total: 0 } },
         can('purchasing.po.approve')
           ? api.get('/api/purchasing/po', { params: { status: 'SUBMITTED', limit: 1 } })
@@ -63,6 +68,7 @@ export default function ApprovalPage() {
         daily: daily.data.total || 0,
         timesheet: ts.data.total || 0,
         leave: leave.data.total || 0,
+        pr: pr.data.total || 0,
         po: po.data.total || 0,
         so: so.data.total || 0,
       });
@@ -81,6 +87,11 @@ export default function ApprovalPage() {
       label: tabLabel(FileText, 'รายงานประจำวัน', counts.daily),
       children: <DailyReportApprovalTab />,
     },
+    can('purchasing.pr.approve') && {
+      key: 'pr',
+      label: tabLabel(ClipboardList, 'ใบขอซื้อ (PR)', counts.pr),
+      children: <PRApprovalTab onAction={fetchCounts} />,
+    },
     can('hr.timesheet.approve') && {
       key: 'timesheet',
       label: tabLabel(Clock, 'Timesheet', counts.timesheet),
@@ -93,7 +104,7 @@ export default function ApprovalPage() {
     },
     can('purchasing.po.approve') && {
       key: 'po',
-      label: tabLabel(ShoppingCart, 'ใบสั่งซื้อ', counts.po),
+      label: tabLabel(ShoppingCart, 'ใบสั่งซื้อ (PO)', counts.po),
       children: <POApprovalTab onAction={fetchCounts} />,
     },
     can('sales.order.approve') && {

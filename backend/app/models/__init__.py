@@ -6,7 +6,11 @@ from app.models.master import CostCenter, CostElement, OTType, ShiftType, WorkSc
 from app.models.hr import Employee, Timesheet, TimesheetStatus, Leave, LeaveStatus, PayrollRun, PayrollStatus, PayType, ShiftRoster
 from app.models.tools import Tool, ToolStatus, ToolCheckout
 from app.models.customer import Customer
-from app.models.purchasing import PurchaseOrder, PurchaseOrderLine, POStatus
+from app.models.purchasing import (
+    PurchaseRequisition, PurchaseRequisitionLine,
+    PRStatus, PRPriority, PRItemType, PRType,
+    PurchaseOrder, PurchaseOrderLine, POStatus,
+)
 from app.models.sales import SalesOrder, SalesOrderLine, SOStatus
 from app.models.organization import Organization, Department, OrgWorkConfig, OrgApprovalConfig
 from app.models.planning import (
@@ -47,6 +51,12 @@ __all__ = [
     "ToolStatus",
     "ToolCheckout",
     "Customer",
+    "PurchaseRequisition",
+    "PurchaseRequisitionLine",
+    "PRStatus",
+    "PRPriority",
+    "PRItemType",
+    "PRType",
     "PurchaseOrder",
     "PurchaseOrderLine",
     "POStatus",

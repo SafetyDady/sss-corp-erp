@@ -1,7 +1,7 @@
 # TODO.md — SSS Corp ERP Implementation Tracker
 
 > อ้างอิง: `CLAUDE.md` → Implementation Phases + Business Rules
-> อัปเดตล่าสุด: 2026-03-01 (Phase 4.9 — Shift Management + Staff Schedule Selector + OrgWorkConfig fix)
+> อัปเดตล่าสุด: 2026-03-01 (Phase 7.9 — PR/PO Redesign: Purchase Requisition System)
 
 ---
 
@@ -657,6 +657,81 @@
 
 ---
 
+## Phase 7.9 — PR/PO Redesign: Purchase Requisition System ✅
+
+### 7.9.1 Backend — Models + Migration ✅
+
+- [x] `backend/app/models/inventory.py` — Added `SERVICE` to ProductType enum
+- [x] `backend/app/models/purchasing.py` — 4 new enums: PRStatus, PRPriority, PRItemType, PRType
+- [x] `backend/app/models/purchasing.py` — PurchaseRequisition model (pr_number, pr_type, cost_center_id, required_date, delivery_date, validity dates, etc.)
+- [x] `backend/app/models/purchasing.py` — PurchaseRequisitionLine model (item_type, product_id, description, cost_element_id, estimated_unit_cost, etc.)
+- [x] `backend/app/models/purchasing.py` — PurchaseOrder extensions: pr_id (FK unique), cost_center_id
+- [x] `backend/app/models/purchasing.py` — PurchaseOrderLine extensions: pr_line_id, item_type, description, cost_element_id, unit, received_by, received_at
+- [x] `backend/app/models/__init__.py` — Added PR model imports
+- [x] `backend/alembic/versions/f2a3b4c5d6e7_pr_po_redesign.py` — Migration: 2 tables + 8 columns + SERVICE enum
+
+### 7.9.2 Backend — Permissions ✅
+
+- [x] `backend/app/core/permissions.py` — +5 permissions: purchasing.pr.create/read/update/delete/approve (118→123)
+- [x] Role mapping: owner/manager/supervisor get all 5, staff gets create+read, viewer gets read
+- [x] PERMISSION_DESCRIPTIONS updated with Thai descriptions
+
+### 7.9.3 Backend — Schemas ✅
+
+- [x] `backend/app/schemas/purchasing.py` — PRLineCreate, PRCreate, PRUpdate, PRApproveRequest
+- [x] ConvertToPOLine, ConvertToPORequest schemas
+- [x] PRLineResponse, PRResponse, PRListResponse
+- [x] Enhanced PurchaseOrderResponse (pr_id, pr_number, cost_center_id)
+- [x] Enhanced POLineResponse (item_type, description, cost_element_id, received_by/at)
+- [x] Validators: GOODS→product_id required, SERVICE→description required, BLANKET→validity dates required
+
+### 7.9.4 Backend — Services ✅
+
+- [x] `backend/app/services/purchasing.py` — PR CRUD: create, get, list, update, delete, submit, approve/reject
+- [x] `convert_pr_to_po()` — Creates PO from approved PR (auto-approved, cost propagation)
+- [x] Enhanced `receive_goods()` — GOODS→stock movement, SERVICE→confirm only
+- [x] `backend/app/services/inventory.py` — Block stock movements for SERVICE products (BR#65)
+- [x] PR number auto-gen: PR-YYYY-XXXX format
+
+### 7.9.5 Backend — API Endpoints ✅
+
+- [x] `backend/app/api/purchasing.py` — 8 new PR endpoints:
+  - GET /api/purchasing/pr (list with search, status, pr_type filters + data scope)
+  - POST /api/purchasing/pr (create)
+  - GET /api/purchasing/pr/{id} (get)
+  - PUT /api/purchasing/pr/{id} (update, DRAFT/SUBMITTED only)
+  - DELETE /api/purchasing/pr/{id} (delete, DRAFT only)
+  - POST /api/purchasing/pr/{id}/submit (DRAFT→SUBMITTED)
+  - POST /api/purchasing/pr/{id}/approve (approve/reject)
+  - POST /api/purchasing/pr/{id}/convert-to-po (create PO from approved PR)
+- [x] Data scope: staff=own PRs, supervisor=department, manager/owner=all org
+
+### 7.9.6 Frontend — New Pages ✅
+
+- [x] `frontend/src/pages/purchasing/PurchasingPage.jsx` — Tabbed container (PR+PO) + stat cards
+- [x] `frontend/src/pages/purchasing/PRTab.jsx` — PR list with search/filter (status, type, priority)
+- [x] `frontend/src/pages/purchasing/POTab.jsx` — PO list embedded tab (no create button)
+- [x] `frontend/src/pages/purchasing/PRFormModal.jsx` — Create/edit PR with dynamic lines, BLANKET conditional fields
+- [x] `frontend/src/pages/purchasing/PRDetailPage.jsx` — PR detail + Submit/Approve/Reject/Convert/Cancel actions
+- [x] `frontend/src/pages/purchasing/ConvertToPOModal.jsx` — Convert PR to PO with price comparison (estimated vs actual)
+- [x] `frontend/src/pages/purchasing/GoodsReceiptModal.jsx` — Line-by-line GR (GOODS + SERVICE sections)
+
+### 7.9.7 Frontend — Modified Pages ✅
+
+- [x] `frontend/src/pages/purchasing/PODetailPage.jsx` — Added PR reference, item_type column, GoodsReceiptModal
+- [x] `frontend/src/pages/approval/PRApprovalTab.jsx` — NEW: PR approval tab for Approval Center
+- [x] `frontend/src/pages/approval/ApprovalPage.jsx` — Added PR tab + badge count (6 tabs now)
+- [x] `frontend/src/pages/approval/POApprovalTab.jsx` — Updated navigate path to /purchasing/po/{id}
+
+### 7.9.8 Frontend — Integration ✅
+
+- [x] `frontend/src/App.jsx` — PurchasingPage + PRDetailPage imports, routes, _purchasing_check pseudo-perm
+- [x] `frontend/src/utils/permissionMeta.js` — Added pr: 'ใบขอซื้อ (PR)' to RESOURCE_META
+- [x] `frontend/src/components/StatusBadge.jsx` — Added PO_CREATED + SERVICE statuses
+- [x] `npm run build` → 0 errors (3511 modules transformed)
+
+---
+
 ## UX Improvement — Admin RoleTab Redesign ✅
 
 ### Backend Changes ✅
@@ -984,19 +1059,21 @@
 | Phase 5 — Staff Portal & Daily Report | ~10 files | ~12 files | 2 | ✅ |
 | Phase 6 — Data Scope | ~8 files | 14 files | — | ✅ |
 | Phase 7 — My Approval | 2 files | 6 files | — | ✅ |
+| Phase 7.9 — PR/PO Redesign | 9 files | 12 files | 1 | ✅ |
 | Phase 8 — Dashboard & Analytics | TBD | TBD | — | 📋 Planned |
 | Phase 9 — Notification Center | TBD | TBD | 1 | 📋 Planned |
 | Phase 10 — Export & Print | TBD | TBD | — | 📋 Planned |
 | Phase 11 — Inventory Enhancement | TBD | TBD | 1-2 | 📋 Planned |
 | Phase 12 — Mobile Responsive | — | TBD | — | 📋 Planned |
 | Phase 13 — Audit & Security | TBD | TBD | 1-2 | 📋 Planned |
-| **Total (Done)** | **~95 files** | **~102 files** | **12** | **7/13 ✅** |
+| **Total (Done)** | **~104 files** | **~114 files** | **13** | **8/13 ✅** |
 
-**Permissions:** 89 → 105 → 108 (Phase 4: +16, Phase 5: +3 dailyreport)
-**Business Rules:** 35 → 46 → 55 (Phase 4: +11, Phase 5: +9)
-**Routes:** 17 → 20+ → 25+ → 26+ (Phase 7: +1 /approval route)
+**Permissions:** 89 → 105 → 108 → 118 → 123 (Phase 4: +16, Phase 5: +3, Phase 4.9: +10, PR/PO: +5)
+**Business Rules:** 35 → 46 → 55 → 68 (Phase 4: +11, Phase 5: +9, PR/PO: +13)
+**Routes:** 17 → 20+ → 25+ → 26+ → 28+ (Phase 7.9: +2 PR routes)
 **New Components (Phase 6):** ScopeBadge, EmployeeContextSelector, SupervisorDashboard
 **New Components (Phase 7):** ApprovalPage, TimesheetApprovalTab, LeaveApprovalTab, POApprovalTab, SOApprovalTab
+**New Components (Phase 7.9):** PurchasingPage, PRTab, POTab, PRFormModal, PRDetailPage, ConvertToPOModal, GoodsReceiptModal, PRApprovalTab
 **Sidebar (Phase 7):** 3-group layout: ME / อนุมัติ / ระบบงาน (was 2-group)
 **Bug Fix (Phase 7):** Leave reject API fixed — now accepts `{action: "approve"|"reject"}` body
 
@@ -1010,4 +1087,4 @@
 
 ---
 
-*Last updated: 2026-02-28 — Phase 7 complete, Phase 8-13 planned (108 permissions, 55 BRs, ~197 files)*
+*Last updated: 2026-03-01 — Phase 7.9 complete (PR/PO Redesign), Phase 8-13 planned (123 permissions, 68 BRs, ~218 files)*

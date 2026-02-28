@@ -65,7 +65,12 @@ ALL_PERMISSIONS: list[str] = [
     "workorder.reservation.create",
     "workorder.reservation.read",
 
-    # --- purchasing (6) ---
+    # --- purchasing (6 + 5 = 11) ---
+    "purchasing.pr.create",
+    "purchasing.pr.read",
+    "purchasing.pr.update",
+    "purchasing.pr.delete",
+    "purchasing.pr.approve",
     "purchasing.po.create",
     "purchasing.po.read",
     "purchasing.po.update",
@@ -85,7 +90,7 @@ ALL_PERMISSIONS: list[str] = [
     "finance.report.read",
     "finance.report.export",
 
-    # --- master data (12 + 8 = 20) ---
+    # --- master data (28: costcenter 4 + costelement 4 + ottype 4 + department 4 + leavetype 4 + shifttype 4 + schedule 4) ---
     "master.costcenter.create",
     "master.costcenter.read",
     "master.costcenter.update",
@@ -173,8 +178,8 @@ ALL_PERMISSIONS: list[str] = [
     "hr.roster.read",
 ]
 
-assert len(ALL_PERMISSIONS) == 118, f"Expected 118 permissions, got {len(ALL_PERMISSIONS)}"
-assert len(set(ALL_PERMISSIONS)) == 118, "Duplicate permissions found!"
+assert len(ALL_PERMISSIONS) == 123, f"Expected 123 permissions, got {len(ALL_PERMISSIONS)}"
+assert len(set(ALL_PERMISSIONS)) == 123, "Duplicate permissions found!"
 
 
 # ============================================================
@@ -218,7 +223,12 @@ PERMISSION_DESCRIPTIONS: dict[str, str] = {
     "workorder.plan.delete": "ลบแผนงาน (Owner เท่านั้น)",
     "workorder.reservation.create": "จองวัสดุหรือเครื่องมือสำหรับใบสั่งงาน",
     "workorder.reservation.read": "ดูรายการจองวัสดุ/เครื่องมือ",
-    # --- purchasing (6) ---
+    # --- purchasing (11) ---
+    "purchasing.pr.create": "สร้างใบขอซื้อ (PR) ใหม่",
+    "purchasing.pr.read": "ดูรายการใบขอซื้อ (ตาม Data Scope)",
+    "purchasing.pr.update": "แก้ไขใบขอซื้อ (DRAFT/SUBMITTED)",
+    "purchasing.pr.delete": "ลบใบขอซื้อ DRAFT (Owner เท่านั้น)",
+    "purchasing.pr.approve": "อนุมัติ/ปฏิเสธ/Convert to PO",
     "purchasing.po.create": "สร้างใบสั่งซื้อ (PO) ใหม่",
     "purchasing.po.read": "ดูรายการใบสั่งซื้อและรายละเอียด",
     "purchasing.po.update": "แก้ไขใบสั่งซื้อ / รับสินค้า (GR)",
@@ -325,7 +335,7 @@ assert set(PERMISSION_DESCRIPTIONS.keys()) == set(ALL_PERMISSIONS), \
 # Legend:  ✅ = granted  ❌ = denied
 
 def _owner() -> set[str]:
-    """Owner: ALL 118 permissions."""
+    """Owner: ALL 123 permissions."""
     return set(ALL_PERMISSIONS)
 
 
@@ -350,6 +360,7 @@ def _manager() -> set[str]:
         "warehouse.location.delete",
         "workorder.order.delete",
         "workorder.plan.delete",
+        "purchasing.pr.delete",
         "purchasing.po.delete",
         "sales.order.delete",
         "master.costcenter.delete",
@@ -401,7 +412,12 @@ def _supervisor() -> set[str]:
         "workorder.plan.update",
         "workorder.reservation.create",
         "workorder.reservation.read",
-        # Purchasing
+        # Purchasing — PR
+        "purchasing.pr.create",
+        "purchasing.pr.read",
+        "purchasing.pr.update",
+        "purchasing.pr.approve",
+        # Purchasing — PO
         "purchasing.po.create",
         "purchasing.po.read",
         "purchasing.po.update",
@@ -478,7 +494,10 @@ def _staff() -> set[str]:
         # Planning (staff can view plans)
         "workorder.plan.read",
         "workorder.reservation.read",
-        # Purchasing
+        # Purchasing — PR
+        "purchasing.pr.create",
+        "purchasing.pr.read",
+        # Purchasing — PO
         "purchasing.po.create",
         "purchasing.po.read",
         # Sales
@@ -529,6 +548,7 @@ def _viewer() -> set[str]:
         "workorder.plan.read",
         "workorder.reservation.read",
         # Purchasing
+        "purchasing.pr.read",
         "purchasing.po.read",
         "purchasing.po.export",
         # Sales

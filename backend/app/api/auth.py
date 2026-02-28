@@ -226,10 +226,9 @@ async def register(
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
     body: RefreshRequest,
-    token_payload: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
-    """Revoke refresh token."""
+    """Revoke refresh token. No access token required — allows cleanup after token expiry."""
     result = await db.execute(
         select(RefreshToken).where(RefreshToken.token == body.refresh_token)
     )

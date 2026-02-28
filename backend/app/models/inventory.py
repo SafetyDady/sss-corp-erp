@@ -6,6 +6,7 @@ Phase 1: Product + StockMovement + StockBalance
 import enum
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
@@ -34,6 +35,7 @@ from app.models.user import TimestampMixin, OrgMixin
 class ProductType(str, enum.Enum):
     MATERIAL = "MATERIAL"
     CONSUMABLE = "CONSUMABLE"
+    SERVICE = "SERVICE"          # No stock tracking (on_hand=0 always)
 
 
 class MovementType(str, enum.Enum):
@@ -66,7 +68,7 @@ class Product(Base, TimestampMixin, OrgMixin):
         default=ProductType.MATERIAL,
     )
     unit: Mapped[str] = mapped_column(String(50), nullable=False, default="PCS")
-    cost: Mapped[float] = mapped_column(
+    cost: Mapped[Decimal] = mapped_column(
         Numeric(12, 2), nullable=False, default=0
     )
     on_hand: Mapped[int] = mapped_column(
@@ -116,7 +118,7 @@ class StockMovement(Base, TimestampMixin, OrgMixin):
         nullable=False,
     )
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
-    unit_cost: Mapped[float] = mapped_column(
+    unit_cost: Mapped[Decimal] = mapped_column(
         Numeric(12, 2), nullable=False, default=0
     )
     reference: Mapped[str | None] = mapped_column(

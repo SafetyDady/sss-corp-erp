@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-01 v9 (Phase 4.9 — Shift Management: ShiftType, WorkSchedule, ShiftRoster)
+> อัปเดตล่าสุด: 2026-03-01 v10 (PR/PO Redesign — Purchase Requisition mandatory before PO)
 
 ---
 
@@ -10,7 +10,7 @@
 
 **SSS Corp ERP** — ระบบ ERP สำหรับธุรกิจ Manufacturing/Trading ขนาดเล็ก-กลาง
 - Multi-tenant (Shared DB + org_id)
-- **11 Modules, 118 Permissions, 5 Roles**
+- **11 Modules, 123 Permissions, 5 Roles**
 - Job Costing: Material + ManHour + Tools Recharge + Admin Overhead
 - อ้างอิงเพิ่มเติม: `UI_GUIDELINES.md` (theme/icons), `BUSINESS_POLICY.md` (business rules)
 
@@ -39,10 +39,11 @@ sss-corp-erp/
 ├── frontend/                     ← Vercel deploys this (Root Dir = frontend/)
 │   ├── src/
 │   │   ├── components/           # Shared UI (StatusBadge, ScopeBadge, EmployeeContextSelector, etc.)
-│   │   ├── pages/                # Route pages (~80 files, 20+ routes)
+│   │   ├── pages/                # Route pages (~90 files, 28+ routes)
 │   │   │   ├── setup/            # SetupWizardPage (Phase 4.7)
 │   │   │   ├── planning/         # PlanningPage, DailyPlan, Reservation (Phase 4.5)
-│   │   │   ├── approval/         # ApprovalPage + 4 approval tabs (Phase 7)
+│   │   │   ├── approval/         # ApprovalPage + 6 approval tabs (Phase 7+)
+│   │   │   ├── purchasing/       # PurchasingPage (PR+PO tabs), PRDetail, PODetail, ConvertToPO
 │   │   │   └── ...               # inventory, warehouse, workorder, hr, etc.
 │   │   ├── hooks/                # usePermission, useAuth, etc.
 │   │   ├── stores/               # Zustand stores
@@ -152,7 +153,7 @@ sss-corp-erp/
 
 ---
 
-## RBAC — 5 Roles x 118 Permissions (Full Matrix)
+## RBAC — 5 Roles x 123 Permissions (Full Matrix)
 
 ### Inventory (9 permissions)
 
@@ -202,10 +203,15 @@ sss-corp-erp/
 | workorder.reservation.create | ✅ | ✅ | ✅ | ❌ | ❌ |
 | workorder.reservation.read | ✅ | ✅ | ✅ | ✅ | ✅ |
 
-### Purchasing (6 permissions)
+### Purchasing (11 permissions)
 
 | Permission | owner | manager | supervisor | staff | viewer |
 |-----------|:-----:|:-------:|:----------:|:-----:|:------:|
+| purchasing.pr.create | ✅ | ✅ | ✅ | ✅ | ❌ |
+| purchasing.pr.read | ✅ | ✅ | ✅ | ✅ | ✅ |
+| purchasing.pr.update | ✅ | ✅ | ✅ | ❌ | ❌ |
+| purchasing.pr.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
+| purchasing.pr.approve | ✅ | ✅ | ✅ | ❌ | ❌ |
 | purchasing.po.create | ✅ | ✅ | ✅ | ✅ | ❌ |
 | purchasing.po.read | ✅ | ✅ | ✅ | ✅ | ✅ |
 | purchasing.po.update | ✅ | ✅ | ✅ | ❌ | ❌ |
@@ -331,11 +337,11 @@ sss-corp-erp/
 
 | Role | Count | Description |
 |------|-------|-------------|
-| owner | 118 | ALL permissions |
-| manager | ~68 | ไม่มี admin.*, ไม่มี *.delete + planning create/update |
-| supervisor | ~52 | read + approve + limited create + planning read |
-| staff | ~33 | read + own create (timesheet, leave, movement, dailyreport, roster) |
-| viewer | ~22 | read + selected export only |
+| owner | 123 | ALL permissions |
+| manager | ~73 | ไม่มี admin.*, ไม่มี *.delete + planning create/update |
+| supervisor | ~57 | read + approve + limited create + planning read |
+| staff | ~36 | read + own create (timesheet, leave, movement, dailyreport, roster, PR) |
+| viewer | ~23 | read + selected export only |
 
 ### Permission Usage Pattern
 ```python
@@ -431,12 +437,18 @@ Staff กรอก OT Hours + เลือก OT Type (hr.timesheet.create)
 → HR Final (hr.timesheet.execute) → เข้า Payroll
 ```
 
-### Flow 8: Purchasing PO Workflow
+### Flow 8: Purchasing PR → PO Workflow (Redesigned)
 ```
-Staff+ สร้าง PO + เพิ่ม Line Items (purchasing.po.create)
-→ Submit ขออนุมัติ (purchasing.po.update)
-→ Manager+ Approve (purchasing.po.approve)
-→ Goods Receipt → RECEIVE movement (purchasing.po.update)
+Staff สร้าง PR (ใบขอซื้อ) + กำหนด Cost Center + เพิ่ม Line Items (purchasing.pr.create)
+→ Submit ขออนุมัติ → status = SUBMITTED
+→ Supervisor/Manager Approve PR (purchasing.pr.approve) → status = APPROVED
+→ ผู้อนุมัติกด "Convert to PO" → กรอก supplier + actual unit_cost
+→ PO ถูกสร้าง (auto-approved, status=APPROVED), PR → PO_CREATED
+→ Goods Receipt:
+  → GOODS items → InputNumber qty → RECEIVE stock movement (auto)
+  → SERVICE items → ยืนยันรับงาน → no stock movement
+→ ทุก line received → PO status = RECEIVED
+Permissions: purchasing.pr.create → pr.approve → po (auto) → po.update (GR)
 ```
 
 ### Flow 9: Admin — Manage Roles & Policy
@@ -479,7 +491,7 @@ Manager จองเครื่องมือ → POST /api/planning/reservati
 
 ---
 
-## Business Rules (Complete — 55 Rules)
+## Business Rules (Complete — 68 Rules)
 
 | # | Module | Feature | Rule | Enforcement |
 |---|--------|---------|------|-------------|
@@ -538,6 +550,19 @@ Manager จองเครื่องมือ → POST /api/planning/reservati
 | 53 | hr | Daily Report | Auto-update StandardTimesheet OT hours on approve | Auto calc |
 | 54 | hr | Daily Report | Edit only DRAFT/REJECTED status | State machine |
 | 55 | hr | Daily Report | Supervisor sees only own department reports | Data scope |
+| 56 | purchasing | PR | ทุก PR ต้องมี cost_center_id | Schema + DB NOT NULL |
+| 57 | purchasing | PR | ทุก PR line ต้องมี cost_element_id | Schema + DB NOT NULL |
+| 58 | purchasing | PR | GOODS line ต้องมี product_id | Schema validator |
+| 59 | purchasing | PR | SERVICE line ต้องมี description | Schema validator |
+| 60 | purchasing | PR | PR status flow: DRAFT→SUBMITTED→APPROVED→PO_CREATED (REJECTED/CANCELLED) | State machine |
+| 61 | purchasing | PO | PO ต้องสร้างจาก PR เท่านั้น (บังคับ pr_id สำหรับ new PO) | Service check |
+| 62 | purchasing | PO | 1 PR : 1 PO (unique pr_id on PO) | DB UNIQUE |
+| 63 | purchasing | GR | GOODS item → auto RECEIVE stock movement | Service logic |
+| 64 | purchasing | GR | SERVICE item → manual confirm (no stock movement) | Service logic |
+| 65 | inventory | Product | SERVICE products ห้ามสร้าง stock movement | Service check |
+| 66 | purchasing | PR | Data Scope: staff=ตัวเอง, supervisor=แผนก, manager/owner=ทั้ง org | API helpers |
+| 67 | purchasing | PR | BLANKET PR ต้องมี validity_start_date + validity_end_date | Schema validator |
+| 68 | purchasing | PR | validity_end_date >= validity_start_date | Schema validator |
 
 ---
 
@@ -552,6 +577,7 @@ Manager จองเครื่องมือ → POST /api/planning/reservati
 | HR: Standard Timesheet | ของตัวเอง | แผนกตัวเอง | ทั้ง org |
 | HR: Employee | ❌ (no perm) | แผนกตัวเอง | ทั้ง org |
 | HR: Payroll | ❌ (no perm) | ❌ (no perm) | ทั้ง org |
+| Purchasing: PR | ของตัวเอง | แผนกตัวเอง | ทั้ง org |
 | Operations (WO, Inventory, etc.) | ทั้ง org | ทั้ง org | ทั้ง org |
 | Finance Reports | ❌ (no perm) | ❌ (no perm) | ทั้ง org |
 
@@ -617,15 +643,27 @@ POST   /api/work-orders/{id}/close          workorder.order.approve
 GET    /api/work-orders/{id}/cost-summary   workorder.order.read
 ```
 
-### Purchasing
+### Purchasing — PR (Purchase Requisition)
+```
+GET    /api/purchasing/pr                    purchasing.pr.read      (?search, status, pr_type, limit, offset)
+POST   /api/purchasing/pr                    purchasing.pr.create
+GET    /api/purchasing/pr/{id}               purchasing.pr.read
+PUT    /api/purchasing/pr/{id}               purchasing.pr.update    (DRAFT/SUBMITTED only)
+DELETE /api/purchasing/pr/{id}               purchasing.pr.delete    (DRAFT only, owner only)
+POST   /api/purchasing/pr/{id}/submit        purchasing.pr.create    (DRAFT → SUBMITTED)
+POST   /api/purchasing/pr/{id}/approve       purchasing.pr.approve   (body: {action, reason})
+POST   /api/purchasing/pr/{id}/convert-to-po purchasing.pr.approve   (body: ConvertToPORequest)
+```
+
+### Purchasing — PO (Purchase Order)
 ```
 GET    /api/purchasing/po                   purchasing.po.read
-POST   /api/purchasing/po                   purchasing.po.create
+POST   /api/purchasing/po                   purchasing.po.create    (blocked — PO created via convert only)
 GET    /api/purchasing/po/{id}             purchasing.po.read
 PUT    /api/purchasing/po/{id}             purchasing.po.update
 DELETE /api/purchasing/po/{id}             purchasing.po.delete
 POST   /api/purchasing/po/{id}/approve      purchasing.po.approve
-POST   /api/purchasing/po/{id}/receive      purchasing.po.update
+POST   /api/purchasing/po/{id}/receive      purchasing.po.update    (GOODS→stock movement, SERVICE→confirm only)
 ```
 
 ### Sales
@@ -860,11 +898,11 @@ npm run build                                          # Production build
 
 | Email | Password | Role |
 |-------|----------|------|
-| owner@sss-corp.com | owner123 | owner (all 105 perms) |
-| manager@sss-corp.com | manager123 | manager (~57 perms) |
-| supervisor@sss-corp.com | supervisor123 | supervisor (~41 perms) |
-| staff@sss-corp.com | staff123 | staff (~28 perms) |
-| viewer@sss-corp.com | viewer123 | viewer (~18 perms) |
+| owner@sss-corp.com | owner123 | owner (all 123 perms) |
+| manager@sss-corp.com | manager123 | manager (~73 perms) |
+| supervisor@sss-corp.com | supervisor123 | supervisor (~57 perms) |
+| staff@sss-corp.com | staff123 | staff (~36 perms) |
+| viewer@sss-corp.com | viewer123 | viewer (~23 perms) |
 
 ### Important Constants
 ```python
@@ -1009,6 +1047,20 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **7.7** SOApprovalTab.jsx — Approve + View detail for SUBMITTED SOs
 - [x] **7.8** App.jsx — Sidebar 3-group (ME/อนุมัติ/ระบบงาน) + `/approval` route + ClipboardCheck icon
 
+### Phase 7.9 — PR/PO Redesign: Purchase Requisition System ✅
+**Backend (7.9.1-7.9.5):**
+- [x] **7.9.1** Models: PR enums (PRStatus, PRPriority, PRItemType, PRType) + PurchaseRequisition + PurchaseRequisitionLine + SERVICE ProductType + PO model extensions (pr_id, cost_center_id, item_type, cost_element_id, received_by/at)
+- [x] **7.9.2** Migration: 2 new tables + 8 new columns on PO/PO lines + SERVICE enum value
+- [x] **7.9.3** Permissions: +5 purchasing.pr.* (create/read/update/delete/approve) → 118→123
+- [x] **7.9.4** Schemas: PRCreate/Update/Response + ConvertToPORequest + enhanced PO/GR schemas
+- [x] **7.9.5** Services + API: PR CRUD + submit + approve/reject + convert_pr_to_po + data scope + block SERVICE stock movements + enhanced GR (GOODS→movement, SERVICE→confirm)
+
+**Frontend (7.9.6-7.9.9):**
+- [x] **7.9.6** PurchasingPage (tabbed container PR+PO) + PRTab + POTab + PRFormModal (dynamic lines, BLANKET fields)
+- [x] **7.9.7** PRDetailPage (approve/reject/convert/cancel) + ConvertToPOModal (price comparison) + GoodsReceiptModal (GOODS+SERVICE sections)
+- [x] **7.9.8** PODetailPage (PR ref, item_type, GR modal) + PRApprovalTab + ApprovalPage PR tab
+- [x] **7.9.9** App.jsx (routes, sidebar, _purchasing_check) + permissionMeta + StatusBadge (PO_CREATED, SERVICE)
+
 ### Phase 8 — Dashboard & Analytics 📊 (Planned)
 - [ ] **8.1** KPI Dashboard — real-time stat cards (ยอดขาย, ต้นทุน WO, สถานะ stock, pending approvals)
 - [ ] **8.2** Charts — Recharts/Ant Charts (WO Cost Trend, Inventory Turnover, Revenue)
@@ -1084,6 +1136,9 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 17. ❌ อย่าใช้ JWT_SECRET_KEY default ใน production — ระบบจะ RuntimeError (Phase 4.8)
 18. ❌ อย่าลืม data scope — HR endpoints ต้อง filter ตาม role ไม่ใช่แค่ permission
 19. ❌ อย่าสร้าง endpoint ใหม่โดยไม่มี org_id filter
+20. ❌ อย่าสร้าง PO ตรงโดยไม่ผ่าน PR — PO ต้องมี pr_id เสมอ (ยกเว้นข้อมูลเก่า) (BR#61)
+21. ❌ อย่าสร้าง stock movement สำหรับ SERVICE products (BR#65)
+22. ❌ อย่าลืม cost_center_id บน PR + cost_element_id บนทุก PR line (BR#56-57)
 
 ---
 
@@ -1096,7 +1151,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `BUSINESS_POLICY.md` | Business rules (source of truth) |
 | `TODO.md` | Implementation tracker + checklist |
 | `SmartERP_Master_Document_v2.xlsx` | Original design spec |
-| `backend/app/core/permissions.py` | RBAC permissions + role mapping + PERMISSION_DESCRIPTIONS (118 Thai descriptions) |
+| `backend/app/core/permissions.py` | RBAC permissions + role mapping + PERMISSION_DESCRIPTIONS (123 Thai descriptions) |
 | `backend/app/core/security.py` | JWT token creation/validation |
 | `backend/app/core/config.py` | Environment settings + DEFAULT_ORG_ID |
 | `frontend/src/stores/authStore.js` | Auth state + token management |
@@ -1119,7 +1174,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/components/ScopeBadge.jsx` | Role-aware scope indicator badge (Phase 6) |
 | `frontend/src/components/EmployeeContextSelector.jsx` | Role-scoped employee dropdown + dept grouping + server-side search (Phase 6) |
 | `backend/app/seed.py` | Enhanced dev seed: 3 depts, 5 users, 5 employees, OT/Leave types, LeaveBalances |
-| `frontend/src/pages/approval/ApprovalPage.jsx` | Centralized Approval Center — 5 tabs + badge counts (Phase 7) |
+| `frontend/src/pages/approval/ApprovalPage.jsx` | Centralized Approval Center — 6 tabs + badge counts (Phase 7+) |
 | `frontend/src/pages/approval/TimesheetApprovalTab.jsx` | Timesheet approve/final (Phase 7) |
 | `frontend/src/pages/approval/LeaveApprovalTab.jsx` | Leave approve/reject (Phase 7) |
 | `frontend/src/pages/approval/POApprovalTab.jsx` | PO approve (Phase 7) |
@@ -1128,6 +1183,14 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/master/ShiftTypeTab.jsx` | ShiftType master data CRUD (Phase 4.9) |
 | `frontend/src/pages/master/WorkScheduleTab.jsx` | WorkSchedule master data CRUD — FIXED/ROTATING (Phase 4.9) |
 | `frontend/src/pages/hr/RosterTab.jsx` | Shift Roster viewer + generate + manual override (Phase 4.9) |
+| `frontend/src/pages/purchasing/PurchasingPage.jsx` | Tabbed container (PR+PO tabs) + stat cards (Phase 7.9) |
+| `frontend/src/pages/purchasing/PRTab.jsx` | PR list + search/filter/CRUD (Phase 7.9) |
+| `frontend/src/pages/purchasing/PRFormModal.jsx` | Create/edit PR with dynamic lines, BLANKET fields (Phase 7.9) |
+| `frontend/src/pages/purchasing/PRDetailPage.jsx` | PR detail + approve/reject/convert/cancel (Phase 7.9) |
+| `frontend/src/pages/purchasing/ConvertToPOModal.jsx` | Convert approved PR to PO — price comparison (Phase 7.9) |
+| `frontend/src/pages/purchasing/POTab.jsx` | PO list embedded tab — no create button (Phase 7.9) |
+| `frontend/src/pages/purchasing/GoodsReceiptModal.jsx` | Line-by-line GR — GOODS + SERVICE sections (Phase 7.9) |
+| `frontend/src/pages/approval/PRApprovalTab.jsx` | PR approval tab for Approval Center (Phase 7.9) |
 
 ---
 
@@ -1150,4 +1213,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v8 (Phase 0-7 complete — My Approval: Centralized Approval Center)*
+*End of CLAUDE.md — SSS Corp ERP v10 (Phase 0-7.9 complete — PR/PO Redesign: Purchase Requisition System)*

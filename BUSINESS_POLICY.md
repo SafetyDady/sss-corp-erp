@@ -1,6 +1,6 @@
 # SSS Corp ERP — BUSINESS POLICY (Source of Truth)
 
-Updated: 2026-02-28 | Based on SmartERP Master Document v2 + Phase 4-5 additions
+Updated: 2026-03-01 | Based on SmartERP Master Document v2 + Phase 4-5 + PR/PO Redesign
 
 ---
 
@@ -63,11 +63,11 @@ WO Total Cost
 
 | Role | Permissions | Notes |
 |------|------------|-------|
-| owner | ALL 108 | Full access (89 original + 16 Phase 4 + 3 Phase 5) |
-| manager | ~60 | No admin.*, no *.delete + planning create/update |
-| supervisor | ~44 | Read + approve + limited create + planning read |
-| staff | ~31 | Read + own create (timesheet, leave, movement, dailyreport) |
-| viewer | ~18 | Read + selected export only |
+| owner | ALL 123 | Full access (89 original + 16 Phase 4 + 3 Phase 5 + 10 Phase 4.9 + 5 PR/PO) |
+| manager | ~73 | No admin.*, no *.delete + planning create/update |
+| supervisor | ~57 | Read + approve + limited create + planning read |
+| staff | ~36 | Read + own create (timesheet, leave, movement, dailyreport, PR) |
+| viewer | ~23 | Read + selected export only |
 
 ### New Permissions (Phase 4 — 16 added)
 
@@ -84,6 +84,20 @@ WO Total Cost
 | Permission Group | Count | Details |
 |-----------------|:-----:|---------|
 | hr.dailyreport.* | 3 | create / read / approve |
+
+### New Permissions (Phase 4.9 — 10 added)
+
+| Permission Group | Count | Details |
+|-----------------|:-----:|---------|
+| master.shifttype.* | 4 | create / read / update / delete |
+| master.schedule.* | 4 | create / read / update / delete |
+| hr.roster.* | 2 | create / read |
+
+### New Permissions (PR/PO Redesign — 5 added)
+
+| Permission Group | Count | Details |
+|-----------------|:-----:|---------|
+| purchasing.pr.* | 5 | create / read / update / delete / approve |
 
 ---
 
@@ -138,7 +152,7 @@ WO Total Cost
 → ซ่อน approver dropdown + approve button
 ```
 
-Modules with approval: PO, SO, WO (close), Timesheet, Leave
+Modules with approval: PR, PO, SO, WO (close), Timesheet, Leave
 
 ---
 
@@ -191,3 +205,64 @@ Flow:
 
 Permissions: hr.dailyreport.create / hr.dailyreport.read / hr.dailyreport.approve
 ```
+
+---
+
+## PR/PO Redesign — Purchase Requisition System
+
+### PR → PO Flow
+```
+Staff สร้าง PR (ใบขอซื้อ)
+  ├── Header: pr_type (STANDARD/BLANKET), cost_center_id (required), required_date, priority
+  ├── Header (BLANKET only): validity_start_date, validity_end_date
+  ├── Lines: item_type (GOODS/SERVICE) + product_id/description + qty + estimated_cost + cost_element_id
+  └── Submit → status = SUBMITTED
+        ↓
+Supervisor/Manager อนุมัติ PR → status = APPROVED
+  └── ปุ่ม "Convert to PO" ปรากฏ
+        ↓
+ผู้อนุมัติกด Convert to PO
+  ├── กรอก: supplier_name + actual unit_cost ต่อ line + expected_date
+  ├── PO ถูกสร้าง status = APPROVED (auto-approved)
+  └── PR status → PO_CREATED
+        ↓
+Goods Receipt (ตาม item_type):
+  ├── GOODS: รับของ → RECEIVE stock movement (auto)
+  └── SERVICE: ยืนยันรับงาน → no stock movement
+        ↓
+PO Complete: ทุก line received → status = RECEIVED
+```
+
+### PR Business Rules (BR#56-68)
+
+| # | Rule | Enforcement |
+|---|------|-------------|
+| 56 | ทุก PR ต้องมี cost_center_id | Schema + DB NOT NULL |
+| 57 | ทุก PR line ต้องมี cost_element_id | Schema + DB NOT NULL |
+| 58 | GOODS line ต้องมี product_id | Schema validator |
+| 59 | SERVICE line ต้องมี description | Schema validator |
+| 60 | PR status flow: DRAFT→SUBMITTED→APPROVED→PO_CREATED (REJECTED/CANCELLED) | State machine |
+| 61 | PO ต้องสร้างจาก PR เท่านั้น (บังคับ pr_id) | Service check |
+| 62 | 1 PR : 1 PO (unique pr_id on PO) | DB UNIQUE |
+| 63 | GOODS item → auto RECEIVE stock movement | Service logic |
+| 64 | SERVICE item → manual confirm (no stock movement) | Service logic |
+| 65 | SERVICE products ห้ามสร้าง stock movement | Service check |
+| 66 | Data Scope: staff=ตัวเอง, supervisor=แผนก, manager/owner=ทั้ง org | API helpers |
+| 67 | BLANKET PR ต้องมี validity_start_date + validity_end_date | Schema validator |
+| 68 | validity_end_date >= validity_start_date | Schema validator |
+
+### PR Types
+| Type | Description |
+|------|-------------|
+| STANDARD | ใบขอซื้อปกติ |
+| BLANKET | สัญญาซื้อระยะยาว (มี validity period) |
+
+### PR Item Types
+| Type | Behavior |
+|------|----------|
+| GOODS | สินค้า — รับเข้าคลัง, สร้าง stock movement อัตโนมัติ |
+| SERVICE | บริการ — ยืนยันรับงาน, ไม่มี stock movement |
+
+### Cost Allocation
+- **Direct Charge**: PR.cost_center = แผนก → cost charge ตรงไปที่แผนก
+- **Store Recharge**: PR.cost_center = คลัง → cost เป็นของ Store → ISSUE recharge ผ่าน WO

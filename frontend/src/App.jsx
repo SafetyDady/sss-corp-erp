@@ -26,7 +26,8 @@ const WarehouseListPage = lazy(() => import('./pages/warehouse/WarehouseListPage
 const LocationListPage = lazy(() => import('./pages/warehouse/LocationListPage'));
 const WorkOrderListPage = lazy(() => import('./pages/workorder/WorkOrderListPage'));
 const WorkOrderDetailPage = lazy(() => import('./pages/workorder/WorkOrderDetailPage'));
-const POListPage = lazy(() => import('./pages/purchasing/POListPage'));
+const PurchasingPage = lazy(() => import('./pages/purchasing/PurchasingPage'));
+const PRDetailPage = lazy(() => import('./pages/purchasing/PRDetailPage'));
 const PODetailPage = lazy(() => import('./pages/purchasing/PODetailPage'));
 const SOListPage = lazy(() => import('./pages/sales/SOListPage'));
 const SODetailPage = lazy(() => import('./pages/sales/SODetailPage'));
@@ -58,7 +59,7 @@ const SYSTEM_MENU_ITEMS = [
   { key: '/', icon: <LayoutDashboard size={18} />, label: 'Dashboard', permission: null },
   { key: '/supply-chain', icon: <Boxes size={18} />, label: 'Supply Chain', permission: 'inventory.product.read' },
   { key: '/work-orders', icon: <FileText size={18} />, label: 'Work Orders', permission: 'workorder.order.read' },
-  { key: '/purchasing', icon: <ShoppingCart size={18} />, label: 'Purchasing', permission: 'purchasing.po.read' },
+  { key: '/purchasing', icon: <ShoppingCart size={18} />, label: 'Purchasing', permission: '_purchasing_check' },
   { key: '/sales', icon: <DollarSign size={18} />, label: 'Sales', permission: 'sales.order.read' },
   { key: '/hr', icon: <Users size={18} />, label: 'HR', permission: 'hr.employee.read' },
   { key: '/customers', icon: <UserCheck size={18} />, label: 'Customers', permission: 'customer.customer.read' },
@@ -99,8 +100,8 @@ function AppLayout() {
   const approvalItems = APPROVAL_MENU_ITEMS.filter((item) => {
     if (item.permission === '_approval_check') {
       return can('hr.dailyreport.approve') || can('hr.timesheet.approve') ||
-             can('hr.leave.approve') || can('purchasing.po.approve') ||
-             can('sales.order.approve');
+             can('hr.leave.approve') || can('purchasing.pr.approve') ||
+             can('purchasing.po.approve') || can('sales.order.approve');
     }
     return !item.permission || can(item.permission);
   }).map((item) => ({
@@ -109,9 +110,12 @@ function AppLayout() {
     label: item.label,
   }));
 
-  const systemItems = SYSTEM_MENU_ITEMS.filter(
-    (item) => !item.permission || can(item.permission)
-  ).map((item) => ({
+  const systemItems = SYSTEM_MENU_ITEMS.filter((item) => {
+    if (item.permission === '_purchasing_check') {
+      return can('purchasing.pr.read') || can('purchasing.po.read');
+    }
+    return !item.permission || can(item.permission);
+  }).map((item) => ({
     key: item.key,
     icon: item.icon,
     label: item.label,
@@ -248,8 +252,9 @@ function AppLayout() {
               <Route path="/tools" element={<Navigate to="/supply-chain" replace />} />
               <Route path="/work-orders" element={<WorkOrderListPage />} />
               <Route path="/work-orders/:id" element={<WorkOrderDetailPage />} />
-              <Route path="/purchasing" element={<POListPage />} />
-              <Route path="/purchasing/:id" element={<PODetailPage />} />
+              <Route path="/purchasing" element={<PurchasingPage />} />
+              <Route path="/purchasing/pr/:id" element={<PRDetailPage />} />
+              <Route path="/purchasing/po/:id" element={<PODetailPage />} />
               <Route path="/sales" element={<SOListPage />} />
               <Route path="/sales/:id" element={<SODetailPage />} />
               <Route path="/hr" element={<HRPage />} />

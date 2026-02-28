@@ -53,6 +53,7 @@ VALID_ROLES = {"owner", "manager", "supervisor", "staff", "viewer"}
 # Module key → approve permission mapping
 APPROVAL_PERMISSION_MAP = {
     "purchasing.po": "purchasing.po.approve",
+    "purchasing.pr": "purchasing.pr.approve",
     "sales.order": "sales.order.approve",
     "hr.timesheet": "hr.timesheet.approve",
     "hr.leave": "hr.leave.approve",
