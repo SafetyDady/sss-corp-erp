@@ -159,7 +159,7 @@ export default function SupplyChainPage() {
         )}
       </Row>
 
-      <Tabs defaultActiveKey={tabItems[0]?.key} type="card" items={tabItems} destroyInactiveTabPane />
+      <Tabs defaultActiveKey={tabItems[0]?.key} type="card" items={tabItems} destroyOnHidden />
     </div>
   );
 }

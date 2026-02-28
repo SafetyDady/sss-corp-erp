@@ -53,7 +53,7 @@ export default function MasterDataPage() {
         subtitle="ข้อมูลหลัก — แผนก, ศูนย์ต้นทุน, องค์ประกอบต้นทุน, ประเภท OT, ประเภทลา"
       />
       {items.length > 0 ? (
-        <Tabs defaultActiveKey={items[0]?.key} items={items} destroyInactiveTabPane />
+        <Tabs defaultActiveKey={items[0]?.key} items={items} destroyOnHidden />
       ) : (
         <div style={{ textAlign: 'center', padding: 48, color: COLORS.textMuted }}>
           คุณไม่มีสิทธิ์เข้าถึงข้อมูลหลัก

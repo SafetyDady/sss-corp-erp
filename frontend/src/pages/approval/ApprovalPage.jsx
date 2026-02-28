@@ -110,7 +110,7 @@ export default function ApprovalPage() {
         subtitle={<span>ศูนย์อนุมัติรวม <ScopeBadge /></span>}
       />
       {items.length > 0 ? (
-        <Tabs defaultActiveKey={items[0]?.key} items={items} destroyInactiveTabPane />
+        <Tabs defaultActiveKey={items[0]?.key} items={items} destroyOnHidden />
       ) : (
         <div style={{ textAlign: 'center', padding: 48, color: COLORS.textMuted }}>
           ไม่มีรายการที่ต้องอนุมัติ
