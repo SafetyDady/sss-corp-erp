@@ -23,6 +23,9 @@ const useAuthStore = create(
       departmentId: null,
       departmentName: null,
       hireDate: null,
+      workScheduleId: null,
+      workingDays: null, // OrgWorkConfig: ISO weekdays [1-7], e.g. [1,2,3,4,5,6]
+      hoursPerDay: null,
 
       // Actions
       setTokens: (accessToken, refreshToken) => {
@@ -63,6 +66,9 @@ const useAuthStore = create(
             departmentId: data.department_id || null,
             departmentName: data.department_name || null,
             hireDate: data.hire_date || null,
+            workScheduleId: data.work_schedule_id || null,
+            workingDays: data.working_days || null,
+            hoursPerDay: data.hours_per_day || null,
           });
         } catch {
           get().logout();
@@ -86,6 +92,9 @@ const useAuthStore = create(
           departmentId: null,
           departmentName: null,
           hireDate: null,
+          workScheduleId: null,
+          workingDays: null,
+          hoursPerDay: null,
         });
       },
 
@@ -127,6 +136,9 @@ const useAuthStore = create(
         departmentId: state.departmentId,
         departmentName: state.departmentName,
         hireDate: state.hireDate,
+        workScheduleId: state.workScheduleId,
+        workingDays: state.workingDays,
+        hoursPerDay: state.hoursPerDay,
       }),
       merge: (persisted, current) => ({
         ...current,

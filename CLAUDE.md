@@ -959,7 +959,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **4.6** Email Notification — SMTP service, approval request emails (disabled by default)
 - [x] **4.7** Multi-tenant Enforcement — org_id in JWT, all queries filtered, Setup Wizard v2 (4-step with departments)
 - [x] **4.8** Deploy & Production — Vercel (SPA + headers), Railway (Docker), Sentry, security hardening
-- [x] **4.9** Shift Management — ShiftType (master), WorkSchedule (FIXED/ROTATING), ShiftRoster (daily per-employee), Employee.work_schedule_id
+- [x] **4.9** Shift Management — ShiftType (master), WorkSchedule (FIXED/ROTATING), ShiftRoster (daily per-employee), Employee.work_schedule_id, Staff Schedule Selector (MyTimesheetPage), OrgWorkConfig-based weekend detection
 
 ### Phase 5 — Staff Portal & Daily Report ✅
 - [x] **5.1** Employee hire_date + /me API employee fields (BR#47)
@@ -1112,7 +1112,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/setup/SetupWizardPage.jsx` | First-time org setup wizard v2 (4-step with departments) |
 | `frontend/src/pages/my/MyDailyReportPage.jsx` | Staff — Daily Work Report (Phase 5) |
 | `frontend/src/pages/my/MyLeavePage.jsx` | Staff — My Leave (Phase 5) |
-| `frontend/src/pages/my/MyTimesheetPage.jsx` | Staff — My Timesheet (Phase 5) |
+| `frontend/src/pages/my/MyTimesheetPage.jsx` | Staff — My Timesheet + Schedule Selector + Roster (Phase 5 + 4.9 UX) |
 | `frontend/src/pages/my/MyTasksPage.jsx` | Staff — My Tasks (Phase 5) |
 | `frontend/src/pages/hr/DailyReportApprovalTab.jsx` | Supervisor — Batch approve (Phase 5) |
 | `backend/app/api/_helpers.py` | Shared data scope helpers (Phase 6) |

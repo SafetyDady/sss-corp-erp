@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Card, Col, Row, Table, Typography, App, Select } from 'antd';
-import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { Card, Table, Typography, App, Select, Tag, Popconfirm } from 'antd';
+import { ChevronLeft, ChevronRight, CalendarClock, RefreshCw } from 'lucide-react';
 import { Button } from 'antd';
 import dayjs from 'dayjs';
 import useAuthStore from '../../stores/authStore';
+import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
 import PageHeader from '../../components/PageHeader';
-import StatusBadge from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
 import { COLORS } from '../../utils/constants';
 
@@ -14,27 +14,56 @@ const { Text } = Typography;
 
 const DAY_NAMES = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
 
+const SHIFT_COLORS = {
+  REGULAR: 'blue',
+  MORNING: 'green',
+  AFTERNOON: 'orange',
+  NIGHT: 'purple',
+};
+
 /**
- * MyTimesheetPage — Timesheet ของฉัน (read-only)
+ * MyTimesheetPage — Timesheet ของฉัน
+ * Staff เลือกประเภท Timesheet (WorkSchedule) ของเดือน → สร้าง Roster → แสดงปฏิทิน
  * Route: /my/timesheet
  */
 export default function MyTimesheetPage({ embedded = false }) {
   const { message } = App.useApp();
+  const { can } = usePermission();
   const employeeId = useAuthStore((s) => s.employeeId);
+  const workScheduleId = useAuthStore((s) => s.workScheduleId);
+  const orgWorkingDays = useAuthStore((s) => s.workingDays); // OrgWorkConfig: ISO [1-7]
 
   const [currentMonth, setCurrentMonth] = useState(dayjs().startOf('month'));
   const [stdTimesheets, setStdTimesheets] = useState([]);
   const [woEntries, setWoEntries] = useState([]);
+  const [rosterData, setRosterData] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // Schedule selector state
+  const [schedules, setSchedules] = useState([]);
+  const [selectedScheduleId, setSelectedScheduleId] = useState(null);
+  const [generateLoading, setGenerateLoading] = useState(false);
 
   const periodStart = currentMonth.format('YYYY-MM-DD');
   const periodEnd = currentMonth.endOf('month').format('YYYY-MM-DD');
+
+  // Load available WorkSchedules on mount
+  useEffect(() => {
+    if (!can('master.schedule.read')) return;
+    api
+      .get('/api/master/work-schedules', { params: { limit: 100, offset: 0 } })
+      .then((res) => {
+        const items = res.data.items || res.data || [];
+        setSchedules(items.filter((w) => w.is_active !== false));
+      })
+      .catch(() => {});
+  }, []);
 
   const loadData = useCallback(async () => {
     if (!employeeId) return;
     setLoading(true);
     try {
-      const [stdRes, woRes] = await Promise.all([
+      const promises = [
         api
           .get('/api/hr/standard-timesheet', {
             params: { employee_id: employeeId, period_start: periodStart, period_end: periodEnd, limit: 50, offset: 0 },
@@ -45,9 +74,25 @@ export default function MyTimesheetPage({ embedded = false }) {
             params: { employee_id: employeeId, date_from: periodStart, date_to: periodEnd, limit: 500, offset: 0 },
           })
           .catch(() => ({ data: { items: [] } })),
-      ]);
-      setStdTimesheets(stdRes.data.items || stdRes.data || []);
-      setWoEntries(woRes.data.items || woRes.data || []);
+      ];
+
+      // Also load roster data
+      if (can('hr.roster.read')) {
+        promises.push(
+          api
+            .get('/api/hr/roster', {
+              params: { employee_id: employeeId, start_date: periodStart, end_date: periodEnd, limit: 50, offset: 0 },
+            })
+            .catch(() => ({ data: { items: [] } }))
+        );
+      }
+
+      const results = await Promise.all(promises);
+      setStdTimesheets(results[0].data.items || results[0].data || []);
+      setWoEntries(results[1].data.items || results[1].data || []);
+      if (results[2]) {
+        setRosterData(results[2].data.items || results[2].data || []);
+      }
     } catch {
       message.error('โหลดข้อมูล Timesheet ผิดพลาด');
     } finally {
@@ -58,6 +103,27 @@ export default function MyTimesheetPage({ embedded = false }) {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Generate roster for current month with selected schedule
+  const handleGenerateRoster = async () => {
+    if (!employeeId || !selectedScheduleId) return;
+    setGenerateLoading(true);
+    try {
+      const { data } = await api.post('/api/hr/roster/generate', {
+        employee_ids: [employeeId],
+        start_date: periodStart,
+        end_date: periodEnd,
+        overwrite_existing: true,
+        work_schedule_id: selectedScheduleId,
+      });
+      message.success(`สร้างตารางกะสำเร็จ — ${data.created_count} รายการ`);
+      loadData(); // Reload all data including roster
+    } catch (err) {
+      message.error(err.response?.data?.detail || 'สร้างตารางกะผิดพลาด');
+    } finally {
+      setGenerateLoading(false);
+    }
+  };
 
   // Build day-by-day table data
   const tableData = useMemo(() => {
@@ -79,14 +145,29 @@ export default function MyTimesheetPage({ embedded = false }) {
       woMap[key].push(e);
     });
 
+    // Map roster by date
+    const rosterMap = {};
+    rosterData.forEach((r) => {
+      const key = dayjs(r.roster_date).format('YYYY-MM-DD');
+      rosterMap[key] = r;
+    });
+
     for (let d = 1; d <= daysInMonth; d++) {
       const date = currentMonth.date(d);
       const dateStr = date.format('YYYY-MM-DD');
       const std = stdMap[dateStr];
       const wos = woMap[dateStr] || [];
+      const roster = rosterMap[dateStr] || null;
 
       const dayOfWeek = date.day();
-      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      // Convert JS day (0=Sun…6=Sat) to ISO weekday (1=Mon…7=Sun)
+      const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
+
+      // Use roster data for weekend/off determination if available,
+      // otherwise fall back to OrgWorkConfig working days
+      const isWeekend = roster
+        ? !roster.is_working_day
+        : !(orgWorkingDays || [1, 2, 3, 4, 5]).includes(isoDay);
 
       let status = isWeekend ? 'หยุด' : 'ยังไม่มีข้อมูล';
       let regularHours = 0;
@@ -128,10 +209,18 @@ export default function MyTimesheetPage({ embedded = false }) {
         otHours,
         woDetail: woDetail || '—',
         isWeekend,
+        // Roster-derived fields
+        shiftCode: roster?.shift_type_code || null,
+        shiftName: roster?.shift_type_name || null,
+        shiftTime:
+          roster?.start_time && roster?.end_time
+            ? `${roster.start_time}-${roster.end_time}`
+            : null,
+        rosterIsWorking: roster?.is_working_day ?? null,
       });
     }
     return rows;
-  }, [currentMonth, stdTimesheets, woEntries]);
+  }, [currentMonth, stdTimesheets, woEntries, rosterData, orgWorkingDays]);
 
   // Summary
   const summary = useMemo(() => {
@@ -163,6 +252,8 @@ export default function MyTimesheetPage({ embedded = false }) {
     );
   }
 
+  const hasRoster = rosterData.length > 0;
+
   const columns = [
     {
       title: 'วันที่',
@@ -179,6 +270,34 @@ export default function MyTimesheetPage({ embedded = false }) {
         <span style={{ color: r.isWeekend ? COLORS.danger : COLORS.text }}>{v}</span>
       ),
     },
+    // Show shift column only when roster data exists
+    ...(hasRoster
+      ? [
+          {
+            title: 'กะ',
+            key: 'shift',
+            width: 130,
+            render: (_, r) => {
+              if (!r.shiftCode) {
+                if (r.rosterIsWorking === false) return <Tag color="default">OFF</Tag>;
+                return <span style={{ color: COLORS.textMuted }}>—</span>;
+              }
+              if (!r.rosterIsWorking) return <Tag color="default">OFF</Tag>;
+              const color = SHIFT_COLORS[r.shiftCode] || 'cyan';
+              return (
+                <Tag color={color}>
+                  {r.shiftCode}
+                  {r.shiftTime && (
+                    <span style={{ fontSize: 11, marginLeft: 4, opacity: 0.85 }}>
+                      {r.shiftTime}
+                    </span>
+                  )}
+                </Tag>
+              );
+            },
+          },
+        ]
+      : []),
     {
       title: 'สถานะ',
       dataIndex: 'status',
@@ -226,7 +345,88 @@ export default function MyTimesheetPage({ embedded = false }) {
 
   return (
     <div>
-      {!embedded && <PageHeader title="Timesheet ของฉัน" subtitle="My Timesheet (read-only)" />}
+      {!embedded && <PageHeader title="Timesheet ของฉัน" subtitle="My Timesheet" />}
+
+      {/* Schedule Selector */}
+      {can('master.schedule.read') && schedules.length > 0 && (
+        <Card
+          style={{
+            background: COLORS.card,
+            border: `1px solid ${COLORS.border}`,
+            marginBottom: 16,
+          }}
+          styles={{ body: { padding: '16px 20px' } }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 12,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <CalendarClock size={16} style={{ color: COLORS.accent, flexShrink: 0 }} />
+              <Text style={{ color: COLORS.textSecondary, whiteSpace: 'nowrap' }}>
+                ประเภท Timesheet:
+              </Text>
+              <Select
+                style={{ minWidth: 260 }}
+                placeholder="Standard (ค่าเริ่มต้น)"
+                allowClear
+                value={selectedScheduleId}
+                onChange={setSelectedScheduleId}
+                options={schedules.map((s) => ({
+                  value: s.id,
+                  label: `${s.name} (${s.schedule_type === 'ROTATING' ? 'หมุนเวียน' : 'คงที่'})`,
+                }))}
+              />
+            </div>
+            {can('hr.roster.create') && selectedScheduleId && (
+              <Popconfirm
+                title="สร้างตารางกะเดือนนี้"
+                description="ระบบจะสร้างตารางกะทั้งเดือน (ทับรายการเดิมที่ไม่ใช่ manual override)"
+                onConfirm={handleGenerateRoster}
+                okText="ยืนยัน"
+                cancelText="ยกเลิก"
+              >
+                <Button
+                  type="primary"
+                  icon={<RefreshCw size={14} />}
+                  loading={generateLoading}
+                >
+                  สร้างตารางกะ
+                </Button>
+              </Popconfirm>
+            )}
+          </div>
+          {workScheduleId && !selectedScheduleId && (
+            <Text
+              style={{
+                color: COLORS.textMuted,
+                fontSize: 12,
+                marginTop: 8,
+                display: 'block',
+              }}
+            >
+              ใช้ตารางกะที่ HR กำหนดให้ — เปลี่ยนได้โดยเลือกจากรายการด้านบน
+            </Text>
+          )}
+          {!workScheduleId && !selectedScheduleId && (
+            <Text
+              style={{
+                color: COLORS.textMuted,
+                fontSize: 12,
+                marginTop: 8,
+                display: 'block',
+              }}
+            >
+              ยังไม่ได้กำหนดตารางกะ — เลือกประเภทด้านบนเพื่อสร้างตารางกะของเดือนนี้
+            </Text>
+          )}
+        </Card>
+      )}
 
       {/* Month Navigation */}
       <Card style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, marginBottom: 16 }}>

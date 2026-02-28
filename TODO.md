@@ -1,7 +1,7 @@
 # TODO.md — SSS Corp ERP Implementation Tracker
 
 > อ้างอิง: `CLAUDE.md` → Implementation Phases + Business Rules
-> อัปเดตล่าสุด: 2026-03-01 (Phase 4.9 — Shift Management)
+> อัปเดตล่าสุด: 2026-03-01 (Phase 4.9 — Shift Management + Staff Schedule Selector + OrgWorkConfig fix)
 
 ---
 
@@ -458,6 +458,23 @@
 - [x] Migration: `e1f2a3b4c5d6_phase4_9_shift_management.py`
 - [x] Build: `npm run build` — 0 errors ✅
 
+### 4.9 UX: Staff Schedule Selector + OrgWorkConfig Weekend Fix ✅
+
+- [x] **Backend: `schemas/hr.py`** — Added `work_schedule_id: Optional[UUID]` to `RosterGenerateRequest` (override schedule)
+- [x] **Backend: `schemas/hr.py`** — Added `start_time`, `end_time`, `working_hours` to `ShiftRosterResponse`
+- [x] **Backend: `services/hr.py`** — `generate_shift_roster()` accepts `work_schedule_id` override (employees don't need assigned schedule)
+- [x] **Backend: `services/hr.py`** — `list_shift_rosters()` returns shift time fields (start_time, end_time, working_hours)
+- [x] **Backend: `api/hr.py`** — Roster generate: staff data scope enforcement (force own employee_id)
+- [x] **Backend: `schemas/auth.py`** — Added `working_days`, `hours_per_day` to `UserMe`
+- [x] **Backend: `api/auth.py`** — `/me` endpoint returns OrgWorkConfig `working_days` + `hours_per_day`
+- [x] **Frontend: `authStore.js`** — Added `workScheduleId`, `workingDays`, `hoursPerDay` (state/fetchMe/logout/partialize)
+- [x] **Frontend: `MyTimesheetPage.jsx`** — Complete rewrite:
+  - WorkSchedule selector (Select dropdown from `/api/master/work-schedules`)
+  - "สร้างตารางกะ" button with Popconfirm → `POST /api/hr/roster/generate` with `work_schedule_id`
+  - Roster data loading + "กะ" column with color-coded Tags (REGULAR=blue, MORNING=green, AFTERNOON=orange, NIGHT=purple)
+  - OrgWorkConfig-based weekend detection: `!(orgWorkingDays || [1,2,3,4,5]).includes(isoDay)` instead of hardcoded Sat/Sun
+- [x] Build: `npm run build` — 0 errors ✅
+
 ---
 
 ## Phase 5 — Staff Portal & Daily Report ✅
@@ -497,7 +514,7 @@
 - [x] `pages/my/MePage.jsx` — Staff Portal container/router
 - [x] `pages/my/MyDailyReportPage.jsx` — Daily Work Report (create/edit/submit)
 - [x] `pages/my/MyLeavePage.jsx` — My Leave requests (own data only)
-- [x] `pages/my/MyTimesheetPage.jsx` — My Timesheet (read-only own data)
+- [x] `pages/my/MyTimesheetPage.jsx` — My Timesheet + Schedule Selector + Roster view
 - [x] `pages/my/MyTasksPage.jsx` — My Tasks (assigned daily plans)
 - [x] Routes: `/my/daily-report`, `/my/leave`, `/my/timesheet`, `/my/tasks`
 - [x] BR#48: Staff sees only own data ("ของฉัน" menu group) ✅

@@ -51,3 +51,6 @@ class UserMe(UserResponse):
     department_id: Optional[UUID] = None
     department_name: Optional[str] = None
     hire_date: Optional[date] = None
+    work_schedule_id: Optional[UUID] = None  # Phase 4.9: employee's assigned schedule
+    working_days: Optional[list[int]] = None  # OrgWorkConfig: ISO weekdays [1-7]
+    hours_per_day: Optional[float] = None  # OrgWorkConfig: hours per day

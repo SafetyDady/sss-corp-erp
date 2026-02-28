@@ -843,13 +843,27 @@ async def api_generate_roster(
 ):
     """Generate shift roster entries based on employee work schedules."""
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    role = token.get("role", "staff")
+    user_id = UUID(token["sub"])
+
+    # Data scope: staff can only generate roster for themselves
+    effective_employee_ids = body.employee_ids
+    if role == "staff":
+        from app.api._helpers import resolve_employee_id
+        own_emp_id = await resolve_employee_id(db, user_id)
+        if not own_emp_id:
+            from fastapi import HTTPException as HTTPExc
+            raise HTTPExc(status_code=403, detail="Employee record not found")
+        effective_employee_ids = [own_emp_id]  # force own data only
+
     result = await generate_shift_roster(
         db,
-        employee_ids=body.employee_ids,
+        employee_ids=effective_employee_ids,
         start_date=body.start_date,
         end_date=body.end_date,
         org_id=org_id,
         overwrite_existing=body.overwrite_existing,
+        work_schedule_id=body.work_schedule_id,
     )
     return RosterGenerateResponse(**result)
 

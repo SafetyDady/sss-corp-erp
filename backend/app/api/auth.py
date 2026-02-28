@@ -164,6 +164,16 @@ async def get_me(
         dept = dept_result.scalar_one_or_none()
         department_name = dept.name if dept else None
 
+    # Query OrgWorkConfig for working days
+    from app.models.organization import OrgWorkConfig
+    org_id = user.org_id or DEFAULT_ORG_ID
+    wc_result = await db.execute(
+        select(OrgWorkConfig).where(OrgWorkConfig.org_id == org_id)
+    )
+    work_config = wc_result.scalar_one_or_none()
+    working_days = work_config.working_days if work_config else [1, 2, 3, 4, 5]
+    hours_per_day = float(work_config.hours_per_day) if work_config and work_config.hours_per_day else 8.0
+
     return UserMe(
         id=user.id,
         email=user.email,
@@ -178,6 +188,9 @@ async def get_me(
         department_id=employee.department_id if employee else None,
         department_name=department_name,
         hire_date=employee.hire_date if employee else None,
+        work_schedule_id=employee.work_schedule_id if employee else None,
+        working_days=working_days,
+        hours_per_day=hours_per_day,
     )
 
 

@@ -1144,22 +1144,27 @@ async def generate_shift_roster(
     end_date: date,
     org_id: UUID,
     overwrite_existing: bool = False,
+    work_schedule_id: Optional[UUID] = None,
 ) -> dict:
     """
     Auto-generate ShiftRoster entries based on employee's WorkSchedule.
     For FIXED: checks isoweekday in working_days → creates roster with default shift.
     For ROTATING: calculates cycle position from cycle_start_date.
+    If work_schedule_id is provided, use it as override for all employees in this call
+    (allows staff to pick their own schedule without changing employee record).
     Returns {created_count, skipped_count, employee_count}.
     """
     from app.models.hr import ShiftRoster
     from app.models.master import ShiftType, WorkSchedule, ScheduleType
 
-    # Get employees with work_schedule_id
+    # Get employees — if override schedule provided, don't require work_schedule_id on employee
     emp_query = select(Employee).where(
         Employee.is_active == True,
         Employee.org_id == org_id,
-        Employee.work_schedule_id.isnot(None),
     )
+    if not work_schedule_id:
+        # Original behavior: only employees with assigned schedule
+        emp_query = emp_query.where(Employee.work_schedule_id.isnot(None))
     if employee_ids:
         emp_query = emp_query.where(Employee.id.in_(employee_ids))
     emp_result = await db.execute(emp_query)
@@ -1168,8 +1173,10 @@ async def generate_shift_roster(
     if not employees:
         return {"created_count": 0, "skipped_count": 0, "employee_count": 0}
 
-    # Get all work schedules
-    schedule_ids = {e.work_schedule_id for e in employees}
+    # Get all work schedules (include override schedule)
+    schedule_ids = {e.work_schedule_id for e in employees if e.work_schedule_id}
+    if work_schedule_id:
+        schedule_ids.add(work_schedule_id)
     ws_result = await db.execute(
         select(WorkSchedule).where(WorkSchedule.id.in_(schedule_ids))
     )
@@ -1188,7 +1195,9 @@ async def generate_shift_roster(
     skipped_count = 0
 
     for emp in employees:
-        ws = schedules.get(emp.work_schedule_id)
+        # Use override schedule if provided, otherwise employee's assigned schedule
+        effective_schedule_id = work_schedule_id or emp.work_schedule_id
+        ws = schedules.get(effective_schedule_id)
         if not ws:
             continue
 
@@ -1210,6 +1219,7 @@ async def generate_shift_roster(
                     continue
                 # Overwrite: delete existing
                 await db.delete(existing_roster)
+                await db.flush()
 
             # Determine shift for this date
             shift_type_id = None
@@ -1315,6 +1325,9 @@ async def list_shift_rosters(
             "shift_type_id": r.shift_type_id,
             "shift_type_code": st.code if st else None,
             "shift_type_name": st.name if st else None,
+            "start_time": str(st.start_time)[:5] if st and st.start_time else None,
+            "end_time": str(st.end_time)[:5] if st and st.end_time else None,
+            "working_hours": st.working_hours if st else None,
             "is_working_day": r.is_working_day,
             "is_manual_override": r.is_manual_override,
             "note": r.note,

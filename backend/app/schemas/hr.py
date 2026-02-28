@@ -374,6 +374,9 @@ class ShiftRosterResponse(BaseModel):
     shift_type_id: Optional[UUID] = None
     shift_type_code: Optional[str] = None  # joined from ShiftType
     shift_type_name: Optional[str] = None  # joined from ShiftType
+    start_time: Optional[str] = None  # joined from ShiftType (HH:MM)
+    end_time: Optional[str] = None  # joined from ShiftType (HH:MM)
+    working_hours: Optional[Decimal] = None  # joined from ShiftType
     is_working_day: bool
     is_manual_override: bool
     note: Optional[str] = None
@@ -402,6 +405,7 @@ class RosterGenerateRequest(BaseModel):
     start_date: date
     end_date: date
     overwrite_existing: bool = False
+    work_schedule_id: Optional[UUID] = None  # Override: use this schedule instead of employee's assigned one
 
     @field_validator("end_date")
     @classmethod
