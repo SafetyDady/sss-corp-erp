@@ -95,9 +95,11 @@ planning_router = APIRouter(prefix="/api/planning", tags=["planning"])
 async def api_get_master_plan(
     wo_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Get the master plan for a work order."""
-    return await get_master_plan(db, wo_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await get_master_plan(db, wo_id, org_id=org_id)
 
 
 @master_plan_router.post(
@@ -137,8 +139,10 @@ async def api_update_master_plan(
     wo_id: UUID,
     body: MasterPlanUpdate,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Update the master plan for a work order. Lines are replaced if provided."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True, exclude={"lines"})
     lines_data = None
     if body.lines is not None:
@@ -149,6 +153,7 @@ async def api_update_master_plan(
         wo_id,
         update_data=update_data,
         lines=lines_data,
+        org_id=org_id,
     )
 
 
@@ -168,8 +173,10 @@ async def api_list_daily_plans(
     date_end: Optional[date] = Query(default=None),
     work_order_id: Optional[UUID] = Query(default=None),
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """List daily plans with optional date range and WO filter."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     items, total = await list_daily_plans(
         db,
         limit=limit,
@@ -177,6 +184,7 @@ async def api_list_daily_plans(
         plan_date=plan_date,
         date_end=date_end,
         work_order_id=work_order_id,
+        org_id=org_id,
     )
     return DailyPlanListResponse(items=items, total=total)
 
@@ -222,8 +230,10 @@ async def api_update_daily_plan(
     plan_id: UUID,
     body: DailyPlanUpdate,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Update a daily plan. Workers/tools/materials are replaced if provided."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     workers_data = None
     if body.workers is not None:
         workers_data = [w.model_dump() for w in body.workers]
@@ -243,6 +253,7 @@ async def api_update_daily_plan(
         workers=workers_data,
         tools=tools_data,
         materials=materials_data,
+        org_id=org_id,
     )
 
 
@@ -254,9 +265,11 @@ async def api_update_daily_plan(
 async def api_delete_daily_plan(
     plan_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Delete a daily plan and all its children."""
-    await delete_daily_plan(db, plan_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    await delete_daily_plan(db, plan_id, org_id=org_id)
 
 
 # ============================================================
@@ -272,13 +285,16 @@ async def api_check_conflicts(
     employee_id: Optional[UUID] = Query(default=None),
     tool_id: Optional[UUID] = Query(default=None),
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Check employee/tool conflicts on a given date."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     return await check_conflicts(
         db,
         plan_date=plan_date,
         employee_id=employee_id,
         tool_id=tool_id,
+        org_id=org_id,
     )
 
 
@@ -296,10 +312,12 @@ async def api_list_material_reservations(
     offset: int = Query(default=0, ge=0),
     work_order_id: Optional[UUID] = Query(default=None),
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """List material reservations with optional WO filter."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     items, total = await list_material_reservations(
-        db, limit=limit, offset=offset, work_order_id=work_order_id
+        db, limit=limit, offset=offset, work_order_id=work_order_id, org_id=org_id,
     )
     return MaterialReservationListResponse(items=items, total=total)
 
@@ -338,9 +356,11 @@ async def api_create_material_reservation(
 async def api_cancel_material_reservation(
     reservation_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Cancel a material reservation."""
-    return await cancel_material_reservation(db, reservation_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await cancel_material_reservation(db, reservation_id, org_id=org_id)
 
 
 # ============================================================
@@ -357,10 +377,12 @@ async def api_list_tool_reservations(
     offset: int = Query(default=0, ge=0),
     work_order_id: Optional[UUID] = Query(default=None),
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """List tool reservations with optional WO filter."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     items, total = await list_tool_reservations(
-        db, limit=limit, offset=offset, work_order_id=work_order_id
+        db, limit=limit, offset=offset, work_order_id=work_order_id, org_id=org_id,
     )
     return ToolReservationListResponse(items=items, total=total)
 

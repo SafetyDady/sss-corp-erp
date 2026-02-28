@@ -5,6 +5,7 @@ import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
 import EmptyState from '../../components/EmptyState';
 import { COLORS } from '../../utils/constants';
+import EmployeeContextSelector from '../../components/EmployeeContextSelector';
 
 const { Text } = Typography;
 
@@ -21,16 +22,13 @@ export default function LeaveBalanceTab() {
   const { message } = App.useApp();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [employees, setEmployees] = useState([]);
-  const [selectedEmployee, setSelectedEmployee] = useState(undefined);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [editingQuota, setEditingQuota] = useState({});
   const [saving, setSaving] = useState(null);
+  const [selectedEmployee, setSelectedEmployee] = useState(undefined);
 
   useEffect(() => {
-    api.get('/api/hr/employees', { params: { limit: 500, offset: 0 } })
-      .then((res) => setEmployees((res.data.items || []).filter((e) => e.is_active)))
-      .catch(() => {});
+    // EmployeeContextSelector handles employee loading
   }, []);
 
   const fetchData = useCallback(async () => {
@@ -147,17 +145,11 @@ export default function LeaveBalanceTab() {
     <div>
       <Card size="small" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'end' }}>
-          <div>
-            <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>พนักงาน</Text>
-            <Select
-              allowClear showSearch optionFilterProp="label"
-              value={selectedEmployee} onChange={setSelectedEmployee}
-              style={{ width: 280 }} placeholder="ทั้งหมด"
-              options={employees.map((e) => ({
-                value: e.id, label: `${e.employee_code} — ${e.full_name}`,
-              }))}
-            />
-          </div>
+          <EmployeeContextSelector
+            value={selectedEmployee}
+            onChange={setSelectedEmployee}
+            showBadge={false}
+          />
           <div>
             <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>ปี</Text>
             <Select

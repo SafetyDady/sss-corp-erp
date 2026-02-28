@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Card, Form, Select, DatePicker, InputNumber, Button, Table, App, Alert, Typography, Space } from 'antd';
-import { Plus, Trash2, Save, SendHorizonal } from 'lucide-react';
+import { Card, Select, DatePicker, InputNumber, Button, Table, App, Alert, Typography, Space } from 'antd';
+import { Plus, Trash2, Save } from 'lucide-react';
 import api from '../../services/api';
 import { COLORS } from '../../utils/constants';
+import EmployeeContextSelector from '../../components/EmployeeContextSelector';
 
 const { Text } = Typography;
 
@@ -21,12 +22,10 @@ export default function WOTimeEntryForm() {
 
   useEffect(() => {
     Promise.all([
-      api.get('/api/hr/employees', { params: { limit: 500, offset: 0 } }),
       api.get('/api/work-orders', { params: { limit: 500, offset: 0, status: 'OPEN' } }),
       api.get('/api/master/ot-types', { params: { limit: 50, offset: 0 } }),
       api.get('/api/admin/approvers', { params: { module: 'hr.timesheet' } }),
-    ]).then(([empRes, woRes, otRes, appRes]) => {
-      setEmployees((empRes.data.items || []).filter((e) => e.is_active));
+    ]).then(([woRes, otRes, appRes]) => {
       setWorkOrders(woRes.data.items || []);
       setOtTypes((otRes.data.items || []).filter((t) => t.is_active));
       setApprovers(appRes.data);
@@ -208,17 +207,12 @@ export default function WOTimeEntryForm() {
 
       <Card size="small" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'end' }}>
-          <div>
-            <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>พนักงาน</Text>
-            <Select
-              showSearch optionFilterProp="label" value={selectedEmployee}
-              onChange={setSelectedEmployee} style={{ width: 280 }}
-              placeholder="เลือกพนักงาน"
-              options={employees.map((e) => ({
-                value: e.id, label: `${e.employee_code} — ${e.full_name}`,
-              }))}
-            />
-          </div>
+          <EmployeeContextSelector
+            value={selectedEmployee}
+            onChange={setSelectedEmployee}
+            showBadge={false}
+            onEmployeesLoaded={setEmployees}
+          />
           <div>
             <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>วันที่</Text>
             <DatePicker

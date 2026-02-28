@@ -49,4 +49,5 @@ class UserMe(UserResponse):
     employee_name: Optional[str] = None
     employee_code: Optional[str] = None
     department_id: Optional[UUID] = None
+    department_name: Optional[str] = None
     hire_date: Optional[date] = None

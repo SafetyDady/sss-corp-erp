@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-02-28 v5 (Phase 5 complete — Staff Portal & Daily Report)
+> อัปเดตล่าสุด: 2026-02-28 v6 (Phase 6 complete — Data Scope Backend + Frontend)
 
 ---
 
@@ -38,8 +38,8 @@
 sss-corp-erp/
 ├── frontend/                     ← Vercel deploys this (Root Dir = frontend/)
 │   ├── src/
-│   │   ├── components/           # Shared UI (StatusBadge, EmptyState, etc.)
-│   │   ├── pages/                # Route pages (~70 files, 20+ routes)
+│   │   ├── components/           # Shared UI (StatusBadge, ScopeBadge, EmployeeContextSelector, etc.)
+│   │   ├── pages/                # Route pages (~75 files, 20+ routes)
 │   │   │   ├── setup/            # SetupWizardPage (Phase 4.7)
 │   │   │   ├── planning/         # PlanningPage, DailyPlan, Reservation (Phase 4.5)
 │   │   │   └── ...               # inventory, warehouse, workorder, hr, etc.
@@ -54,6 +54,7 @@ sss-corp-erp/
 ├── backend/                      ← Railway deploys this (Dockerfile)
 │   ├── app/
 │   │   ├── api/                  # Route handlers (16 files, 17 routers)
+│   │   │   ├── _helpers.py       # Shared data scope helpers (Phase 6)
 │   │   │   ├── planning.py       # Daily plans, reservations (Phase 4.5)
 │   │   │   ├── setup.py          # One-time org setup (Phase 4.7)
 │   │   │   └── ...               # auth, inventory, warehouse, etc.
@@ -142,6 +143,11 @@ sss-corp-erp/
 - Daily Plan — พนักงานลาวันนั้น จัดลงงานไม่ได้ (BR#42)
 - MaterialReservation — available = on_hand - SUM(reserved) (BR#44)
 - ToolReservation — ห้ามจองซ้อนช่วงเดียวกัน (BR#45)
+
+### 10. Data Scope (Phase 6)
+- HR endpoints ต้อง filter ตาม role: staff=ของตัวเอง, supervisor=แผนก, manager/owner=ทั้ง org
+- ทุก endpoint ต้องมี org_id filter (multi-tenant) — ห้ามมี endpoint ที่ไม่ filter org_id
+- ใช้ shared helpers จาก `app.api._helpers` — ห้าม duplicate logic
 
 ---
 
@@ -461,7 +467,7 @@ Manager จองเครื่องมือ → POST /api/planning/reservati
 
 ---
 
-## Business Rules (Complete — 46 Rules)
+## Business Rules (Complete — 55 Rules)
 
 | # | Module | Feature | Rule | Enforcement |
 |---|--------|---------|------|-------------|
@@ -520,6 +526,29 @@ Manager จองเครื่องมือ → POST /api/planning/reservati
 | 53 | hr | Daily Report | Auto-update StandardTimesheet OT hours on approve | Auto calc |
 | 54 | hr | Daily Report | Edit only DRAFT/REJECTED status | State machine |
 | 55 | hr | Daily Report | Supervisor sees only own department reports | Data scope |
+
+---
+
+## Data Scope Rules (Phase 6)
+
+| ข้อมูล | staff | supervisor | manager/owner |
+|--------|-------|------------|---------------|
+| HR: Timesheet | ของตัวเอง | แผนกตัวเอง | ทั้ง org |
+| HR: Leave | ของตัวเอง | แผนกตัวเอง | ทั้ง org |
+| HR: Daily Report | ของตัวเอง | แผนกตัวเอง | ทั้ง org |
+| HR: Leave Balance | ของตัวเอง | แผนกตัวเอง | ทั้ง org |
+| HR: Standard Timesheet | ของตัวเอง | แผนกตัวเอง | ทั้ง org |
+| HR: Employee | ❌ (no perm) | แผนกตัวเอง | ทั้ง org |
+| HR: Payroll | ❌ (no perm) | ❌ (no perm) | ทั้ง org |
+| Operations (WO, Inventory, etc.) | ทั้ง org | ทั้ง org | ทั้ง org |
+| Finance Reports | ❌ (no perm) | ❌ (no perm) | ทั้ง org |
+
+### Implementation Pattern
+ทุก HR endpoint ที่มี data scope ต้องใช้ pattern:
+- Import: `from app.api._helpers import resolve_employee_id, resolve_employee, get_department_employee_ids`
+- Staff → `resolve_employee_id(db, user_id)` → force own data
+- Supervisor → `resolve_employee(db, user_id)` → `get_department_employee_ids(db, emp.department_id, org_id)`
+- Manager/Owner → no filter
 
 ---
 
@@ -904,6 +933,25 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **5.7** Phase 4 leftovers: Leave names+colors, LeaveBalanceTab, MasterPlanSection
 - [x] **5.8** E2E testing — 15 scenarios PASSED
 
+### Phase 6 — Data Scope: Role-Based Data Visibility ✅
+**Backend (6.1-6.7):**
+- [x] **6.1** Shared helpers (`_helpers.py`) — resolve_employee_id, resolve_employee, get_department_employee_ids
+- [x] **6.2** Critical Security — Missing org_id filter fixed (finance, planning, admin, hr)
+- [x] **6.3** Role-Based Filter — Timesheet (staff=own, supervisor=dept, manager/owner=all)
+- [x] **6.4** Role-Based Filter — Leave + Leave Balance (same pattern)
+- [x] **6.5** Role-Based Filter — Employee (supervisor=dept)
+- [x] **6.6** Refactor daily_report.py — shared helpers, removed duplicates
+- [x] **6.7** Data scope ownership validation on create (staff=self only)
+
+**Frontend (6.8-6.14):**
+- [x] **6.8** Backend: department_name in `/api/auth/me` + authStore
+- [x] **6.9** Fix MePage bug — employee_id guard on 3 API calls
+- [x] **6.10** ScopeBadge component — role-aware scope indicator (cyan/purple/green)
+- [x] **6.11** SupervisorDashboard — 3-way dashboard routing (staff/supervisor/admin)
+- [x] **6.12** EmployeeContextSelector — role-scoped employee dropdown
+- [x] **6.13** HR Page scope UI — EmployeeContextSelector on 5 tabs + ScopeBadge
+- [x] **6.14** MePage viewer fix — permission-filtered tabs, ME menu visibility
+
 ---
 
 ## Common Pitfalls (อย่าทำ!)
@@ -925,6 +973,8 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 15. ❌ อย่าให้ Daily Plan จัดคนซ้ำ WO เดียวกัน (1 คน : 1 WO/วัน) (BR#40)
 16. ❌ อย่าให้ลาเกินโควต้า — ต้องเช็ค LeaveBalance ก่อน (BR#36)
 17. ❌ อย่าใช้ JWT_SECRET_KEY default ใน production — ระบบจะ RuntimeError (Phase 4.8)
+18. ❌ อย่าลืม data scope — HR endpoints ต้อง filter ตาม role ไม่ใช่แค่ permission
+19. ❌ อย่าสร้าง endpoint ใหม่โดยไม่มี org_id filter
 
 ---
 
@@ -956,6 +1006,9 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/my/MyTimesheetPage.jsx` | Staff — My Timesheet (Phase 5) |
 | `frontend/src/pages/my/MyTasksPage.jsx` | Staff — My Tasks (Phase 5) |
 | `frontend/src/pages/hr/DailyReportApprovalTab.jsx` | Supervisor — Batch approve (Phase 5) |
+| `backend/app/api/_helpers.py` | Shared data scope helpers (Phase 6) |
+| `frontend/src/components/ScopeBadge.jsx` | Role-aware scope indicator badge (Phase 6) |
+| `frontend/src/components/EmployeeContextSelector.jsx` | Role-scoped employee dropdown (Phase 6) |
 
 ---
 
@@ -978,4 +1031,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v5 (Phase 0-5 complete — Staff Portal & Daily Report)*
+*End of CLAUDE.md — SSS Corp ERP v6 (Phase 0-6 complete — Data Scope Backend + Frontend)*

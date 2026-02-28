@@ -21,6 +21,7 @@ const useAuthStore = create(
       employeeName: null,
       employeeCode: null,
       departmentId: null,
+      departmentName: null,
       hireDate: null,
 
       // Actions
@@ -60,6 +61,7 @@ const useAuthStore = create(
             employeeName: data.employee_name || null,
             employeeCode: data.employee_code || null,
             departmentId: data.department_id || null,
+            departmentName: data.department_name || null,
             hireDate: data.hire_date || null,
           });
         } catch {
@@ -82,6 +84,7 @@ const useAuthStore = create(
           employeeName: null,
           employeeCode: null,
           departmentId: null,
+          departmentName: null,
           hireDate: null,
         });
       },
@@ -122,6 +125,7 @@ const useAuthStore = create(
         employeeName: state.employeeName,
         employeeCode: state.employeeCode,
         departmentId: state.departmentId,
+        departmentName: state.departmentName,
         hireDate: state.hireDate,
       }),
       merge: (persisted, current) => ({

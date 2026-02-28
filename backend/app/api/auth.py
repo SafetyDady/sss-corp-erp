@@ -146,6 +146,7 @@ async def get_me(
 
     # Phase 5: Query linked employee for Staff Portal
     from app.models.hr import Employee
+    from app.models.organization import Department
     emp_result = await db.execute(
         select(Employee).where(
             Employee.user_id == user.id,
@@ -153,6 +154,15 @@ async def get_me(
         )
     )
     employee = emp_result.scalar_one_or_none()
+
+    # Phase 6: Query department name
+    department_name = None
+    if employee and employee.department_id:
+        dept_result = await db.execute(
+            select(Department).where(Department.id == employee.department_id)
+        )
+        dept = dept_result.scalar_one_or_none()
+        department_name = dept.name if dept else None
 
     return UserMe(
         id=user.id,
@@ -166,6 +176,7 @@ async def get_me(
         employee_name=employee.full_name if employee else None,
         employee_code=employee.employee_code if employee else None,
         department_id=employee.department_id if employee else None,
+        department_name=department_name,
         hire_date=employee.hire_date if employee else None,
     )
 

@@ -17,8 +17,10 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import DEFAULT_ORG_ID
 from app.core.database import get_db
 from app.core.permissions import require
+from app.core.security import get_token_payload
 from app.models.hr import Timesheet, TimesheetStatus, PayrollRun
 from app.models.inventory import StockMovement
 from app.models.purchasing import PurchaseOrder, POStatus
@@ -39,15 +41,17 @@ async def api_finance_reports(
     period_start: Optional[date] = Query(default=None),
     period_end: Optional[date] = Query(default=None),
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Generate finance summary report."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
 
     # Work Orders summary
     wo_query = select(
         func.count().label("total"),
         func.count().filter(WorkOrder.status == WOStatus.OPEN).label("open"),
         func.count().filter(WorkOrder.status == WOStatus.CLOSED).label("closed"),
-    ).where(WorkOrder.is_active == True)
+    ).where(WorkOrder.is_active == True, WorkOrder.org_id == org_id)
     wo_result = await db.execute(wo_query)
     wo_row = wo_result.one()
 
@@ -55,7 +59,7 @@ async def api_finance_reports(
     po_query = select(
         func.count().label("total"),
         func.coalesce(func.sum(PurchaseOrder.total_amount), 0).label("total_amount"),
-    ).where(PurchaseOrder.is_active == True)
+    ).where(PurchaseOrder.is_active == True, PurchaseOrder.org_id == org_id)
     if period_start:
         po_query = po_query.where(PurchaseOrder.order_date >= period_start)
     if period_end:
@@ -67,7 +71,7 @@ async def api_finance_reports(
     so_query = select(
         func.count().label("total"),
         func.coalesce(func.sum(SalesOrder.total_amount), 0).label("total_amount"),
-    ).where(SalesOrder.is_active == True)
+    ).where(SalesOrder.is_active == True, SalesOrder.org_id == org_id)
     if period_start:
         so_query = so_query.where(SalesOrder.order_date >= period_start)
     if period_end:
@@ -78,7 +82,7 @@ async def api_finance_reports(
     # Stock movements cost summary
     movement_query = select(
         func.coalesce(func.sum(StockMovement.quantity * StockMovement.unit_cost), 0),
-    ).where(StockMovement.is_reversed == False)
+    ).where(StockMovement.is_reversed == False, StockMovement.org_id == org_id)
     if period_start:
         movement_query = movement_query.where(func.date(StockMovement.created_at) >= period_start)
     if period_end:
@@ -112,11 +116,12 @@ async def api_finance_export(
     period_start: Optional[date] = Query(default=None),
     period_end: Optional[date] = Query(default=None),
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Export finance report as CSV."""
     # Reuse the report logic
     report = await api_finance_reports(
-        period_start=period_start, period_end=period_end, db=db
+        period_start=period_start, period_end=period_end, db=db, token=token
     )
 
     output = io.StringIO()

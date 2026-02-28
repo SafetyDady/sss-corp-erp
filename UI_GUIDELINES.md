@@ -2,7 +2,7 @@
 
 > ไฟล์นี้เป็นส่วนเสริมของ CLAUDE.md — กำหนดแนวทาง UI ทั้งหมด
 > AI ต้องอ่านร่วมกับ CLAUDE.md เสมอ
-> อัปเดต: 2026-02-28 v6 — Synced with Phase 5 (80+ pages, 25+ routes, Staff Portal)
+> อัปเดต: 2026-02-28 v7 — Synced with Phase 6 (Data Scope UI — ScopeBadge, EmployeeContextSelector, SupervisorDashboard)
 
 ---
 
@@ -178,6 +178,49 @@ import StatusBadge from '../../components/StatusBadge';
 
 Badge style: `background: color + '18'` (10% opacity), `borderRadius: 6`, `fontSize: 11`, `fontWeight: 600`, `letterSpacing: 0.3`
 
+### ScopeBadge (`components/ScopeBadge.jsx`) — Phase 6
+
+```jsx
+import ScopeBadge from '../../components/ScopeBadge';
+
+<ScopeBadge />                     // ← auto-detects role from authStore
+<ScopeBadge style={{ marginTop: 4 }} />  // ← optional style override
+```
+
+แสดง data scope indicator ตาม role ของผู้ใช้:
+
+| Role | Label | Color |
+|------|-------|-------|
+| staff / viewer | "ข้อมูลของฉัน" | `COLORS.accent` (cyan) |
+| supervisor | "แผนก: {departmentName}" | `COLORS.purple` |
+| manager / owner | "ทั้งองค์กร" | `COLORS.success` (green) |
+
+Badge style: เหมือน `StatusBadge` — `background: color + '18'`, `borderRadius: 6`, `fontSize: 11`, `fontWeight: 600`, `letterSpacing: 0.3`
+Icon: `Eye` (Lucide), size 12
+
+### EmployeeContextSelector (`components/EmployeeContextSelector.jsx`) — Phase 6
+
+```jsx
+import EmployeeContextSelector from '../../components/EmployeeContextSelector';
+
+<EmployeeContextSelector
+  value={selectedEmployee}
+  onChange={setSelectedEmployee}
+  showBadge={true}                  // default: แสดง ScopeBadge ข้างๆ
+  onEmployeesLoaded={setEmployees}  // optional: callback เมื่อโหลดรายชื่อเสร็จ
+/>
+```
+
+Employee dropdown ที่ auto-scope ตาม role:
+
+| Role | พฤติกรรม |
+|------|---------|
+| staff / viewer | **return null** (ไม่แสดง — เห็นเฉพาะของตัวเอง) |
+| supervisor | แสดง dropdown — เฉพาะพนักงานในแผนก (backend auto-filter) |
+| manager / owner | แสดง dropdown — พนักงานทั้งหมดใน org |
+
+**ใช้ที่:** TimesheetTab, LeaveTab, StandardTimesheetView, LeaveBalanceTab, WOTimeEntryForm
+
 ### EmptyState (`components/EmptyState.jsx`)
 
 ```jsx
@@ -286,6 +329,8 @@ import SearchInput from '../../components/SearchInput';
 | Calendar confirm | CalendarCheck | `CalendarCheck` |
 | Undo/Rollback | RotateCcw | `RotateCcw` |
 | Checkbox | Square, CheckCircle | `Square`, `CheckCircle` |
+| ScopeBadge | Eye | `Eye` |
+| EmployeeSelector | Users | `Users` |
 
 ### Icon Size Guide
 
@@ -327,7 +372,8 @@ Header user:      14
 - Background: `COLORS.sidebar` (#0d0d14)
 - Logo: "SSS Corp" (expanded) / "SSS" (collapsed), color `COLORS.accent`
 - Menu: Ant Design `<Menu>` with `theme="dark"`, `mode="inline"`
-- 13 items, RBAC-filtered via `usePermission().can(permission)`
+- 13+ items, RBAC-filtered via `usePermission().can(permission)`
+- ME menu: shown only if user has workorder.plan.read / hr.timesheet.read / hr.leave.read / hr.dailyreport.read
 - User info at bottom: `full_name` + `role` (hidden when collapsed)
 - Collapse button: `ChevronLeft` / `ChevronRight`
 
@@ -409,6 +455,7 @@ import { COLORS } from '../../utils/constants';
 import { Tabs } from 'antd';
 import { usePermission } from '../../hooks/usePermission';
 import PageHeader from '../../components/PageHeader';
+import ScopeBadge from '../../components/ScopeBadge';  // Phase 6
 
 // Tabs with RBAC filtering
 const { can } = usePermission();
@@ -418,6 +465,12 @@ const items = [
   can('hr.leave.read') && { key: 'leave', label: 'การลา', children: <LeaveTab /> },
   can('hr.payroll.read') && { key: 'payroll', label: 'Payroll', children: <PayrollTab /> },
 ].filter(Boolean);
+
+// PageHeader with ScopeBadge (Phase 6)
+<PageHeader
+  title="HR"
+  subtitle={<span>บริหารจัดการทรัพยากรบุคคล <ScopeBadge /></span>}
+/>
 ```
 
 ### Detail Page Pattern (WO, PO, SO)
@@ -618,7 +671,9 @@ frontend/src/
 ├── main.jsx                   # Entry point + Sentry init
 ├── components/
 │   ├── EmptyState.jsx         # Empty state with icon + hint
+│   ├── EmployeeContextSelector.jsx  # Role-scoped employee dropdown (Phase 6)
 │   ├── PageHeader.jsx         # Title + subtitle + actions
+│   ├── ScopeBadge.jsx         # Role-aware scope indicator (Phase 6)
 │   ├── SearchInput.jsx        # Debounced search input (300ms)
 │   └── StatusBadge.jsx        # Universal status badge (30 statuses)
 ├── hooks/
@@ -632,7 +687,7 @@ frontend/src/
 │   └── formatters.js          # formatCurrency, formatDate, formatDateTime, formatNumber
 └── pages/
     ├── LoginPage.jsx
-    ├── DashboardPage.jsx
+    ├── DashboardPage.jsx      # 3 dashboards: Staff + Supervisor + Admin (Phase 6)
     ├── setup/                        # Phase 4.7 — Setup Wizard
     │   └── SetupWizardPage.jsx
     ├── inventory/
@@ -890,4 +945,4 @@ frontend/src/
 
 ---
 
-*End of UI_GUIDELINES.md — SSS Corp ERP v6 (Phase 5 complete — Staff Portal & Daily Report)*
+*End of UI_GUIDELINES.md — SSS Corp ERP v7 (Phase 6 complete — Data Scope UI)*

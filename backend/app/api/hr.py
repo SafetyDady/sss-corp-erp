@@ -107,7 +107,23 @@ async def api_list_employees(
     token: dict = Depends(get_token_payload),
 ):
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
-    items, total = await list_employees(db, limit=limit, offset=offset, search=search, org_id=org_id)
+    role = token.get("role", "")
+    user_id = UUID(token["sub"])
+
+    department_id = None
+    if role == "supervisor":
+        from app.api._helpers import resolve_employee
+        emp = await resolve_employee(db, user_id)
+        if emp and emp.department_id:
+            department_id = emp.department_id
+        else:
+            return EmployeeListResponse(items=[], total=0, limit=limit, offset=offset)
+    # manager/owner → ไม่ filter
+
+    items, total = await list_employees(
+        db, limit=limit, offset=offset, search=search,
+        org_id=org_id, department_id=department_id,
+    )
     return EmployeeListResponse(items=items, total=total, limit=limit, offset=offset)
 
 
@@ -165,9 +181,11 @@ async def api_update_employee(
     emp_id: UUID,
     body: EmployeeUpdate,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
-    return await update_employee(db, emp_id, update_data=update_data)
+    return await update_employee(db, emp_id, update_data=update_data, org_id=org_id)
 
 
 @hr_router.delete(
@@ -178,8 +196,10 @@ async def api_update_employee(
 async def api_delete_employee(
     emp_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
-    await delete_employee(db, emp_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    await delete_employee(db, emp_id, org_id=org_id)
 
 
 # ============================================================
@@ -204,9 +224,34 @@ async def api_list_timesheets(
     token: dict = Depends(get_token_payload),
 ):
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    user_id = UUID(token["sub"])
+    role = token.get("role", "")
+
+    # Data scope enforcement
+    from app.api._helpers import resolve_employee_id, resolve_employee, get_department_employee_ids
+
+    filter_employee_id = employee_id
+    filter_employee_ids = None
+
+    if role == "staff":
+        emp_id = await resolve_employee_id(db, user_id)
+        if not emp_id:
+            return TimesheetListResponse(items=[], total=0, limit=limit, offset=offset)
+        filter_employee_id = emp_id  # force own data only
+    elif role == "supervisor":
+        if not employee_id:  # ไม่ได้ระบุ employee_id → filter ทั้งแผนก
+            emp = await resolve_employee(db, user_id)
+            if emp and emp.department_id:
+                filter_employee_ids = await get_department_employee_ids(db, emp.department_id, org_id)
+            else:
+                return TimesheetListResponse(items=[], total=0, limit=limit, offset=offset)
+    # manager/owner → ไม่ filter เพิ่ม (เห็นทั้ง org)
+
     items, total = await list_timesheets(
         db, limit=limit, offset=offset,
-        employee_id=employee_id, work_order_id=work_order_id,
+        employee_id=filter_employee_id,
+        employee_ids=filter_employee_ids,
+        work_order_id=work_order_id,
         status_filter=status, org_id=org_id,
     )
     return TimesheetListResponse(items=items, total=total, limit=limit, offset=offset)
@@ -225,6 +270,25 @@ async def api_create_timesheet(
 ):
     user_id = UUID(token["sub"])
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    role = token.get("role", "")
+
+    # Data scope enforcement — staff can only create for themselves
+    if role == "staff":
+        from app.api._helpers import resolve_employee_id
+        own_emp_id = await resolve_employee_id(db, user_id)
+        if not own_emp_id or body.employee_id != own_emp_id:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=403, detail="Staff can only create timesheet for themselves")
+    elif role == "supervisor":
+        # BR#21: supervisor can create for department members
+        from app.api._helpers import resolve_employee, get_department_employee_ids
+        emp = await resolve_employee(db, user_id)
+        if emp and emp.department_id:
+            dept_ids = await get_department_employee_ids(db, emp.department_id, org_id)
+            if body.employee_id not in dept_ids:
+                from fastapi import HTTPException
+                raise HTTPException(status_code=403, detail="Supervisor can only create timesheet for own department")
+
     ts = await create_timesheet(
         db,
         employee_id=body.employee_id,
@@ -253,9 +317,11 @@ async def api_update_timesheet(
     ts_id: UUID,
     body: TimesheetUpdate,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
-    return await update_timesheet(db, ts_id, update_data=update_data)
+    return await update_timesheet(db, ts_id, update_data=update_data, org_id=org_id)
 
 
 @hr_router.post(
@@ -296,9 +362,11 @@ async def api_final_approve_timesheet(
 async def api_unlock_timesheet(
     ts_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """HR unlock a locked timesheet (BR#22)."""
-    return await unlock_timesheet(db, ts_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await unlock_timesheet(db, ts_id, org_id=org_id)
 
 
 @hr_router.post(
@@ -315,6 +383,24 @@ async def api_create_timesheet_batch(
     """Create multiple WO time entries for a single date (Phase 4.4)."""
     user_id = UUID(token["sub"])
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    role = token.get("role", "")
+
+    # Data scope enforcement — staff can only create for themselves
+    if role == "staff":
+        from app.api._helpers import resolve_employee_id
+        own_emp_id = await resolve_employee_id(db, user_id)
+        if not own_emp_id or body.employee_id != own_emp_id:
+            from fastapi import HTTPException as HTTPExc
+            raise HTTPExc(status_code=403, detail="Staff can only create timesheet for themselves")
+    elif role == "supervisor":
+        from app.api._helpers import resolve_employee, get_department_employee_ids
+        emp = await resolve_employee(db, user_id)
+        if emp and emp.department_id:
+            dept_ids = await get_department_employee_ids(db, emp.department_id, org_id)
+            if body.employee_id not in dept_ids:
+                from fastapi import HTTPException as HTTPExc
+                raise HTTPExc(status_code=403, detail="Supervisor can only create timesheet for own department")
+
     entries = [e.model_dump() for e in body.entries]
     timesheets = await create_timesheet_batch(
         db,
@@ -349,12 +435,38 @@ async def api_list_standard_timesheets(
     period_start: Optional[str] = Query(default=None),
     period_end: Optional[str] = Query(default=None),
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    user_id = UUID(token["sub"])
+    role = token.get("role", "")
+
     from datetime import date as date_type
     ps = date_type.fromisoformat(period_start) if period_start else None
     pe = date_type.fromisoformat(period_end) if period_end else None
+
+    # Data scope enforcement
+    from app.api._helpers import resolve_employee_id, resolve_employee, get_department_employee_ids
+
+    filter_employee_id = employee_id
+    filter_employee_ids = None
+
+    if role == "staff":
+        emp_id = await resolve_employee_id(db, user_id)
+        if not emp_id:
+            return StandardTimesheetListResponse(items=[], total=0)
+        filter_employee_id = emp_id
+    elif role == "supervisor":
+        if not employee_id:
+            emp = await resolve_employee(db, user_id)
+            if emp and emp.department_id:
+                filter_employee_ids = await get_department_employee_ids(db, emp.department_id, org_id)
+            else:
+                return StandardTimesheetListResponse(items=[], total=0)
+
     items, total = await list_standard_timesheets(
-        db, employee_id=employee_id, period_start=ps, period_end=pe,
+        db, employee_id=filter_employee_id, employee_ids=filter_employee_ids,
+        period_start=ps, period_end=pe, org_id=org_id,
     )
     return StandardTimesheetListResponse(items=items, total=total)
 
@@ -397,7 +509,34 @@ async def api_list_leaves(
     token: dict = Depends(get_token_payload),
 ):
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
-    items, total = await list_leaves(db, limit=limit, offset=offset, employee_id=employee_id, org_id=org_id)
+    user_id = UUID(token["sub"])
+    role = token.get("role", "")
+
+    # Data scope enforcement
+    from app.api._helpers import resolve_employee_id, resolve_employee, get_department_employee_ids
+
+    filter_employee_id = employee_id
+    filter_employee_ids = None
+
+    if role == "staff":
+        emp_id = await resolve_employee_id(db, user_id)
+        if not emp_id:
+            return LeaveListResponse(items=[], total=0, limit=limit, offset=offset)
+        filter_employee_id = emp_id
+    elif role == "supervisor":
+        if not employee_id:
+            emp = await resolve_employee(db, user_id)
+            if emp and emp.department_id:
+                filter_employee_ids = await get_department_employee_ids(db, emp.department_id, org_id)
+            else:
+                return LeaveListResponse(items=[], total=0, limit=limit, offset=offset)
+
+    items, total = await list_leaves(
+        db, limit=limit, offset=offset,
+        employee_id=filter_employee_id,
+        employee_ids=filter_employee_ids,
+        org_id=org_id,
+    )
     return LeaveListResponse(items=items, total=total, limit=limit, offset=offset)
 
 
@@ -414,6 +553,16 @@ async def api_create_leave(
 ):
     user_id = UUID(token["sub"])
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    role = token.get("role", "")
+
+    # Data scope enforcement — staff can only create leave for themselves
+    if role == "staff":
+        from app.api._helpers import resolve_employee_id
+        own_emp_id = await resolve_employee_id(db, user_id)
+        if not own_emp_id or body.employee_id != own_emp_id:
+            from fastapi import HTTPException as HTTPExc
+            raise HTTPExc(status_code=403, detail="Staff can only create leave for themselves")
+
     leave = await create_leave(
         db,
         employee_id=body.employee_id,
@@ -459,8 +608,35 @@ async def api_list_leave_balances(
     employee_id: Optional[UUID] = Query(default=None),
     year: Optional[int] = Query(default=None),
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
-    items = await list_leave_balances(db, employee_id=employee_id, year=year)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    user_id = UUID(token["sub"])
+    role = token.get("role", "")
+
+    # Data scope enforcement
+    from app.api._helpers import resolve_employee_id, resolve_employee, get_department_employee_ids
+
+    filter_employee_id = employee_id
+    filter_employee_ids = None
+
+    if role == "staff":
+        emp_id = await resolve_employee_id(db, user_id)
+        if not emp_id:
+            return LeaveBalanceListResponse(items=[], total=0)
+        filter_employee_id = emp_id
+    elif role == "supervisor":
+        if not employee_id:
+            emp = await resolve_employee(db, user_id)
+            if emp and emp.department_id:
+                filter_employee_ids = await get_department_employee_ids(db, emp.department_id, org_id)
+            else:
+                return LeaveBalanceListResponse(items=[], total=0)
+
+    items = await list_leave_balances(
+        db, employee_id=filter_employee_id, employee_ids=filter_employee_ids,
+        year=year, org_id=org_id,
+    )
     return LeaveBalanceListResponse(items=items, total=len(items))
 
 
@@ -473,9 +649,11 @@ async def api_update_leave_balance(
     balance_id: UUID,
     body: LeaveBalanceUpdate,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
-    return await update_leave_balance(db, balance_id, update_data=update_data)
+    return await update_leave_balance(db, balance_id, update_data=update_data, org_id=org_id)
 
 
 # ============================================================
@@ -542,9 +720,11 @@ async def api_export_payroll(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(default=100, le=500),
     offset: int = Query(default=0, ge=0),
+    token: dict = Depends(get_token_payload),
 ):
     """Export payroll runs as CSV."""
-    items, total = await list_payroll_runs(db, limit=limit, offset=offset)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    items, total = await list_payroll_runs(db, limit=limit, offset=offset, org_id=org_id)
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([

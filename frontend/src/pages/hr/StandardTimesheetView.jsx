@@ -6,13 +6,14 @@ import api from '../../services/api';
 import EmptyState from '../../components/EmptyState';
 import { formatDate } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
+import EmployeeContextSelector from '../../components/EmployeeContextSelector';
 
 const { Text } = Typography;
 const { RangePicker } = DatePicker;
 
 const STATUS_COLOR_MAP = {
   WORK: { color: COLORS.success, label: 'ทำงาน' },
-  LEAVE_PAID: { color: COLORS.info, label: 'ลา (ได้เงิน)' },
+  LEAVE_PAID: { color: '#3b82f6', label: 'ลา (ได้เงิน)' },
   LEAVE_UNPAID: { color: COLORS.warning, label: 'ลา (ไม่ได้เงิน)' },
   ABSENT: { color: COLORS.danger, label: 'ขาดงาน' },
   HOLIDAY: { color: COLORS.textMuted, label: 'วันหยุด' },
@@ -30,9 +31,7 @@ export default function StandardTimesheetView() {
   const [dateRange, setDateRange] = useState(null);
 
   useEffect(() => {
-    api.get('/api/hr/employees', { params: { limit: 500, offset: 0 } })
-      .then((res) => setEmployees((res.data.items || []).filter((e) => e.is_active)))
-      .catch(() => {});
+    // EmployeeContextSelector handles employee loading via onEmployeesLoaded
   }, []);
 
   const fetchData = useCallback(async () => {
@@ -121,17 +120,12 @@ export default function StandardTimesheetView() {
     <div>
       <Card size="small" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'end' }}>
-          <div>
-            <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>พนักงาน</Text>
-            <Select
-              allowClear showSearch optionFilterProp="label"
-              value={selectedEmployee} onChange={setSelectedEmployee}
-              style={{ width: 280 }} placeholder="ทั้งหมด"
-              options={employees.map((e) => ({
-                value: e.id, label: `${e.employee_code} — ${e.full_name}`,
-              }))}
-            />
-          </div>
+          <EmployeeContextSelector
+            value={selectedEmployee}
+            onChange={setSelectedEmployee}
+            showBadge={false}
+            onEmployeesLoaded={setEmployees}
+          />
           <div>
             <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>ช่วงวันที่</Text>
             <RangePicker value={dateRange} onChange={setDateRange} format="DD/MM/YYYY" />

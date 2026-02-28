@@ -28,7 +28,7 @@ from app.core.config import DEFAULT_ORG_ID
 from app.core.database import get_db
 from app.core.permissions import require
 from app.core.security import get_token_payload
-from app.models.hr import Employee
+from app.api._helpers import resolve_employee_id, resolve_employee, get_department_employee_ids
 from app.schemas.daily_report import (
     BatchApproveRequest,
     DailyReportCreate,
@@ -47,40 +47,8 @@ from app.services.daily_report import (
     submit_daily_report,
     update_daily_report,
 )
-from sqlalchemy import select
 
 daily_report_router = APIRouter(prefix="/api/daily-report", tags=["Daily Work Report"])
-
-
-# ============================================================
-# HELPER: resolve employee_id for current user
-# ============================================================
-
-async def _resolve_employee_id(
-    db: AsyncSession, user_id: UUID
-) -> Optional[UUID]:
-    """Get employee_id linked to user."""
-    result = await db.execute(
-        select(Employee).where(
-            Employee.user_id == user_id,
-            Employee.is_active == True,
-        )
-    )
-    emp = result.scalar_one_or_none()
-    return emp.id if emp else None
-
-
-async def _resolve_employee(
-    db: AsyncSession, user_id: UUID
-) -> Optional[Employee]:
-    """Get full employee for current user."""
-    result = await db.execute(
-        select(Employee).where(
-            Employee.user_id == user_id,
-            Employee.is_active == True,
-        )
-    )
-    return result.scalar_one_or_none()
 
 
 # ============================================================
@@ -111,24 +79,16 @@ async def api_list_daily_reports(
     dept_emp_ids = None
     if role == "staff":
         # Staff can only see own reports
-        emp_id = await _resolve_employee_id(db, user_id)
+        emp_id = await resolve_employee_id(db, user_id)
         if not emp_id:
             return DailyReportListResponse(items=[], total=0, limit=limit, offset=offset)
         filter_employee_id = emp_id
     elif role == "supervisor":
         # Supervisor: if no specific employee_id, filter by department
         if not employee_id:
-            emp = await _resolve_employee(db, user_id)
+            emp = await resolve_employee(db, user_id)
             if emp and emp.department_id:
-                # Get all employees in supervisor's department
-                dept_emps = await db.execute(
-                    select(Employee.id).where(
-                        Employee.department_id == emp.department_id,
-                        Employee.org_id == org_id,
-                        Employee.is_active == True,
-                    )
-                )
-                dept_emp_ids = [row[0] for row in dept_emps.all()]
+                dept_emp_ids = await get_department_employee_ids(db, emp.department_id, org_id)
 
     items, total = await list_daily_reports(
         db,
@@ -163,7 +123,7 @@ async def api_create_daily_report(
     user_id = UUID(token["sub"])
 
     # Auto-resolve employee_id from user
-    emp_id = await _resolve_employee_id(db, user_id)
+    emp_id = await resolve_employee_id(db, user_id)
     if not emp_id:
         from fastapi import HTTPException
         raise HTTPException(status_code=400, detail="ไม่พบข้อมูลพนักงานสำหรับ user นี้")

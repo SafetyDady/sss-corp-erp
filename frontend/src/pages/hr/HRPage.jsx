@@ -1,6 +1,7 @@
 import { Tabs } from 'antd';
 import { Users, Clock, CalendarDays, Banknote, ClipboardList, CalendarCheck, FileCheck, BookOpen } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
+import ScopeBadge from '../../components/ScopeBadge';
 import { usePermission } from '../../hooks/usePermission';
 import EmployeeTab from './EmployeeTab';
 import TimesheetTab from './TimesheetTab';
@@ -68,7 +69,7 @@ export default function HRPage() {
     <div>
       <PageHeader
         title="HR"
-        subtitle="บริหารจัดการทรัพยากรบุคคล — พนักงาน, Timesheet, ลาหยุด, Payroll"
+        subtitle={<span>บริหารจัดการทรัพยากรบุคคล <ScopeBadge /></span>}
       />
       {items.length > 0 ? (
         <Tabs defaultActiveKey={items[0]?.key} items={items} />

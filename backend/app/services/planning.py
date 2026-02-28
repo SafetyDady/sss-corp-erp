@@ -103,13 +103,16 @@ async def create_master_plan(
 async def get_master_plan(
     db: AsyncSession,
     work_order_id: UUID,
+    *,
+    org_id: Optional[UUID] = None,
 ) -> "WOMasterPlan":
     """Get the master plan for a work order."""
     from app.models.planning import WOMasterPlan, WOMasterPlanLine
 
-    result = await db.execute(
-        select(WOMasterPlan).where(WOMasterPlan.work_order_id == work_order_id)
-    )
+    query = select(WOMasterPlan).where(WOMasterPlan.work_order_id == work_order_id)
+    if org_id:
+        query = query.where(WOMasterPlan.org_id == org_id)
+    result = await db.execute(query)
     plan = result.scalar_one_or_none()
     if not plan:
         raise HTTPException(
@@ -131,13 +134,15 @@ async def update_master_plan(
     *,
     update_data: dict,
     lines: Optional[list[dict]] = None,
+    org_id: Optional[UUID] = None,
 ) -> "WOMasterPlan":
     """Update the master plan for a work order. Replace lines if provided."""
     from app.models.planning import WOMasterPlan, WOMasterPlanLine
 
-    result = await db.execute(
-        select(WOMasterPlan).where(WOMasterPlan.work_order_id == work_order_id)
-    )
+    query = select(WOMasterPlan).where(WOMasterPlan.work_order_id == work_order_id)
+    if org_id:
+        query = query.where(WOMasterPlan.org_id == org_id)
+    result = await db.execute(query)
     plan = result.scalar_one_or_none()
     if not plan:
         raise HTTPException(
@@ -437,11 +442,15 @@ async def list_daily_plans(
     plan_date: Optional[date] = None,
     date_end: Optional[date] = None,
     work_order_id: Optional[UUID] = None,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list, int]:
     """List daily plans with filtering and pagination."""
     from app.models.planning import DailyPlan
 
     query = select(DailyPlan)
+
+    if org_id:
+        query = query.where(DailyPlan.org_id == org_id)
 
     if plan_date:
         if date_end:
@@ -473,13 +482,14 @@ async def list_daily_plans(
     return items, total
 
 
-async def get_daily_plan(db: AsyncSession, plan_id: UUID) -> "DailyPlan":
+async def get_daily_plan(db: AsyncSession, plan_id: UUID, *, org_id: Optional[UUID] = None) -> "DailyPlan":
     """Get a single daily plan by ID."""
     from app.models.planning import DailyPlan
 
-    result = await db.execute(
-        select(DailyPlan).where(DailyPlan.id == plan_id)
-    )
+    query = select(DailyPlan).where(DailyPlan.id == plan_id)
+    if org_id:
+        query = query.where(DailyPlan.org_id == org_id)
+    result = await db.execute(query)
     plan = result.scalar_one_or_none()
     if not plan:
         raise HTTPException(
@@ -499,6 +509,7 @@ async def update_daily_plan(
     workers: Optional[list[dict]] = None,
     tools: Optional[list[dict]] = None,
     materials: Optional[list[dict]] = None,
+    org_id: Optional[UUID] = None,
 ) -> "DailyPlan":
     """Update a daily plan. Replace workers/tools/materials if provided."""
     from app.models.planning import (
@@ -508,9 +519,10 @@ async def update_daily_plan(
         DailyPlanWorker,
     )
 
-    result = await db.execute(
-        select(DailyPlan).where(DailyPlan.id == plan_id)
-    )
+    query = select(DailyPlan).where(DailyPlan.id == plan_id)
+    if org_id:
+        query = query.where(DailyPlan.org_id == org_id)
+    result = await db.execute(query)
     plan = result.scalar_one_or_none()
     if not plan:
         raise HTTPException(
@@ -588,7 +600,7 @@ async def update_daily_plan(
     return plan
 
 
-async def delete_daily_plan(db: AsyncSession, plan_id: UUID) -> None:
+async def delete_daily_plan(db: AsyncSession, plan_id: UUID, *, org_id: Optional[UUID] = None) -> None:
     """Delete a daily plan and all its children (CASCADE)."""
     from app.models.planning import (
         DailyPlan,
@@ -597,9 +609,10 @@ async def delete_daily_plan(db: AsyncSession, plan_id: UUID) -> None:
         DailyPlanWorker,
     )
 
-    result = await db.execute(
-        select(DailyPlan).where(DailyPlan.id == plan_id)
-    )
+    query = select(DailyPlan).where(DailyPlan.id == plan_id)
+    if org_id:
+        query = query.where(DailyPlan.org_id == org_id)
+    result = await db.execute(query)
     plan = result.scalar_one_or_none()
     if not plan:
         raise HTTPException(
@@ -632,6 +645,7 @@ async def check_conflicts(
     plan_date: date,
     employee_id: Optional[UUID] = None,
     tool_id: Optional[UUID] = None,
+    org_id: Optional[UUID] = None,
 ) -> dict:
     """
     Check if an employee or tool has conflicts on a given date.
@@ -766,11 +780,14 @@ async def list_material_reservations(
     limit: int = 20,
     offset: int = 0,
     work_order_id: Optional[UUID] = None,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list, int]:
     """List material reservations with optional WO filter and pagination."""
     from app.models.planning import MaterialReservation
 
     query = select(MaterialReservation)
+    if org_id:
+        query = query.where(MaterialReservation.org_id == org_id)
     if work_order_id:
         query = query.where(MaterialReservation.work_order_id == work_order_id)
 
@@ -787,13 +804,16 @@ async def list_material_reservations(
 async def cancel_material_reservation(
     db: AsyncSession,
     reservation_id: UUID,
+    *,
+    org_id: Optional[UUID] = None,
 ) -> "MaterialReservation":
     """Cancel a material reservation."""
     from app.models.planning import MaterialReservation, ReservationStatus
 
-    result = await db.execute(
-        select(MaterialReservation).where(MaterialReservation.id == reservation_id)
-    )
+    query = select(MaterialReservation).where(MaterialReservation.id == reservation_id)
+    if org_id:
+        query = query.where(MaterialReservation.org_id == org_id)
+    result = await db.execute(query)
     reservation = result.scalar_one_or_none()
     if not reservation:
         raise HTTPException(
@@ -886,11 +906,14 @@ async def list_tool_reservations(
     limit: int = 20,
     offset: int = 0,
     work_order_id: Optional[UUID] = None,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list, int]:
     """List tool reservations with optional WO filter and pagination."""
     from app.models.planning import ToolReservation
 
     query = select(ToolReservation)
+    if org_id:
+        query = query.where(ToolReservation.org_id == org_id)
     if work_order_id:
         query = query.where(ToolReservation.work_order_id == work_order_id)
 
@@ -907,13 +930,16 @@ async def list_tool_reservations(
 async def cancel_tool_reservation(
     db: AsyncSession,
     reservation_id: UUID,
+    *,
+    org_id: Optional[UUID] = None,
 ) -> "ToolReservation":
     """Cancel a tool reservation."""
     from app.models.planning import ToolReservation, ToolReservationStatus
 
-    result = await db.execute(
-        select(ToolReservation).where(ToolReservation.id == reservation_id)
-    )
+    query = select(ToolReservation).where(ToolReservation.id == reservation_id)
+    if org_id:
+        query = query.where(ToolReservation.org_id == org_id)
+    result = await db.execute(query)
     reservation = result.scalar_one_or_none()
     if not reservation:
         raise HTTPException(

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button, Card, Row, Col, Table, App, Typography, Space } from 'antd';
 import {
   FileText, Package, Users, Wrench, ClipboardList, CalendarOff,
-  CalendarCheck, Clock, ArrowRight, Edit,
+  CalendarCheck, Clock, ArrowRight, Edit, CheckCircle,
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import useAuthStore from '../stores/authStore';
@@ -12,6 +12,7 @@ import { COLORS } from '../utils/constants';
 import PageHeader from '../components/PageHeader';
 import StatCard from '../components/StatCard';
 import StatusBadge from '../components/StatusBadge';
+import ScopeBadge from '../components/ScopeBadge';
 import api from '../services/api';
 
 const { Text } = Typography;
@@ -229,6 +230,160 @@ function StaffDashboard() {
 }
 
 // ============================================================
+// Supervisor Dashboard
+// ============================================================
+function SupervisorDashboard() {
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const employeeId = useAuthStore((s) => s.employeeId);
+  const employeeName = useAuthStore((s) => s.employeeName);
+  const departmentName = useAuthStore((s) => s.departmentName);
+  const { can } = usePermission();
+
+  const [stats, setStats] = useState({
+    deptEmployees: 0, todayReports: 0, pendingApprovals: 0, workOrders: 0,
+  });
+  const [myReport, setMyReport] = useState(null);
+  const [myLeaveBalance, setMyLeaveBalance] = useState(null);
+
+  useEffect(() => {
+    const today = dayjs().format('YYYY-MM-DD');
+    const year = dayjs().year();
+    const requests = [];
+
+    // Department stats
+    if (can('hr.employee.read')) {
+      requests.push(
+        api.get('/api/hr/employees', { params: { limit: 1, offset: 0 } })
+          .then((r) => ({ key: 'deptEmployees', value: r.data.total || 0 }))
+          .catch(() => ({ key: 'deptEmployees', value: 0 }))
+      );
+    }
+    requests.push(
+      api.get('/api/daily-report', { params: { date_from: today, date_to: today, limit: 1, offset: 0 } })
+        .then((r) => ({ key: 'todayReports', value: r.data.total || 0 }))
+        .catch(() => ({ key: 'todayReports', value: 0 }))
+    );
+    requests.push(
+      api.get('/api/daily-report', { params: { status: 'SUBMITTED', limit: 1, offset: 0 } })
+        .then((r) => ({ key: 'pendingApprovals', value: r.data.total || 0 }))
+        .catch(() => ({ key: 'pendingApprovals', value: 0 }))
+    );
+    if (can('workorder.order.read')) {
+      requests.push(
+        api.get('/api/work-orders', { params: { limit: 1, offset: 0 } })
+          .then((r) => ({ key: 'workOrders', value: r.data.total || 0 }))
+          .catch(() => ({ key: 'workOrders', value: 0 }))
+      );
+    }
+
+    // Personal data
+    if (employeeId) {
+      requests.push(
+        api.get('/api/daily-report', { params: { employee_id: employeeId, date_from: today, date_to: today, limit: 1 } })
+          .then((r) => ({ key: '_myReport', value: (r.data.items || [])[0] || null }))
+          .catch(() => ({ key: '_myReport', value: null }))
+      );
+      requests.push(
+        api.get('/api/hr/leave-balance', { params: { employee_id: employeeId, year, limit: 100 } })
+          .then((r) => ({ key: '_myBalance', value: r.data.items || r.data || [] }))
+          .catch(() => ({ key: '_myBalance', value: [] }))
+      );
+    }
+
+    Promise.all(requests).then((results) => {
+      setStats((prev) => {
+        const newStats = { ...prev };
+        results.forEach((r) => {
+          if (r.key === '_myReport') setMyReport(r.value);
+          else if (r.key === '_myBalance') {
+            const annual = r.value.find((b) => b.leave_type_code === 'ANNUAL');
+            setMyLeaveBalance(annual || (r.value.length > 0 ? r.value[0] : null));
+          }
+          else newStats[r.key] = r.value;
+        });
+        return newStats;
+      });
+    });
+  }, [employeeId]);
+
+  const deptCards = [
+    { title: 'พนักงานในแผนก', value: stats.deptEmployees, icon: <Users size={20} />, color: COLORS.purple },
+    { title: 'รายงานวันนี้', value: stats.todayReports, icon: <ClipboardList size={20} />, color: COLORS.accent },
+    { title: 'รอการอนุมัติ', value: stats.pendingApprovals, icon: <CheckCircle size={20} />, color: COLORS.warning },
+    { title: 'Work Orders', value: stats.workOrders, icon: <FileText size={20} />, color: '#3b82f6' },
+  ];
+
+  return (
+    <div>
+      <PageHeader
+        title={`สวัสดี, ${employeeName || user?.full_name || 'User'}!`}
+        subtitle={<span>ภาพรวมแผนก <ScopeBadge /></span>}
+      />
+
+      {/* Department Stats */}
+      <Row gutter={[12, 12]} style={{ marginBottom: 24 }}>
+        {deptCards.map((card, i) => (
+          <Col xs={12} sm={12} md={6} key={i}>
+            <StatCard title={card.title} value={card.value} icon={card.icon} color={card.color} />
+          </Col>
+        ))}
+      </Row>
+
+      {/* Quick Actions */}
+      <Card
+        size="small"
+        style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, marginBottom: 24 }}
+      >
+        <Space wrap>
+          {can('hr.dailyreport.approve') && (
+            <Button type="primary" icon={<CheckCircle size={14} />} onClick={() => navigate('/hr')}>
+              อนุมัติรายงาน
+            </Button>
+          )}
+          {can('workorder.plan.create') && (
+            <Button icon={<CalendarCheck size={14} />} onClick={() => navigate('/planning')}>
+              วางแผนงาน
+            </Button>
+          )}
+          <Button icon={<Users size={14} />} onClick={() => navigate('/hr')}>
+            จัดการพนักงาน
+          </Button>
+        </Space>
+      </Card>
+
+      {/* Personal Section */}
+      <Card
+        title={<Text style={{ fontSize: 14 }}>ข้อมูลของฉัน</Text>}
+        size="small"
+        style={{ background: COLORS.card, border: `1px solid ${COLORS.border}` }}
+        extra={<Button type="link" size="small" onClick={() => navigate('/me')}>ดูทั้งหมด <ArrowRight size={12} /></Button>}
+      >
+        <Row gutter={[12, 12]}>
+          <Col xs={12}>
+            <StatCard
+              title="Report วันนี้"
+              value={myReport ? myReport.status : 'ยังไม่กรอก'}
+              icon={<ClipboardList size={20} />}
+              color={myReport ? COLORS.success : COLORS.warning}
+            />
+          </Col>
+          <Col xs={12}>
+            <StatCard
+              title="วันลาเหลือ"
+              value={myLeaveBalance ? `${Number(myLeaveBalance.quota || 0) - Number(myLeaveBalance.used || 0)}` : '—'}
+              subtitle={myLeaveBalance ? 'วัน' : ''}
+              icon={<CalendarOff size={20} />}
+              color={COLORS.accent}
+            />
+          </Col>
+        </Row>
+      </Card>
+    </div>
+  );
+}
+
+// ============================================================
 // Manager/Admin Dashboard
 // ============================================================
 function AdminDashboard() {
@@ -315,11 +470,11 @@ export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
   const role = user?.role;
 
-  // Staff and Viewer get the personal/staff dashboard
   if (role === 'staff' || role === 'viewer') {
     return <StaffDashboard />;
   }
-
-  // Manager, Supervisor, Owner get admin dashboard
+  if (role === 'supervisor') {
+    return <SupervisorDashboard />;
+  }
   return <AdminDashboard />;
 }

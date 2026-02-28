@@ -220,13 +220,16 @@ async def api_update_user_role(
 async def api_audit_log(
     limit: int = Query(default=50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """
     Audit log placeholder — returns recent user activity.
     Full audit logging would use a dedicated audit_logs table.
     """
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     result = await db.execute(
         select(User)
+        .where(User.org_id == org_id)
         .order_by(User.updated_at.desc())
         .limit(limit)
     )

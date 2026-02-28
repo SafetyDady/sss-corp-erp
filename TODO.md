@@ -1,7 +1,7 @@
 # TODO.md — SSS Corp ERP Implementation Tracker
 
 > อ้างอิง: `CLAUDE.md` → Implementation Phases + Business Rules
-> อัปเดตล่าสุด: 2026-02-28 (Phase 5 complete — Staff Portal & Daily Report)
+> อัปเดตล่าสุด: 2026-02-28 (Phase 6 complete — Data Scope Backend + Frontend)
 
 ---
 
@@ -509,6 +509,32 @@
 
 ---
 
+## Phase 6 — Data Scope: Role-Based Data Visibility ✅
+
+### 6.1-6.7 Backend Data Scope ✅
+
+- [x] Shared helpers (`backend/app/api/_helpers.py`) — resolve_employee_id, resolve_employee, get_department_employee_ids
+- [x] Critical Security: Missing org_id filter fixed (finance, planning, admin, hr)
+- [x] Role-Based Filter: Timesheet (staff=own, supervisor=dept, manager/owner=all)
+- [x] Role-Based Filter: Leave + Leave Balance (same pattern)
+- [x] Role-Based Filter: Employee (supervisor=dept)
+- [x] Refactor daily_report.py — shared helpers, removed duplicates
+- [x] Data scope ownership validation on create (staff=self only)
+
+### 6.8-6.14 Frontend Data Scope ✅
+
+- [x] Backend: `department_name` in `/api/auth/me` (auth.py schema + API + authStore)
+- [x] Fix MePage bug: 3 API calls missing `employee_id` — guard + dependency added
+- [x] `ScopeBadge.jsx` — NEW: role-aware scope indicator (cyan=personal, purple=dept, green=org)
+- [x] `SupervisorDashboard` — NEW: 3-way dashboard routing (staff/supervisor/admin)
+- [x] `EmployeeContextSelector.jsx` — NEW: role-scoped employee dropdown with auto scope
+- [x] HR Page: ScopeBadge in subtitle + EmployeeContextSelector on 5 tabs (Timesheet, Leave, StandardTimesheet, LeaveBalance, WOTimeEntry)
+- [x] MePage: Viewer fix — permission-filtered tabs + ME menu visibility
+- [x] App.jsx: ME menu shown only if user has at least 1 my-page permission
+- [x] Bug fixes: COLORS.info → '#3b82f6', unused imports removed, stale closure fixed
+
+---
+
 ## Summary
 
 | Phase | Backend | Frontend | Migrations | Status |
@@ -519,12 +545,14 @@
 | Phase 3 — Business Flow + Frontend | ~10 files | 54 files | — | ✅ |
 | Phase 4 — Org + Planning + Production | ~25 files | ~20 files | 6 | ✅ |
 | Phase 5 — Staff Portal & Daily Report | ~10 files | ~12 files | 2 | ✅ |
-| **Total** | **~85 files** | **~82 files** | **12** | **✅** |
+| Phase 6 — Data Scope | ~8 files | 14 files | — | ✅ |
+| **Total** | **~93 files** | **~96 files** | **12** | **✅** |
 
 **Permissions:** 89 → 105 → 108 (Phase 4: +16, Phase 5: +3 dailyreport)
 **Business Rules:** 35 → 46 → 55 (Phase 4: +11, Phase 5: +9)
 **Routes:** 17 → 20+ → 25+ (Staff Portal: +4 my/* routes)
+**New Components (Phase 6):** ScopeBadge, EmployeeContextSelector, SupervisorDashboard
 
 ---
 
-*Last updated: 2026-02-28 — Phase 5 complete (108 permissions, 55 BRs, ~167 files)*
+*Last updated: 2026-02-28 — Phase 6 complete (108 permissions, 55 BRs, ~189 files)*

@@ -9,6 +9,7 @@ import EmptyState from '../../components/EmptyState';
 import TimesheetFormModal from './TimesheetFormModal';
 import { formatDate } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
+import EmployeeContextSelector from '../../components/EmployeeContextSelector';
 
 const { Text } = Typography;
 
@@ -25,6 +26,7 @@ export default function TimesheetTab() {
   const [statusFilter, setStatusFilter] = useState(undefined);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
   const [modalOpen, setModalOpen] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState(undefined);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -35,6 +37,7 @@ export default function TimesheetTab() {
           offset: (pagination.current - 1) * pagination.pageSize,
           search: search || undefined,
           status: statusFilter || undefined,
+          employee_id: selectedEmployee || undefined,
         },
       });
       setItems(data.items);
@@ -44,7 +47,7 @@ export default function TimesheetTab() {
     } finally {
       setLoading(false);
     }
-  }, [pagination.current, pagination.pageSize, search, statusFilter]);
+  }, [pagination.current, pagination.pageSize, search, statusFilter, selectedEmployee]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -140,6 +143,12 @@ export default function TimesheetTab() {
 
   return (
     <div>
+      <div style={{ marginBottom: 16 }}>
+        <EmployeeContextSelector
+          value={selectedEmployee}
+          onChange={(val) => { setSelectedEmployee(val); setPagination((p) => ({ ...p, current: 1 })); }}
+        />
+      </div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <SearchInput onSearch={setSearch} placeholder="ค้นหา..." />

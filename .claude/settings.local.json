@@ -6,7 +6,9 @@
       "Bash(git commit:*)",
       "Bash(ls:*)",
       "Bash(npm install:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(find backend/app/models -name \"user.py\" -exec head -100 {} ;)",
+      "Bash(wc -l \"C:/web_project/sss-corp/sss-corp-erp/frontend/src/pages/hr\"/*.jsx)"
     ]
   }
 }

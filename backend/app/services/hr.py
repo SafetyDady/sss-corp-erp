@@ -114,10 +114,13 @@ async def list_employees(
     offset: int = 0,
     search: Optional[str] = None,
     org_id: Optional[UUID] = None,
+    department_id: Optional[UUID] = None,
 ) -> tuple[list[Employee], int]:
     query = select(Employee).where(Employee.is_active == True)
     if org_id:
         query = query.where(Employee.org_id == org_id)
+    if department_id:
+        query = query.where(Employee.department_id == department_id)
 
     if search:
         pattern = f"%{search}%"
@@ -140,8 +143,9 @@ async def update_employee(
     emp_id: UUID,
     *,
     update_data: dict,
+    org_id: Optional[UUID] = None,
 ) -> Employee:
-    emp = await get_employee(db, emp_id)
+    emp = await get_employee(db, emp_id, org_id=org_id)
     for field, value in update_data.items():
         if value is not None:
             setattr(emp, field, value)
@@ -150,8 +154,8 @@ async def update_employee(
     return emp
 
 
-async def delete_employee(db: AsyncSession, emp_id: UUID) -> None:
-    emp = await get_employee(db, emp_id)
+async def delete_employee(db: AsyncSession, emp_id: UUID, *, org_id: Optional[UUID] = None) -> None:
+    emp = await get_employee(db, emp_id, org_id=org_id)
     emp.is_active = False
     await db.commit()
 
@@ -272,6 +276,7 @@ async def list_timesheets(
     limit: int = 20,
     offset: int = 0,
     employee_id: Optional[UUID] = None,
+    employee_ids: Optional[list[UUID]] = None,
     work_order_id: Optional[UUID] = None,
     status_filter: Optional[str] = None,
     org_id: Optional[UUID] = None,
@@ -282,6 +287,12 @@ async def list_timesheets(
 
     if employee_id:
         query = query.where(Timesheet.employee_id == employee_id)
+    elif employee_ids is not None:
+        if employee_ids:
+            query = query.where(Timesheet.employee_id.in_(employee_ids))
+        else:
+            return [], 0
+
     if work_order_id:
         query = query.where(Timesheet.work_order_id == work_order_id)
     if status_filter:
@@ -302,8 +313,9 @@ async def update_timesheet(
     ts_id: UUID,
     *,
     update_data: dict,
+    org_id: Optional[UUID] = None,
 ) -> Timesheet:
-    ts = await get_timesheet(db, ts_id)
+    ts = await get_timesheet(db, ts_id, org_id=org_id)
 
     # Cannot edit FINAL or REJECTED timesheets
     if ts.status in (TimesheetStatus.FINAL, TimesheetStatus.REJECTED):
@@ -377,9 +389,11 @@ async def final_approve_timesheet(
 async def unlock_timesheet(
     db: AsyncSession,
     ts_id: UUID,
+    *,
+    org_id: Optional[UUID] = None,
 ) -> Timesheet:
     """HR unlock a locked timesheet (BR#22)."""
-    ts = await get_timesheet(db, ts_id)
+    ts = await get_timesheet(db, ts_id, org_id=org_id)
 
     if not ts.is_locked:
         raise HTTPException(
@@ -500,6 +514,7 @@ async def list_leaves(
     limit: int = 20,
     offset: int = 0,
     employee_id: Optional[UUID] = None,
+    employee_ids: Optional[list[UUID]] = None,
     org_id: Optional[UUID] = None,
 ) -> tuple[list[dict], int]:
     """List leaves with joined employee_name + leave_type info."""
@@ -519,13 +534,25 @@ async def list_leaves(
         query = query.where(Leave.org_id == org_id)
     if employee_id:
         query = query.where(Leave.employee_id == employee_id)
+    elif employee_ids is not None:
+        if employee_ids:
+            query = query.where(Leave.employee_id.in_(employee_ids))
+        else:
+            return [], 0
 
     # Count
+    count_filters = []
+    if org_id:
+        count_filters.append(Leave.org_id == org_id)
+    if employee_id:
+        count_filters.append(Leave.employee_id == employee_id)
+    elif employee_ids is not None:
+        if employee_ids:
+            count_filters.append(Leave.employee_id.in_(employee_ids))
+        else:
+            return [], 0
     count_q = select(func.count()).select_from(
-        select(Leave.id).where(
-            *([Leave.org_id == org_id] if org_id else []),
-            *([Leave.employee_id == employee_id] if employee_id else []),
-        ).subquery()
+        select(Leave.id).where(*count_filters).subquery() if count_filters else select(Leave.id).subquery()
     )
     total_result = await db.execute(count_q)
     total = total_result.scalar() or 0
@@ -595,13 +622,22 @@ async def list_standard_timesheets(
     db: AsyncSession,
     *,
     employee_id: Optional[UUID] = None,
+    employee_ids: Optional[list[UUID]] = None,
     period_start: Optional[date] = None,
     period_end: Optional[date] = None,
+    org_id: Optional[UUID] = None,
 ) -> tuple[list, int]:
     from app.models.hr import StandardTimesheet
     query = select(StandardTimesheet)
+    if org_id:
+        query = query.where(StandardTimesheet.org_id == org_id)
     if employee_id:
         query = query.where(StandardTimesheet.employee_id == employee_id)
+    elif employee_ids is not None:
+        if employee_ids:
+            query = query.where(StandardTimesheet.employee_id.in_(employee_ids))
+        else:
+            return [], 0
     if period_start:
         query = query.where(StandardTimesheet.work_date >= period_start)
     if period_end:
@@ -872,7 +908,9 @@ async def list_leave_balances(
     db: AsyncSession,
     *,
     employee_id: Optional[UUID] = None,
+    employee_ids: Optional[list[UUID]] = None,
     year: Optional[int] = None,
+    org_id: Optional[UUID] = None,
 ) -> list[dict]:
     """List leave balances with joined employee_name + leave_type info."""
     from app.models.hr import LeaveBalance
@@ -888,8 +926,15 @@ async def list_leave_balances(
         .outerjoin(Employee, LeaveBalance.employee_id == Employee.id)
         .outerjoin(LeaveTypeModel, LeaveBalance.leave_type_id == LeaveTypeModel.id)
     )
+    if org_id:
+        query = query.where(Employee.org_id == org_id)
     if employee_id:
         query = query.where(LeaveBalance.employee_id == employee_id)
+    elif employee_ids is not None:
+        if employee_ids:
+            query = query.where(LeaveBalance.employee_id.in_(employee_ids))
+        else:
+            return []
     if year:
         query = query.where(LeaveBalance.year == year)
     query = query.order_by(LeaveBalance.year.desc(), Employee.full_name.asc())
@@ -920,11 +965,13 @@ async def update_leave_balance(
     balance_id: UUID,
     *,
     update_data: dict,
+    org_id: Optional[UUID] = None,
 ) -> "LeaveBalance":
     from app.models.hr import LeaveBalance
-    result = await db.execute(
-        select(LeaveBalance).where(LeaveBalance.id == balance_id)
-    )
+    query = select(LeaveBalance).where(LeaveBalance.id == balance_id)
+    if org_id:
+        query = query.join(Employee, LeaveBalance.employee_id == Employee.id).where(Employee.org_id == org_id)
+    result = await db.execute(query)
     balance = result.scalar_one_or_none()
     if not balance:
         raise HTTPException(status_code=404, detail="Leave balance not found")

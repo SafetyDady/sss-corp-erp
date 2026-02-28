@@ -9,6 +9,7 @@ import EmptyState from '../../components/EmptyState';
 import LeaveFormModal from './LeaveFormModal';
 import { formatDate } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
+import EmployeeContextSelector from '../../components/EmployeeContextSelector';
 
 const LEAVE_TYPE_COLORS = {
   ANNUAL:    { color: '#06b6d4', label: 'ลาพักร้อน' },
@@ -36,6 +37,7 @@ export default function LeaveTab() {
   const [statusFilter, setStatusFilter] = useState(undefined);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
   const [modalOpen, setModalOpen] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState(undefined);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -45,6 +47,7 @@ export default function LeaveTab() {
           limit: pagination.pageSize,
           offset: (pagination.current - 1) * pagination.pageSize,
           status: statusFilter || undefined,
+          employee_id: selectedEmployee || undefined,
         },
       });
       setItems(data.items);
@@ -54,7 +57,7 @@ export default function LeaveTab() {
     } finally {
       setLoading(false);
     }
-  }, [pagination.current, pagination.pageSize, statusFilter]);
+  }, [pagination.current, pagination.pageSize, statusFilter, selectedEmployee]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -134,6 +137,12 @@ export default function LeaveTab() {
 
   return (
     <div>
+      <div style={{ marginBottom: 16 }}>
+        <EmployeeContextSelector
+          value={selectedEmployee}
+          onChange={(val) => { setSelectedEmployee(val); setPagination((p) => ({ ...p, current: 1 })); }}
+        />
+      </div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <Select
           allowClear placeholder="กรองสถานะ" style={{ width: 160 }}

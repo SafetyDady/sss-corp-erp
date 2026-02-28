@@ -45,7 +45,7 @@ const MePage = lazy(() => import('./pages/my/MePage'));
 const SupplyChainPage = lazy(() => import('./pages/supply-chain/SupplyChainPage'));
 
 const MY_MENU_ITEMS = [
-  { key: '/me', icon: <User size={18} />, label: 'ME', permission: null },
+  { key: '/me', icon: <User size={18} />, label: 'ME', permission: '_me_check' },
 ];
 
 const SYSTEM_MENU_ITEMS = [
@@ -78,9 +78,13 @@ function AppLayout() {
   const { can } = usePermission();
   const [collapsed, setCollapsed] = useState(false);
 
-  const myItems = MY_MENU_ITEMS.filter(
-    (item) => !item.permission || can(item.permission)
-  ).map((item) => ({
+  const myItems = MY_MENU_ITEMS.filter((item) => {
+    if (item.permission === '_me_check') {
+      return can('workorder.plan.read') || can('hr.timesheet.read') ||
+             can('hr.leave.read') || can('hr.dailyreport.read');
+    }
+    return !item.permission || can(item.permission);
+  }).map((item) => ({
     key: item.key,
     icon: item.icon,
     label: item.label,
