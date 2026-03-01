@@ -1,5 +1,5 @@
 import { Tabs } from 'antd';
-import { Building2, Layers, Clock, Network, CalendarOff, Clock4, CalendarClock } from 'lucide-react';
+import { Building2, Layers, Clock, Network, CalendarOff, Clock4, CalendarClock, Truck } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import { usePermission } from '../../hooks/usePermission';
 import CostCenterTab from './CostCenterTab';
@@ -9,6 +9,7 @@ import DepartmentTab from './DepartmentTab';
 import LeaveTypeTab from './LeaveTypeTab';
 import ShiftTypeTab from './ShiftTypeTab';
 import WorkScheduleTab from './WorkScheduleTab';
+import SupplierTab from './SupplierTab';
 import { COLORS } from '../../utils/constants';
 
 const tabLabel = (Icon, text) => (
@@ -56,13 +57,18 @@ export default function MasterDataPage() {
       label: tabLabel(CalendarClock, 'ตารางกะ'),
       children: <WorkScheduleTab />,
     },
+    can('master.supplier.read') && {
+      key: 'suppliers',
+      label: tabLabel(Truck, 'ซัพพลายเออร์'),
+      children: <SupplierTab />,
+    },
   ].filter(Boolean);
 
   return (
     <div>
       <PageHeader
         title="Master Data"
-        subtitle="ข้อมูลหลัก — แผนก, Cost Center, Cost Element, ประเภท OT, ประเภทลา, ประเภทกะ, ตารางกะ"
+        subtitle="ข้อมูลหลัก — แผนก, Cost Center, Cost Element, ประเภท OT, ประเภทลา, ประเภทกะ, ตารางกะ, ซัพพลายเออร์"
       />
       {items.length > 0 ? (
         <Tabs defaultActiveKey={items[0]?.key} items={items} destroyOnHidden />

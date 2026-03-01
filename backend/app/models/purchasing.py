@@ -32,6 +32,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 from app.models.user import TimestampMixin, OrgMixin
 
+# Supplier import for relationship (avoid circular import with TYPE_CHECKING)
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from app.models.master import Supplier
+
 
 # ============================================================
 # ENUMS — Purchase Requisition
@@ -214,6 +219,11 @@ class PurchaseOrder(Base, TimestampMixin, OrgMixin):
         unique=True,
     )
     supplier_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    supplier_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("suppliers.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     status: Mapped[POStatus] = mapped_column(
         Enum(POStatus, name="po_status_enum"),
         nullable=False,
@@ -253,6 +263,9 @@ class PurchaseOrder(Base, TimestampMixin, OrgMixin):
     )
     purchase_requisition: Mapped["PurchaseRequisition | None"] = relationship(
         foreign_keys=[pr_id], lazy="joined"
+    )
+    supplier: Mapped["Supplier | None"] = relationship(
+        "Supplier", foreign_keys=[supplier_id], lazy="joined"
     )
 
     __table_args__ = (

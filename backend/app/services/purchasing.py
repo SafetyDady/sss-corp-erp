@@ -336,6 +336,7 @@ async def convert_pr_to_po(
         po_number=po_number,
         pr_id=pr.id,
         supplier_name=body["supplier_name"],
+        supplier_id=body.get("supplier_id"),
         status=POStatus.APPROVED,  # Auto-approved since PR is approved
         order_date=date.today(),
         expected_date=body.get("expected_date"),

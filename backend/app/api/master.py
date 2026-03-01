@@ -50,6 +50,10 @@ from app.schemas.master import (
     ShiftTypeListResponse,
     ShiftTypeResponse,
     ShiftTypeUpdate,
+    SupplierCreate,
+    SupplierListResponse,
+    SupplierResponse,
+    SupplierUpdate,
     WorkScheduleCreate,
     WorkScheduleListResponse,
     WorkScheduleResponse,
@@ -67,30 +71,35 @@ from app.services.master import (
     create_leave_type,
     create_ot_type,
     create_shift_type,
+    create_supplier,
     create_work_schedule,
     delete_cost_center,
     delete_cost_element,
     delete_leave_type,
     delete_ot_type,
     delete_shift_type,
+    delete_supplier,
     delete_work_schedule,
     get_cost_center,
     get_cost_element,
     get_leave_type,
     get_ot_type,
     get_shift_type,
+    get_supplier,
     get_work_schedule,
     list_cost_centers,
     list_cost_elements,
     list_leave_types,
     list_ot_types,
     list_shift_types,
+    list_suppliers,
     list_work_schedules,
     update_cost_center,
     update_cost_element,
     update_leave_type,
     update_ot_type,
     update_shift_type,
+    update_supplier,
     update_work_schedule,
 )
 from app.services.organization import (
@@ -732,3 +741,98 @@ async def api_delete_work_schedule(
     """Soft-delete a work schedule (fails if employees are using it)."""
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     await delete_work_schedule(db, ws_id, org_id=org_id)
+
+
+# ============================================================
+# SUPPLIER ROUTES  (Phase 11 — Supplier Master Data)
+# ============================================================
+
+@master_router.get(
+    "/suppliers",
+    response_model=SupplierListResponse,
+    dependencies=[Depends(require("master.supplier.read"))],
+)
+async def api_list_suppliers(
+    limit: int = Query(default=20, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    search: Optional[str] = Query(default=None, max_length=100),
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """List suppliers with pagination and search."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    items, total = await list_suppliers(db, limit=limit, offset=offset, search=search, org_id=org_id)
+    return SupplierListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+@master_router.post(
+    "/suppliers",
+    response_model=SupplierResponse,
+    status_code=201,
+    dependencies=[Depends(require("master.supplier.create"))],
+)
+async def api_create_supplier(
+    body: SupplierCreate,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Create a new supplier."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await create_supplier(
+        db,
+        code=body.code,
+        name=body.name,
+        contact_name=body.contact_name,
+        email=body.email,
+        phone=body.phone,
+        address=body.address,
+        tax_id=body.tax_id,
+        org_id=org_id,
+    )
+
+
+@master_router.get(
+    "/suppliers/{supplier_id}",
+    response_model=SupplierResponse,
+    dependencies=[Depends(require("master.supplier.read"))],
+)
+async def api_get_supplier(
+    supplier_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Get a single supplier by ID."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await get_supplier(db, supplier_id, org_id=org_id)
+
+
+@master_router.put(
+    "/suppliers/{supplier_id}",
+    response_model=SupplierResponse,
+    dependencies=[Depends(require("master.supplier.update"))],
+)
+async def api_update_supplier(
+    supplier_id: UUID,
+    body: SupplierUpdate,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Update a supplier."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    update_data = body.model_dump(exclude_unset=True)
+    return await update_supplier(db, supplier_id, update_data=update_data, org_id=org_id)
+
+
+@master_router.delete(
+    "/suppliers/{supplier_id}",
+    status_code=204,
+    dependencies=[Depends(require("master.supplier.delete"))],
+)
+async def api_delete_supplier(
+    supplier_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Soft-delete a supplier."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    await delete_supplier(db, supplier_id, org_id=org_id)

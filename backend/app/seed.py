@@ -28,7 +28,7 @@ from app.core.database import AsyncSessionLocal, engine, Base
 from app.core.config import DEFAULT_ORG_ID
 from app.core.security import hash_password
 from app.models import User, Organization
-from app.models.master import CostCenter, OTType, LeaveType, ShiftType, WorkSchedule, ScheduleType
+from app.models.master import CostCenter, OTType, LeaveType, ShiftType, WorkSchedule, ScheduleType, Supplier
 from app.models.organization import Department
 from app.models.hr import Employee, LeaveBalance, PayType
 from app.models.warehouse import Warehouse, Location
@@ -102,6 +102,13 @@ PROD_QC_ID       = UUID("00000000-0000-0000-000a-000000000005")
 TOOL_DRILL_ID   = UUID("00000000-0000-0000-000b-000000000001")
 TOOL_WELDER_ID  = UUID("00000000-0000-0000-000b-000000000002")
 TOOL_LASER_ID   = UUID("00000000-0000-0000-000b-000000000003")
+
+# Suppliers
+SUP_STEEL_ID    = UUID("00000000-0000-0000-000c-000000000001")
+SUP_ELEC_ID     = UUID("00000000-0000-0000-000c-000000000002")
+SUP_BOLT_ID     = UUID("00000000-0000-0000-000c-000000000003")
+SUP_CHEM_ID     = UUID("00000000-0000-0000-000c-000000000004")
+SUP_PROTECH_ID  = UUID("00000000-0000-0000-000c-000000000005")
 
 
 # ============================================================
@@ -260,6 +267,54 @@ TOOLS = [
      "rate_per_hour": Decimal("350.00"), "description": "เครื่องเชื่อม MIG/MAG 270A"},
     {"id": TOOL_LASER_ID, "code": "TL-003", "name": "เครื่องตัดเลเซอร์ Trumpf",
      "rate_per_hour": Decimal("500.00"), "description": "เครื่องตัดเลเซอร์ไฟเบอร์ 3kW"},
+]
+
+SUPPLIERS = [
+    {
+        "id": SUP_STEEL_ID, "code": "SUP-001",
+        "name": "Thai Steel Supply Co., Ltd.",
+        "contact_name": "คุณสมชาย เหล็กดี",
+        "email": "sales@thaisteel.co.th",
+        "phone": "02-123-4567",
+        "address": "123 ถ.พระราม 3 แขวงบางโพงพาง เขตยานนาวา กรุงเทพฯ 10120",
+        "tax_id": "0105548012345",
+    },
+    {
+        "id": SUP_ELEC_ID, "code": "SUP-002",
+        "name": "Bangkok Electrical Parts",
+        "contact_name": "คุณวิชัย ไฟฟ้า",
+        "email": "info@bkkelec.com",
+        "phone": "02-234-5678",
+        "address": "456 ซ.สุขุมวิท 71 แขวงพระโขนง เขตวัฒนา กรุงเทพฯ 10110",
+        "tax_id": "0105551023456",
+    },
+    {
+        "id": SUP_BOLT_ID, "code": "SUP-003",
+        "name": "Fast Bolt & Nut Trading",
+        "contact_name": "คุณประพันธ์ น็อตดี",
+        "email": "order@fastbolt.co.th",
+        "phone": "02-345-6789",
+        "address": "789 ถ.เพชรเกษม แขวงบางแค เขตบางแค กรุงเทพฯ 10160",
+        "tax_id": "0105553034567",
+    },
+    {
+        "id": SUP_CHEM_ID, "code": "SUP-004",
+        "name": "Siam Chemical Industries",
+        "contact_name": "คุณนภา เคมี",
+        "email": "purchase@siamchem.com",
+        "phone": "02-456-7890",
+        "address": "321 นิคมอุตสาหกรรมบางปู ถ.สุขุมวิท สมุทรปราการ 10280",
+        "tax_id": "0105555045678",
+    },
+    {
+        "id": SUP_PROTECH_ID, "code": "SUP-005",
+        "name": "ProTech Engineering Services",
+        "contact_name": "คุณธีรศักดิ์ เทค",
+        "email": "service@protech-eng.com",
+        "phone": "02-567-8901",
+        "address": "654 ถ.ศรีนครินทร์ แขวงหนองบอน เขตประเวศ กรุงเทพฯ 10250",
+        "tax_id": "0105557056789",
+    },
 ]
 
 
@@ -598,6 +653,17 @@ async def seed():
                 print(f"  [Tool] {tool_data['code']} — {tool_data['name']} ({tool_data['rate_per_hour']} ฿/hr)")
             else:
                 print(f"  [Tool] {tool_data['code']} (exists)")
+
+        # ── 16. Suppliers ───────────────────────────────
+        print()
+        for sup_data in SUPPLIERS:
+            existing = await _check_exists(db, Supplier, id=sup_data["id"])
+            if not existing:
+                supplier = Supplier(org_id=DEFAULT_ORG_ID, **sup_data)
+                db.add(supplier)
+                print(f"  [Sup]  {sup_data['code']} — {sup_data['name']}")
+            else:
+                print(f"  [Sup]  {sup_data['code']} (exists)")
 
         # ----- COMMIT -----
         await db.commit()

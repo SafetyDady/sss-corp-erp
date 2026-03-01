@@ -1,7 +1,7 @@
 # TODO.md — SSS Corp ERP Implementation Tracker
 
 > อ้างอิง: `CLAUDE.md` → Implementation Phases + Business Rules
-> อัปเดตล่าสุด: 2026-03-01 (PO QR Code + Delivery Note Number)
+> อัปเดตล่าสุด: 2026-03-01 (Supplier Master Data + PO Integration)
 
 ---
 
@@ -984,6 +984,97 @@
 | 10 | `frontend/src/pages/purchasing/POTab.jsx` | แก้ไข |
 
 **รวม: 2 ไฟล์ใหม่ + 8 ไฟล์แก้ไข = 10 ไฟล์**
+
+---
+
+## Phase 11 (Continued) — Supplier Master Data + PO Integration ✅
+
+> **Scope**: (1) Supplier master data CRUD (2) PO เชื่อมกับ Supplier ผ่าน FK (3) ConvertToPO เลือก Supplier จาก dropdown
+> **Permissions**: +4 (master.supplier.create/read/update/delete) → 123→127 total
+> **สร้าง**: 2026-03-01
+
+### 11.9.1 Database Migration ✅
+
+- [x] New table: `suppliers` (id, code, name, contact_name, email, phone, address, tax_id, is_active, org_id, timestamps)
+- [x] UniqueConstraint: `org_id + code` (code unique per org)
+- [x] New column: `purchase_orders.supplier_id` (UUID, FK → suppliers.id, nullable, ondelete SET NULL)
+- [x] Migration: `c5d6e7f8a9b0_add_supplier_master_data.py` (down_revision = `b4c5d6e7f8a9`)
+
+### 11.9.2 Backend Models ✅
+
+- [x] `Supplier` model in `models/master.py` (code, name, contact_name, email, phone, address Text, tax_id, is_active)
+- [x] `PurchaseOrder.supplier_id` FK + `supplier` relationship (lazy="joined") in `models/purchasing.py`
+- [x] `models/__init__.py` — import + export Supplier
+
+### 11.9.3 Backend Schemas ✅
+
+- [x] `SupplierCreate` — code (uppercase normalized), name, contact_name, email, phone, address, tax_id
+- [x] `SupplierUpdate` — all fields optional (no code change)
+- [x] `SupplierResponse` — all fields + created_at, updated_at (from_attributes)
+- [x] `SupplierListResponse` — items, total, limit, offset
+- [x] `ConvertToPORequest` — +supplier_id optional
+- [x] `PurchaseOrderResponse` — +supplier_id, supplier_code, supplier_contact, supplier_phone
+
+### 11.9.4 Backend Service + API ✅
+
+- [x] `create_supplier()` — duplicate code check → 409
+- [x] `get_supplier()` — by id + is_active + org_id
+- [x] `list_suppliers()` — search ILIKE (code, name, contact_name), pagination
+- [x] `update_supplier()` — partial update via setattr
+- [x] `delete_supplier()` — soft delete (is_active=False)
+- [x] 5 API endpoints: GET/POST `/suppliers`, GET/PUT/DELETE `/suppliers/{id}` under `/api/master/`
+- [x] `convert_pr_to_po()` — passes supplier_id to PO creation
+- [x] `_po_to_response()` — enriches PO response with supplier_code, supplier_contact, supplier_phone
+
+### 11.9.5 Permissions (123→127) ✅
+
+- [x] `master.supplier.create` — owner/manager/supervisor
+- [x] `master.supplier.read` — all 5 roles
+- [x] `master.supplier.update` — owner/manager/supervisor
+- [x] `master.supplier.delete` — owner only
+- [x] 4 Thai descriptions in PERMISSION_DESCRIPTIONS
+
+### 11.9.6 Seed Data ✅
+
+- [x] 5 Suppliers: Thai Steel Supply, Bangkok Electrical Parts, Fast Bolt & Nut Trading, Siam Chemical Industries, ProTech Engineering Services
+- [x] Fixed UUIDs (series 000c) for deterministic seeding
+
+### 11.9.7 Frontend — SupplierTab + SupplierFormModal ✅
+
+- [x] `SupplierTab.jsx` — table with code, name, contact_name, email, phone, status columns + search + pagination + CRUD buttons
+- [x] `SupplierFormModal.jsx` — code (disabled on edit), name, contact_name, phone, email, address (TextArea), tax_id, is_active switch
+
+### 11.9.8 Frontend — MasterDataPage + ConvertToPO + PODetail + permissionMeta ✅
+
+- [x] `MasterDataPage.jsx` — +Supplier tab (Truck icon, permission-gated)
+- [x] `ConvertToPOModal.jsx` — supplier_name Input → supplier_id Select dropdown (showSearch, fetch on open)
+- [x] `PODetailPage.jsx` — +supplier_code, supplier_contact, supplier_phone display (fallback for old POs)
+- [x] `permissionMeta.js` — +`supplier: 'ซัพพลายเออร์'` in RESOURCE_META
+
+### สรุปไฟล์ทั้งหมด
+
+| # | ไฟล์ | ประเภท |
+|---|------|--------|
+| 1 | `backend/alembic/versions/c5d6e7f8a9b0_add_supplier_master_data.py` | สร้างใหม่ |
+| 2 | `backend/app/models/master.py` | แก้ไข |
+| 3 | `backend/app/models/purchasing.py` | แก้ไข |
+| 4 | `backend/app/models/__init__.py` | แก้ไข |
+| 5 | `backend/app/schemas/master.py` | แก้ไข |
+| 6 | `backend/app/schemas/purchasing.py` | แก้ไข |
+| 7 | `backend/app/services/master.py` | แก้ไข |
+| 8 | `backend/app/api/master.py` | แก้ไข |
+| 9 | `backend/app/services/purchasing.py` | แก้ไข |
+| 10 | `backend/app/api/purchasing.py` | แก้ไข |
+| 11 | `backend/app/core/permissions.py` | แก้ไข |
+| 12 | `backend/app/seed.py` | แก้ไข |
+| 13 | `frontend/src/pages/master/SupplierTab.jsx` | สร้างใหม่ |
+| 14 | `frontend/src/pages/master/SupplierFormModal.jsx` | สร้างใหม่ |
+| 15 | `frontend/src/pages/master/MasterDataPage.jsx` | แก้ไข |
+| 16 | `frontend/src/pages/purchasing/ConvertToPOModal.jsx` | แก้ไข |
+| 17 | `frontend/src/pages/purchasing/PODetailPage.jsx` | แก้ไข |
+| 18 | `frontend/src/utils/permissionMeta.js` | แก้ไข |
+
+**รวม: 3 ไฟล์ใหม่ + 15 ไฟล์แก้ไข = 18 ไฟล์**
 
 ---
 

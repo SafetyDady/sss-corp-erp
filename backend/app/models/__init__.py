@@ -2,7 +2,7 @@ from app.models.user import User, RefreshToken
 from app.models.inventory import Product, StockMovement, StockByLocation, ProductType, MovementType
 from app.models.warehouse import Warehouse, Location
 from app.models.workorder import WorkOrder, WOStatus
-from app.models.master import CostCenter, CostElement, OTType, ShiftType, WorkSchedule, ScheduleType
+from app.models.master import CostCenter, CostElement, OTType, ShiftType, WorkSchedule, ScheduleType, Supplier
 from app.models.hr import Employee, Timesheet, TimesheetStatus, Leave, LeaveStatus, PayrollRun, PayrollStatus, PayType, ShiftRoster
 from app.models.tools import Tool, ToolStatus, ToolCheckout
 from app.models.customer import Customer
@@ -83,4 +83,5 @@ __all__ = [
     "DailyWorkReportLine",
     "ReportStatus",
     "LineType",
+    "Supplier",
 ]

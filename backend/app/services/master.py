@@ -17,7 +17,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.master import CostCenter, CostElement, LeaveType, OTType, ShiftType, WorkSchedule, ScheduleType
+from app.models.master import CostCenter, CostElement, LeaveType, OTType, ShiftType, WorkSchedule, ScheduleType, Supplier
 
 
 # ============================================================
@@ -705,4 +705,116 @@ async def delete_work_schedule(db: AsyncSession, ws_id: UUID, *, org_id: Optiona
         )
 
     ws.is_active = False
+    await db.commit()
+
+
+# ============================================================
+# SUPPLIER CRUD  (Phase 11 — Supplier Master Data)
+# ============================================================
+
+async def create_supplier(
+    db: AsyncSession,
+    *,
+    code: str,
+    name: str,
+    contact_name: Optional[str] = None,
+    email: Optional[str] = None,
+    phone: Optional[str] = None,
+    address: Optional[str] = None,
+    tax_id: Optional[str] = None,
+    org_id: UUID,
+) -> Supplier:
+    existing = await db.execute(
+        select(Supplier).where(
+            Supplier.org_id == org_id,
+            Supplier.code == code,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Supplier with code '{code}' already exists",
+        )
+
+    supplier = Supplier(
+        code=code,
+        name=name,
+        contact_name=contact_name,
+        email=email,
+        phone=phone,
+        address=address,
+        tax_id=tax_id,
+        org_id=org_id,
+    )
+    db.add(supplier)
+    await db.commit()
+    await db.refresh(supplier)
+    return supplier
+
+
+async def get_supplier(db: AsyncSession, supplier_id: UUID, *, org_id: Optional[UUID] = None) -> Supplier:
+    query = select(Supplier).where(Supplier.id == supplier_id, Supplier.is_active == True)
+    if org_id:
+        query = query.where(Supplier.org_id == org_id)
+    result = await db.execute(query)
+    supplier = result.scalar_one_or_none()
+    if not supplier:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Supplier not found",
+        )
+    return supplier
+
+
+async def list_suppliers(
+    db: AsyncSession,
+    *,
+    limit: int = 20,
+    offset: int = 0,
+    search: Optional[str] = None,
+    org_id: Optional[UUID] = None,
+) -> tuple[list[Supplier], int]:
+    query = select(Supplier).where(Supplier.is_active == True)
+    if org_id:
+        query = query.where(Supplier.org_id == org_id)
+
+    if search:
+        pattern = f"%{search}%"
+        query = query.where(
+            (Supplier.code.ilike(pattern))
+            | (Supplier.name.ilike(pattern))
+            | (Supplier.contact_name.ilike(pattern))
+        )
+
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    query = query.order_by(Supplier.created_at.desc()).limit(limit).offset(offset)
+    result = await db.execute(query)
+    items = list(result.scalars().all())
+    return items, total
+
+
+async def update_supplier(
+    db: AsyncSession,
+    supplier_id: UUID,
+    *,
+    update_data: dict,
+    org_id: Optional[UUID] = None,
+) -> Supplier:
+    supplier = await get_supplier(db, supplier_id, org_id=org_id)
+
+    for field, value in update_data.items():
+        if value is not None:
+            setattr(supplier, field, value)
+
+    await db.commit()
+    await db.refresh(supplier)
+    return supplier
+
+
+async def delete_supplier(db: AsyncSession, supplier_id: UUID, *, org_id: Optional[UUID] = None) -> None:
+    supplier = await get_supplier(db, supplier_id, org_id=org_id)
+    supplier.is_active = False
     await db.commit()

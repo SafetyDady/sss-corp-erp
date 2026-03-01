@@ -132,7 +132,22 @@ export default function PODetailPage() {
             <span style={{ fontFamily: 'monospace' }}>{po.po_number}</span>
           </Descriptions.Item>
           <Descriptions.Item label="Status"><StatusBadge status={po.status} /></Descriptions.Item>
-          <Descriptions.Item label="ซัพพลายเออร์">{po.supplier_name}</Descriptions.Item>
+          <Descriptions.Item label="ซัพพลายเออร์">
+            {po.supplier_code ? (
+              <span>
+                <span style={{ fontFamily: 'monospace', color: COLORS.accent }}>{po.supplier_code}</span>
+                {' — '}{po.supplier_name}
+              </span>
+            ) : (
+              po.supplier_name
+            )}
+          </Descriptions.Item>
+          {po.supplier_contact && (
+            <Descriptions.Item label="ผู้ติดต่อ">{po.supplier_contact}</Descriptions.Item>
+          )}
+          {po.supplier_phone && (
+            <Descriptions.Item label="โทรศัพท์">{po.supplier_phone}</Descriptions.Item>
+          )}
           <Descriptions.Item label="ยอดรวม">{formatCurrency(po.total_amount)}</Descriptions.Item>
           <Descriptions.Item label="วันที่สั่ง">{formatDate(po.order_date)}</Descriptions.Item>
           <Descriptions.Item label="วันที่คาดรับ">{formatDate(po.expected_date)}</Descriptions.Item>

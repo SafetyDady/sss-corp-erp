@@ -516,10 +516,21 @@ def _pr_to_response(pr) -> dict:
 
 
 def _po_to_response(po) -> dict:
-    """Convert PO model to response dict with PR reference."""
+    """Convert PO model to response dict with PR + Supplier reference."""
     pr_number = None
     if po.purchase_requisition:
         pr_number = po.purchase_requisition.pr_number
+
+    # Supplier enrichment
+    supplier_id = getattr(po, "supplier_id", None)
+    supplier_code = None
+    supplier_contact = None
+    supplier_phone = None
+    supplier = getattr(po, "supplier", None)
+    if supplier:
+        supplier_code = supplier.code
+        supplier_contact = supplier.contact_name
+        supplier_phone = supplier.phone
 
     return {
         "id": po.id,
@@ -527,6 +538,10 @@ def _po_to_response(po) -> dict:
         "pr_id": po.pr_id,
         "pr_number": pr_number,
         "supplier_name": po.supplier_name,
+        "supplier_id": supplier_id,
+        "supplier_code": supplier_code,
+        "supplier_contact": supplier_contact,
+        "supplier_phone": supplier_phone,
         "status": po.status.value if hasattr(po.status, "value") else po.status,
         "order_date": po.order_date,
         "expected_date": po.expected_date,

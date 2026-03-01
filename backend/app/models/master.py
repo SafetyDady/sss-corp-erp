@@ -3,6 +3,7 @@ SSS Corp ERP — Master Data Models
 Phase 1: CostCenter, CostElement, OTType
 Phase 4.3: LeaveType
 Phase 4.9: ShiftType, WorkSchedule (Shift Management)
+Phase 11: Supplier (Supplier Master Data)
 
 Business Rules:
   BR#9  — cost_center_id must be integer/UUID (not string)
@@ -280,3 +281,36 @@ class WorkSchedule(Base, TimestampMixin, OrgMixin):
 
     def __repr__(self) -> str:
         return f"<WorkSchedule {self.code} {self.schedule_type.value}>"
+
+
+# ============================================================
+# SUPPLIER  (Phase 11 — Supplier Master Data)
+# ============================================================
+
+class Supplier(Base, TimestampMixin, OrgMixin):
+    """
+    Supplier master data — vendor/supplier directory for purchasing.
+    Each supplier has a unique code per org.
+    """
+    __tablename__ = "suppliers"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    code: Mapped[str] = mapped_column(
+        String(50), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    contact_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tax_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("org_id", "code", name="uq_supplier_org_code"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<Supplier {self.code} {self.name}>"

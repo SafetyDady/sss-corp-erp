@@ -194,6 +194,7 @@ class ConvertToPOLine(BaseModel):
 
 class ConvertToPORequest(BaseModel):
     supplier_name: str = Field(min_length=1, max_length=255)
+    supplier_id: Optional[UUID] = None
     expected_date: Optional[date] = None
     note: Optional[str] = None
     lines: list[ConvertToPOLine] = Field(min_length=1)
@@ -251,6 +252,10 @@ class PurchaseOrderResponse(BaseModel):
     pr_id: Optional[UUID] = None
     pr_number: Optional[str] = None
     supplier_name: str
+    supplier_id: Optional[UUID] = None
+    supplier_code: Optional[str] = None
+    supplier_contact: Optional[str] = None
+    supplier_phone: Optional[str] = None
     status: POStatus
     order_date: date
     expected_date: Optional[date] = None

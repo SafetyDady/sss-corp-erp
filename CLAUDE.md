@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-01 v12 (PO QR Code + Delivery Note Number)
+> อัปเดตล่าสุด: 2026-03-01 v13 (Supplier Master Data + PO Integration)
 
 ---
 
@@ -10,7 +10,7 @@
 
 **SSS Corp ERP** — ระบบ ERP สำหรับธุรกิจ Manufacturing/Trading ขนาดเล็ก-กลาง
 - Multi-tenant (Shared DB + org_id)
-- **11 Modules, 123 Permissions, 5 Roles**
+- **11 Modules, 127 Permissions, 5 Roles**
 - Job Costing: Material + ManHour + Tools Recharge + Admin Overhead
 - อ้างอิงเพิ่มเติม: `UI_GUIDELINES.md` (theme/icons), `BUSINESS_POLICY.md` (business rules)
 
@@ -160,7 +160,7 @@ sss-corp-erp/
 
 ---
 
-## RBAC — 5 Roles x 123 Permissions (Full Matrix)
+## RBAC — 5 Roles x 127 Permissions (Full Matrix)
 
 ### Inventory (9 permissions)
 
@@ -244,7 +244,7 @@ sss-corp-erp/
 | finance.report.read | ✅ | ✅ | ✅ | ✅ | ✅ |
 | finance.report.export | ✅ | ❌ | ❌ | ❌ | ❌ |
 
-### Master Data (28 permissions)
+### Master Data (32 permissions)
 
 | Permission | owner | manager | supervisor | staff | viewer |
 |-----------|:-----:|:-------:|:----------:|:-----:|:------:|
@@ -276,6 +276,10 @@ sss-corp-erp/
 | master.schedule.read | ✅ | ✅ | ✅ | ✅ | ✅ |
 | master.schedule.update | ✅ | ✅ | ❌ | ❌ | ❌ |
 | master.schedule.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
+| master.supplier.create | ✅ | ✅ | ✅ | ❌ | ❌ |
+| master.supplier.read | ✅ | ✅ | ✅ | ✅ | ✅ |
+| master.supplier.update | ✅ | ✅ | ✅ | ❌ | ❌ |
+| master.supplier.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 ### Admin (10 permissions)
 
@@ -344,11 +348,11 @@ sss-corp-erp/
 
 | Role | Count | Description |
 |------|-------|-------------|
-| owner | 123 | ALL permissions |
-| manager | ~73 | ไม่มี admin.*, ไม่มี *.delete + planning create/update |
-| supervisor | ~57 | read + approve + limited create + planning read |
-| staff | ~36 | read + own create (timesheet, leave, movement, dailyreport, roster, PR) |
-| viewer | ~23 | read + selected export only |
+| owner | 127 | ALL permissions |
+| manager | ~76 | ไม่มี admin.*, ไม่มี *.delete + planning create/update |
+| supervisor | ~60 | read + approve + limited create + planning read |
+| staff | ~37 | read + own create (timesheet, leave, movement, dailyreport, roster, PR) |
+| viewer | ~24 | read + selected export only |
 
 ### Permission Usage Pattern
 ```python
@@ -714,6 +718,11 @@ GET    /api/master/ot-types                 master.ottype.read
 POST   /api/master/ot-types                 master.ottype.create
 PUT    /api/master/ot-types/{id}           master.ottype.update
 DELETE /api/master/ot-types/{id}           master.ottype.delete
+GET    /api/master/suppliers                master.supplier.read
+POST   /api/master/suppliers                master.supplier.create
+GET    /api/master/suppliers/{id}           master.supplier.read
+PUT    /api/master/suppliers/{id}           master.supplier.update
+DELETE /api/master/suppliers/{id}           master.supplier.delete
 ```
 
 ### Shift Types (Phase 4.9)
@@ -928,7 +937,7 @@ npm run build                                          # Production build
 
 | Email | Password | Role |
 |-------|----------|------|
-| owner@sss-corp.com | owner123 | owner (all 123 perms) |
+| owner@sss-corp.com | owner123 | owner (all 127 perms) |
 | manager@sss-corp.com | manager123 | manager (~73 perms) |
 | supervisor@sss-corp.com | supervisor123 | supervisor (~57 perms) |
 | staff@sss-corp.com | staff123 | staff (~36 perms) |
@@ -1126,7 +1135,8 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **11.6** Seed Data — 1 Warehouse, 3 Locations (RECEIVING/STORAGE/SHIPPING), 5 Products (3 MATERIAL + 1 CONSUMABLE + 1 SERVICE), 3 Tools
 - [x] **11.7** PO QR Code — QR Code on PO document (antd `<QRCode>`), scan → auto-open GR, print label (`@media print`)
 - [x] **11.8** Delivery Note Number — เลขใบวางของ field in GR Modal → stored on PO → displayed in PO Detail + PO List
-- [ ] **11.9** Stock Aging Report — inventory value by age bracket (0-30, 31-60, 61-90, 90+ days)
+- [x] **11.9** Supplier Master Data — Supplier CRUD (code, name, contact, email, phone, address, tax_id) + PO.supplier_id FK + ConvertToPO dropdown + 4 permissions (127 total)
+- [ ] **11.10** Stock Aging Report — inventory value by age bracket (0-30, 31-60, 61-90, 90+ days)
 - [ ] **11.8** Batch/Lot Tracking — batch_number on StockMovement, FIFO/LIFO costing option
 - [ ] **11.11** Barcode/QR — generate barcode for SKU (frontend display + print label)
 - [ ] **11.12** Stock Take — cycle count workflow (count → variance → adjust)
@@ -1204,7 +1214,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `BUSINESS_POLICY.md` | Business rules (source of truth) |
 | `TODO.md` | Implementation tracker + checklist |
 | `SmartERP_Master_Document_v2.xlsx` | Original design spec |
-| `backend/app/core/permissions.py` | RBAC permissions + role mapping + PERMISSION_DESCRIPTIONS (123 Thai descriptions) |
+| `backend/app/core/permissions.py` | RBAC permissions + role mapping + PERMISSION_DESCRIPTIONS (127 Thai descriptions) |
 | `backend/app/core/security.py` | JWT token creation/validation |
 | `backend/app/core/config.py` | Environment settings + DEFAULT_ORG_ID |
 | `frontend/src/stores/authStore.js` | Auth state + token management |
@@ -1226,7 +1236,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `backend/app/api/_helpers.py` | Shared data scope helpers (Phase 6) |
 | `frontend/src/components/ScopeBadge.jsx` | Role-aware scope indicator badge (Phase 6) |
 | `frontend/src/components/EmployeeContextSelector.jsx` | Role-scoped employee dropdown + dept grouping + server-side search (Phase 6) |
-| `backend/app/seed.py` | Enhanced dev seed: 3 depts, 5 users, 5 employees, OT/Leave types, LeaveBalances, 1 warehouse, 3 locations, 5 products, 3 tools |
+| `backend/app/seed.py` | Enhanced dev seed: 3 depts, 5 users, 5 employees, OT/Leave types, LeaveBalances, 1 warehouse, 3 locations, 5 products, 3 tools, 5 suppliers |
 | `frontend/src/pages/approval/ApprovalPage.jsx` | Centralized Approval Center — 6 tabs + badge counts (Phase 7+) |
 | `frontend/src/pages/approval/TimesheetApprovalTab.jsx` | Timesheet approve/final (Phase 7) |
 | `frontend/src/pages/approval/LeaveApprovalTab.jsx` | Leave approve/reject (Phase 7) |
@@ -1240,11 +1250,13 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/purchasing/PRTab.jsx` | PR list + search/filter/CRUD (Phase 7.9) |
 | `frontend/src/pages/purchasing/PRFormModal.jsx` | Create/edit PR with dynamic lines, BLANKET fields (Phase 7.9) |
 | `frontend/src/pages/purchasing/PRDetailPage.jsx` | PR detail + approve/reject/convert/cancel (Phase 7.9) |
-| `frontend/src/pages/purchasing/ConvertToPOModal.jsx` | Convert approved PR to PO — price comparison (Phase 7.9) |
+| `frontend/src/pages/purchasing/ConvertToPOModal.jsx` | Convert approved PR to PO — price comparison + supplier dropdown (Phase 7.9 + 11) |
 | `frontend/src/pages/purchasing/POTab.jsx` | PO list embedded tab — no create button (Phase 7.9) |
 | `frontend/src/pages/purchasing/GoodsReceiptModal.jsx` | Line-by-line GR — GOODS + SERVICE sections + Warehouse/Location picker + Delivery Note Number (Phase 7.9 + 11) |
 | `frontend/src/pages/purchasing/POQRCodeModal.jsx` | QR Code display + print for PO (Phase 11.7) |
 | `frontend/src/pages/approval/PRApprovalTab.jsx` | PR approval tab for Approval Center (Phase 7.9) |
+| `frontend/src/pages/master/SupplierTab.jsx` | Supplier master data list tab (Phase 11.9) |
+| `frontend/src/pages/master/SupplierFormModal.jsx` | Supplier create/edit modal (Phase 11.9) |
 | `backend/app/middleware/performance.py` | Request timing middleware (Phase 14) |
 | `backend/app/services/ai_performance.py` | AI performance analysis engine — Claude API (Phase 14) |
 | `frontend/src/pages/admin/PerformancePage.jsx` | AI Performance Dashboard (Phase 14) |
@@ -1272,4 +1284,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v12 (Phase 0-7.9 complete + Phase 11 partial: Stock-Location + Low Stock + QR Code + Delivery Note, Phase 8-14 planned)*
+*End of CLAUDE.md — SSS Corp ERP v13 (Phase 0-7.9 complete + Phase 11 partial: Stock-Location + Low Stock + QR Code + Delivery Note + Supplier Master Data, Phase 8-14 planned)*

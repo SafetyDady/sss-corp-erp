@@ -19,7 +19,8 @@
       "Bash(docker exec sss-corp-erp-backend-1 ls /app/)",
       "Bash(docker exec sss-corp-erp-backend-1 pwd)",
       "Bash(docker exec sss-corp-erp-backend-1 python -c \"import app.seed; print\\(''DAY12'' in open\\(''/app/app/seed.py''\\).read\\(\\)\\)\")",
-      "Bash(docker exec sss-corp-erp-backend-1 python -c \":*)"
+      "Bash(docker exec sss-corp-erp-backend-1 python -c \":*)",
+      "Bash(sort -k6,7)"
     ]
   }
 }

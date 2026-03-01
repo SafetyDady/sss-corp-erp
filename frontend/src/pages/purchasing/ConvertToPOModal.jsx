@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Modal, Form, Input, DatePicker, InputNumber, Table, App, Tag } from 'antd';
+import { useState, useEffect } from 'react';
+import { Modal, Form, Input, DatePicker, InputNumber, Table, App, Tag, Select } from 'antd';
 import { ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import api from '../../services/api';
 import { formatCurrency } from '../../utils/formatters';
@@ -10,7 +10,19 @@ export default function ConvertToPOModal({ open, pr, products, onClose, onSucces
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [lineCosts, setLineCosts] = useState({});
+  const [suppliers, setSuppliers] = useState([]);
+  const [suppliersLoading, setSuppliersLoading] = useState(false);
   const { message } = App.useApp();
+
+  useEffect(() => {
+    if (open) {
+      setSuppliersLoading(true);
+      api.get('/api/master/suppliers', { params: { limit: 500, offset: 0 } })
+        .then(({ data }) => setSuppliers(data.items || []))
+        .catch(() => setSuppliers([]))
+        .finally(() => setSuppliersLoading(false));
+    }
+  }, [open]);
 
   // Initialize line costs from PR estimated
   const getLineCost = (lineId, estimated) => {
@@ -27,8 +39,11 @@ export default function ConvertToPOModal({ open, pr, products, onClose, onSucces
 
     setLoading(true);
     try {
+      // Find supplier name from selected supplier_id
+      const selectedSupplier = suppliers.find((s) => s.id === values.supplier_id);
       const payload = {
-        supplier_name: values.supplier_name,
+        supplier_id: values.supplier_id || null,
+        supplier_name: selectedSupplier?.name || values.supplier_name || '',
         expected_date: values.expected_date?.format('YYYY-MM-DD') || null,
         note: values.note || null,
         lines: pr.lines.map((line) => ({
@@ -140,9 +155,18 @@ export default function ConvertToPOModal({ open, pr, products, onClose, onSucces
 
       <Form form={form} layout="vertical" onFinish={onFinish}>
         <div style={{ display: 'flex', gap: 16 }}>
-          <Form.Item name="supplier_name" label="ชื่อซัพพลายเออร์" style={{ flex: 1 }}
-            rules={[{ required: true, message: 'กรุณากรอกชื่อ' }]}>
-            <Input placeholder="ชื่อผู้จำหน่าย" />
+          <Form.Item name="supplier_id" label="ซัพพลายเออร์" style={{ flex: 1 }}
+            rules={[{ required: true, message: 'กรุณาเลือกซัพพลายเออร์' }]}>
+            <Select
+              showSearch
+              placeholder="เลือกซัพพลายเออร์"
+              loading={suppliersLoading}
+              optionFilterProp="label"
+              options={suppliers.map((s) => ({
+                value: s.id,
+                label: `${s.code} — ${s.name}`,
+              }))}
+            />
           </Form.Item>
           <Form.Item name="expected_date" label="วันที่คาดว่าจะได้รับ">
             <DatePicker style={{ width: 180 }} />

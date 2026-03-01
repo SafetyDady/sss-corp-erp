@@ -90,7 +90,7 @@ ALL_PERMISSIONS: list[str] = [
     "finance.report.read",
     "finance.report.export",
 
-    # --- master data (28: costcenter 4 + costelement 4 + ottype 4 + department 4 + leavetype 4 + shifttype 4 + schedule 4) ---
+    # --- master data (32: costcenter 4 + costelement 4 + ottype 4 + department 4 + leavetype 4 + shifttype 4 + schedule 4 + supplier 4) ---
     "master.costcenter.create",
     "master.costcenter.read",
     "master.costcenter.update",
@@ -122,6 +122,11 @@ ALL_PERMISSIONS: list[str] = [
     "master.schedule.read",
     "master.schedule.update",
     "master.schedule.delete",
+    # Phase 11: Supplier Master Data
+    "master.supplier.create",
+    "master.supplier.read",
+    "master.supplier.update",
+    "master.supplier.delete",
 
     # --- admin (8 + 2 = 10) ---
     "admin.role.create",
@@ -178,8 +183,8 @@ ALL_PERMISSIONS: list[str] = [
     "hr.roster.read",
 ]
 
-assert len(ALL_PERMISSIONS) == 123, f"Expected 123 permissions, got {len(ALL_PERMISSIONS)}"
-assert len(set(ALL_PERMISSIONS)) == 123, "Duplicate permissions found!"
+assert len(ALL_PERMISSIONS) == 127, f"Expected 127 permissions, got {len(ALL_PERMISSIONS)}"
+assert len(set(ALL_PERMISSIONS)) == 127, "Duplicate permissions found!"
 
 
 # ============================================================
@@ -275,6 +280,11 @@ PERMISSION_DESCRIPTIONS: dict[str, str] = {
     "master.schedule.read": "ดูตารางกะ",
     "master.schedule.update": "แก้ไขตารางกะ",
     "master.schedule.delete": "ลบตารางกะ (Owner เท่านั้น)",
+    # Phase 11: Supplier
+    "master.supplier.create": "สร้างข้อมูลซัพพลายเออร์ใหม่",
+    "master.supplier.read": "ดูรายชื่อซัพพลายเออร์",
+    "master.supplier.update": "แก้ไขข้อมูลซัพพลายเออร์",
+    "master.supplier.delete": "ลบซัพพลายเออร์ (Owner เท่านั้น)",
     # --- admin (10) ---
     "admin.role.create": "สร้างบทบาทใหม่ (สำรองสำหรับอนาคต)",
     "admin.role.read": "ดูรายการบทบาทและสิทธิ์ทั้งหมด",
@@ -335,7 +345,7 @@ assert set(PERMISSION_DESCRIPTIONS.keys()) == set(ALL_PERMISSIONS), \
 # Legend:  ✅ = granted  ❌ = denied
 
 def _owner() -> set[str]:
-    """Owner: ALL 123 permissions."""
+    """Owner: ALL 127 permissions."""
     return set(ALL_PERMISSIONS)
 
 
@@ -370,6 +380,7 @@ def _manager() -> set[str]:
         "master.leavetype.delete",
         "master.shifttype.delete",
         "master.schedule.delete",
+        "master.supplier.delete",
         "customer.customer.delete",
         "tools.tool.delete",
         "hr.employee.delete",
@@ -441,6 +452,10 @@ def _supervisor() -> set[str]:
         "master.ottype.read",
         "master.department.read",
         "master.leavetype.read",
+        # Supplier
+        "master.supplier.create",
+        "master.supplier.read",
+        "master.supplier.update",
         # Customer
         "customer.customer.create",
         "customer.customer.read",
@@ -511,6 +526,7 @@ def _staff() -> set[str]:
         "master.ottype.read",
         "master.department.read",
         "master.leavetype.read",
+        "master.supplier.read",
         # Customer
         "customer.customer.read",
         # Tools
@@ -562,6 +578,7 @@ def _viewer() -> set[str]:
         "master.ottype.read",
         "master.department.read",
         "master.leavetype.read",
+        "master.supplier.read",
         # Customer
         "customer.customer.read",
         "customer.customer.export",
