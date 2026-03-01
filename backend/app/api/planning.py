@@ -89,7 +89,7 @@ planning_router = APIRouter(prefix="/api/planning", tags=["planning"])
 
 @master_plan_router.get(
     "/{wo_id}/plan",
-    response_model=MasterPlanResponse,
+    response_model=Optional[MasterPlanResponse],
     dependencies=[Depends(require("workorder.plan.read"))],
 )
 async def api_get_master_plan(
@@ -97,7 +97,7 @@ async def api_get_master_plan(
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
-    """Get the master plan for a work order."""
+    """Get the master plan for a work order (returns null if no plan exists)."""
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     return await get_master_plan(db, wo_id, org_id=org_id)
 

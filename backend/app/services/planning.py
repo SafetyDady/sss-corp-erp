@@ -105,8 +105,8 @@ async def get_master_plan(
     work_order_id: UUID,
     *,
     org_id: Optional[UUID] = None,
-) -> "WOMasterPlan":
-    """Get the master plan for a work order."""
+) -> "WOMasterPlan | None":
+    """Get the master plan for a work order. Returns None if not found."""
     from app.models.planning import WOMasterPlan, WOMasterPlanLine
 
     query = select(WOMasterPlan).where(WOMasterPlan.work_order_id == work_order_id)
@@ -115,10 +115,7 @@ async def get_master_plan(
     result = await db.execute(query)
     plan = result.scalar_one_or_none()
     if not plan:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Master plan not found for this work order",
-        )
+        return None
 
     # Load lines
     lines_result = await db.execute(

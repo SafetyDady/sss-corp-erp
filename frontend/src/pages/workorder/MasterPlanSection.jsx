@@ -26,7 +26,7 @@ export default function MasterPlanSection({ workOrderId }) {
     setLoading(true);
     try {
       const { data } = await api.get(`/api/work-orders/${workOrderId}/plan`);
-      setPlan(data);
+      setPlan(data || null);
     } catch {
       setPlan(null);
     } finally {
