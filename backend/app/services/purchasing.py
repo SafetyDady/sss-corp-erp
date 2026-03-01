@@ -601,7 +601,7 @@ async def receive_goods(
             item_type = PRItemType(item_type)
 
         if item_type == PRItemType.GOODS and line.product_id:
-            # GOODS → create RECEIVE stock movement
+            # GOODS → create RECEIVE stock movement (with optional location)
             await create_movement(
                 db,
                 product_id=line.product_id,
@@ -612,6 +612,7 @@ async def receive_goods(
                 note=rl.get("note"),
                 created_by=received_by,
                 org_id=org_id,
+                location_id=rl.get("location_id"),
             )
         # SERVICE → no stock movement, just update received_qty
 

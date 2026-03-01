@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-01 v10 (PR/PO Redesign — Purchase Requisition mandatory before PO)
+> อัปเดตล่าสุด: 2026-03-01 v11 (Stock-Location Integration + Low Stock Alert)
 
 ---
 
@@ -150,6 +150,13 @@ sss-corp-erp/
 - HR endpoints ต้อง filter ตาม role: staff=ของตัวเอง, supervisor=แผนก, manager/owner=ทั้ง org
 - ทุก endpoint ต้องมี org_id filter (multi-tenant) — ห้ามมี endpoint ที่ไม่ filter org_id
 - ใช้ shared helpers จาก `app.api._helpers` — ห้าม duplicate logic
+
+### 11. Stock-Location Rules (Phase 11)
+- **location_id optional** บน StockMovement — backward compatible กับ movements เก่า (BR#72)
+- **stock_by_location.on_hand >= 0** ต่อ location (BR#69)
+- **ISSUE/CONSUME** จาก location → ต้องมี stock เพียงพอที่ location นั้น (BR#70)
+- **Product.on_hand** = denormalized aggregate — อัปเดต atomic ทั้ง product + stock_by_location (BR#71)
+- **Low stock** = on_hand ≤ min_stock AND min_stock > 0 — highlight ใน Product List + stat card (BR#73)
 
 ---
 
@@ -563,6 +570,11 @@ Manager จองเครื่องมือ → POST /api/planning/reservati
 | 66 | purchasing | PR | Data Scope: staff=ตัวเอง, supervisor=แผนก, manager/owner=ทั้ง org | API helpers |
 | 67 | purchasing | PR | BLANKET PR ต้องมี validity_start_date + validity_end_date | Schema validator |
 | 68 | purchasing | PR | validity_end_date >= validity_start_date | Schema validator |
+| 69 | inventory | Stock | stock_by_location.on_hand >= 0 ต่อ location | DB CHECK + Service |
+| 70 | inventory | Stock | ISSUE/CONSUME จาก location ต้องมี stock เพียงพอที่ location นั้น | Service check |
+| 71 | inventory | Stock | Product.on_hand = SUM(stock_by_location.on_hand) + unlocated stock (denormalized) | Atomic update |
+| 72 | inventory | Stock | location_id optional บน StockMovement (backward compatible กับ movements เก่า) | Nullable FK |
+| 73 | inventory | Stock | Low stock = on_hand ≤ min_stock AND min_stock > 0 | Computed |
 
 ---
 
@@ -612,9 +624,15 @@ DELETE /api/inventory/products/{id}         inventory.product.delete
 
 ### Stock Movements
 ```
-GET    /api/stock/movements                 inventory.movement.read
-POST   /api/stock/movements                 inventory.movement.create
+GET    /api/stock/movements                 inventory.movement.read      (?location_id=)
+POST   /api/stock/movements                 inventory.movement.create    (body: +location_id optional)
 POST   /api/stock/movements/{id}/reverse    inventory.movement.delete
+```
+
+### Stock by Location
+```
+GET    /api/inventory/stock-by-location     inventory.product.read       (?product_id=&location_id=&warehouse_id=)
+GET    /api/inventory/low-stock-count       inventory.product.read       → {count: int}
 ```
 
 ### Warehouse
@@ -1099,14 +1117,18 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [ ] **10.6** Print-friendly CSS — `@media print` styles for key pages
 - [ ] **10.7** Report templates — admin-configurable headers (company logo, address)
 
-### Phase 11 — Inventory Enhancement 📦 (Planned)
-- [ ] **11.1** Reorder Point — min_stock, reorder_qty fields on Product → alert when on_hand <= min_stock
-- [ ] **11.2** Low Stock Alert — dashboard widget + notification when stock below reorder point
-- [ ] **11.3** Stock Aging Report — inventory value by age bracket (0-30, 31-60, 61-90, 90+ days)
-- [ ] **11.4** Batch/Lot Tracking — batch_number on StockMovement, FIFO/LIFO costing option
-- [ ] **11.5** Barcode/QR — generate barcode for SKU (frontend display + print label)
-- [ ] **11.6** Stock Take — cycle count workflow (count → variance → adjust)
-- [ ] **11.7** Multi-warehouse Transfer — TRANSFER movement between warehouses with approval
+### Phase 11 — Inventory Enhancement 📦 (Partial ✅)
+- [x] **11.1** Stock-Location Integration — StockMovement.location_id FK + stock_by_location table (per-product per-location on_hand) + location-aware RECEIVE/ISSUE/CONSUME + reverse (BR#69-72)
+- [x] **11.2** Low Stock Alert — min_stock field + is_low_stock computed + stat card on Supply Chain page + Product List row highlight (BR#73)
+- [x] **11.3** GR Location Picker — GoodsReceiptModal Warehouse/Location cascade picker for GOODS lines
+- [x] **11.4** Manual Movement Location — MovementCreateModal Warehouse/Location cascade picker
+- [x] **11.5** Movement Location Display — MovementListPage Location column + location filter
+- [x] **11.6** Seed Data — 1 Warehouse, 3 Locations (RECEIVING/STORAGE/SHIPPING), 5 Products (3 MATERIAL + 1 CONSUMABLE + 1 SERVICE), 3 Tools
+- [ ] **11.7** Stock Aging Report — inventory value by age bracket (0-30, 31-60, 61-90, 90+ days)
+- [ ] **11.8** Batch/Lot Tracking — batch_number on StockMovement, FIFO/LIFO costing option
+- [ ] **11.9** Barcode/QR — generate barcode for SKU (frontend display + print label)
+- [ ] **11.10** Stock Take — cycle count workflow (count → variance → adjust)
+- [ ] **11.11** Multi-warehouse Transfer — TRANSFER movement between warehouses with approval
 
 ### Phase 12 — Mobile Responsive 📱 (Planned)
 - [ ] **12.1** Responsive layout — Ant Design Grid breakpoints, collapsible sidebar mobile-first
@@ -1166,6 +1188,8 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 20. ❌ อย่าสร้าง PO ตรงโดยไม่ผ่าน PR — PO ต้องมี pr_id เสมอ (ยกเว้นข้อมูลเก่า) (BR#61)
 21. ❌ อย่าสร้าง stock movement สำหรับ SERVICE products (BR#65)
 22. ❌ อย่าลืม cost_center_id บน PR + cost_element_id บนทุก PR line (BR#56-57)
+23. ❌ อย่าลืมอัปเดต stock_by_location เมื่อสร้าง movement ที่มี location_id — ต้อง atomic กับ Product.on_hand (BR#71)
+24. ❌ อย่า ISSUE/CONSUME จาก location ที่มี stock ไม่พอ — ต้องเช็ค stock_by_location.on_hand ก่อน (BR#70)
 
 ---
 
@@ -1200,7 +1224,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `backend/app/api/_helpers.py` | Shared data scope helpers (Phase 6) |
 | `frontend/src/components/ScopeBadge.jsx` | Role-aware scope indicator badge (Phase 6) |
 | `frontend/src/components/EmployeeContextSelector.jsx` | Role-scoped employee dropdown + dept grouping + server-side search (Phase 6) |
-| `backend/app/seed.py` | Enhanced dev seed: 3 depts, 5 users, 5 employees, OT/Leave types, LeaveBalances |
+| `backend/app/seed.py` | Enhanced dev seed: 3 depts, 5 users, 5 employees, OT/Leave types, LeaveBalances, 1 warehouse, 3 locations, 5 products, 3 tools |
 | `frontend/src/pages/approval/ApprovalPage.jsx` | Centralized Approval Center — 6 tabs + badge counts (Phase 7+) |
 | `frontend/src/pages/approval/TimesheetApprovalTab.jsx` | Timesheet approve/final (Phase 7) |
 | `frontend/src/pages/approval/LeaveApprovalTab.jsx` | Leave approve/reject (Phase 7) |
@@ -1216,7 +1240,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/purchasing/PRDetailPage.jsx` | PR detail + approve/reject/convert/cancel (Phase 7.9) |
 | `frontend/src/pages/purchasing/ConvertToPOModal.jsx` | Convert approved PR to PO — price comparison (Phase 7.9) |
 | `frontend/src/pages/purchasing/POTab.jsx` | PO list embedded tab — no create button (Phase 7.9) |
-| `frontend/src/pages/purchasing/GoodsReceiptModal.jsx` | Line-by-line GR — GOODS + SERVICE sections (Phase 7.9) |
+| `frontend/src/pages/purchasing/GoodsReceiptModal.jsx` | Line-by-line GR — GOODS + SERVICE sections + Warehouse/Location picker (Phase 7.9 + 11) |
 | `frontend/src/pages/approval/PRApprovalTab.jsx` | PR approval tab for Approval Center (Phase 7.9) |
 | `backend/app/middleware/performance.py` | Request timing middleware (Phase 14) |
 | `backend/app/services/ai_performance.py` | AI performance analysis engine — Claude API (Phase 14) |
@@ -1245,4 +1269,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v11.1 (Phase 0-7.9 complete + Code Review Fixes + Shift UX, Phase 8-14 planned)*
+*End of CLAUDE.md — SSS Corp ERP v12 (Phase 0-7.9 complete + Phase 11 partial: Stock-Location Integration + Low Stock Alert, Phase 8-14 planned)*

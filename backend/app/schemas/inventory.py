@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field, field_validator
 class ProductType(str, Enum):
     MATERIAL = "MATERIAL"
     CONSUMABLE = "CONSUMABLE"
+    SERVICE = "SERVICE"
 
 
 class MovementType(str, Enum):
@@ -85,6 +86,7 @@ class ProductResponse(BaseModel):
     cost: Decimal
     on_hand: int
     min_stock: int
+    is_low_stock: bool = False
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -111,6 +113,7 @@ class StockMovementCreate(BaseModel):
     unit_cost: Decimal = Field(default=Decimal("0.00"), ge=0, decimal_places=2)
     reference: Optional[str] = Field(default=None, max_length=255)
     note: Optional[str] = None
+    location_id: Optional[UUID] = None  # Warehouse location (optional)
 
     @field_validator("movement_type")
     @classmethod
@@ -129,6 +132,9 @@ class StockMovementResponse(BaseModel):
     unit_cost: Decimal
     reference: Optional[str] = None
     note: Optional[str] = None
+    location_id: Optional[UUID] = None
+    location_name: Optional[str] = None
+    warehouse_name: Optional[str] = None
     created_by: UUID
     reversed_by_id: Optional[UUID] = None
     is_reversed: bool
@@ -144,3 +150,31 @@ class StockMovementListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+# ============================================================
+# STOCK BY LOCATION SCHEMAS
+# ============================================================
+
+class StockByLocationResponse(BaseModel):
+    id: UUID
+    product_id: UUID
+    location_id: UUID
+    location_code: str = ""
+    location_name: str = ""
+    warehouse_id: Optional[UUID] = None
+    warehouse_name: str = ""
+    zone_type: str = ""
+    on_hand: int
+
+    class Config:
+        from_attributes = True
+
+
+class StockByLocationListResponse(BaseModel):
+    items: list[StockByLocationResponse]
+    total: int
+
+
+class LowStockCountResponse(BaseModel):
+    count: int

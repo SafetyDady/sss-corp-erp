@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Tabs, Row, Col, App } from 'antd';
-import { Package, Warehouse, Wrench, ArrowRightLeft, MapPin } from 'lucide-react';
+import { Package, Warehouse, Wrench, ArrowRightLeft, MapPin, AlertTriangle } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import StatCard from '../../components/StatCard';
 import { COLORS } from '../../utils/constants';
@@ -15,7 +15,7 @@ import ToolListPage from '../tools/ToolListPage';
 
 export default function SupplyChainPage() {
   const { can } = usePermission();
-  const [stats, setStats] = useState({ products: 0, movements: 0, warehouses: 0, tools: 0 });
+  const [stats, setStats] = useState({ products: 0, movements: 0, warehouses: 0, tools: 0, lowStock: 0 });
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -39,12 +39,20 @@ export default function SupplyChainPage() {
           requests.push(api.get('/api/tools', { params: { limit: 1, offset: 0 } }));
           keys.push('tools');
         }
+        if (can('inventory.product.read')) {
+          requests.push(api.get('/api/inventory/low-stock-count'));
+          keys.push('lowStock');
+        }
 
         const results = await Promise.allSettled(requests);
         const newStats = { ...stats };
         results.forEach((r, i) => {
           if (r.status === 'fulfilled') {
-            newStats[keys[i]] = r.value.data?.total || 0;
+            if (keys[i] === 'lowStock') {
+              newStats[keys[i]] = r.value.data?.count || 0;
+            } else {
+              newStats[keys[i]] = r.value.data?.total || 0;
+            }
           }
         });
         setStats(newStats);
@@ -154,6 +162,17 @@ export default function SupplyChainPage() {
               subtitle="เครื่องมือ"
               icon={<Wrench size={20} />}
               color={COLORS.purple}
+            />
+          </Col>
+        )}
+        {can('inventory.product.read') && (
+          <Col xs={12} sm={6}>
+            <StatCard
+              title="Low Stock"
+              value={stats.lowStock}
+              subtitle="สินค้าต่ำกว่า Min Stock"
+              icon={<AlertTriangle size={20} />}
+              color={COLORS.danger}
             />
           </Col>
         )}

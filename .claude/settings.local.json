@@ -9,7 +9,17 @@
       "Bash(grep:*)",
       "Bash(find backend/app/models -name \"user.py\" -exec head -100 {} ;)",
       "Bash(wc -l \"C:/web_project/sss-corp/sss-corp-erp/frontend/src/pages/hr\"/*.jsx)",
-      "Bash(npm run build)"
+      "Bash(npm run build)",
+      "Bash(npx vite build)",
+      "Bash(git status -u)",
+      "Bash(docker ps --format \"table {{.Names}}\\\\t{{.Status}}\\\\t{{.Ports}}\")",
+      "Bash(docker exec sss-corp-erp-backend-1 python -m app.seed)",
+      "Bash(docker exec sss-corp-erp-backend-1 grep -c \"DAY12\" /app/app/seed.py)",
+      "Bash(docker exec sss-corp-erp-backend-1 cat /app/app/seed.py)",
+      "Bash(docker exec sss-corp-erp-backend-1 ls /app/)",
+      "Bash(docker exec sss-corp-erp-backend-1 pwd)",
+      "Bash(docker exec sss-corp-erp-backend-1 python -c \"import app.seed; print\\(''DAY12'' in open\\(''/app/app/seed.py''\\).read\\(\\)\\)\")",
+      "Bash(docker exec sss-corp-erp-backend-1 python -c \":*)"
     ]
   }
 }

@@ -1,5 +1,5 @@
 from app.models.user import User, RefreshToken
-from app.models.inventory import Product, StockMovement, ProductType, MovementType
+from app.models.inventory import Product, StockMovement, StockByLocation, ProductType, MovementType
 from app.models.warehouse import Warehouse, Location
 from app.models.workorder import WorkOrder, WOStatus
 from app.models.master import CostCenter, CostElement, OTType, ShiftType, WorkSchedule, ScheduleType
@@ -26,6 +26,7 @@ __all__ = [
     "RefreshToken",
     "Product",
     "StockMovement",
+    "StockByLocation",
     "ProductType",
     "MovementType",
     "Warehouse",

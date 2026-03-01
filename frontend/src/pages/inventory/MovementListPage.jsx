@@ -9,6 +9,7 @@ import StatusBadge from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
 import MovementCreateModal from './MovementCreateModal';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
+import { COLORS } from '../../utils/constants';
 
 export default function MovementListPage({ embedded = false }) {
   const { can } = usePermission();
@@ -18,9 +19,11 @@ export default function MovementListPage({ embedded = false }) {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState(undefined);
+  const [locationFilter, setLocationFilter] = useState(undefined);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
   const [modalOpen, setModalOpen] = useState(false);
   const [products, setProducts] = useState([]);
+  const [allLocations, setAllLocations] = useState([]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -31,6 +34,7 @@ export default function MovementListPage({ embedded = false }) {
           offset: (pagination.current - 1) * pagination.pageSize,
           search: search || undefined,
           movement_type: typeFilter || undefined,
+          location_id: locationFilter || undefined,
         },
       });
       setItems(data.items);
@@ -40,13 +44,16 @@ export default function MovementListPage({ embedded = false }) {
     } finally {
       setLoading(false);
     }
-  }, [pagination.current, pagination.pageSize, search, typeFilter]);
+  }, [pagination.current, pagination.pageSize, search, typeFilter, locationFilter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   useEffect(() => {
     api.get('/api/inventory/products', { params: { limit: 500, offset: 0 } })
       .then((r) => setProducts(r.data.items))
+      .catch(() => {});
+    api.get('/api/warehouse/locations', { params: { limit: 200, offset: 0 } })
+      .then((r) => setAllLocations(r.data.items || []))
       .catch(() => {});
   }, []);
 
@@ -80,7 +87,14 @@ export default function MovementListPage({ embedded = false }) {
       title: '\u0E15\u0E49\u0E19\u0E17\u0E38\u0E19/\u0E2B\u0E19\u0E48\u0E27\u0E22', dataIndex: 'unit_cost', key: 'unit_cost', width: 120, align: 'right',
       render: (v) => formatCurrency(v),
     },
-    { title: '\u0E2D\u0E49\u0E32\u0E07\u0E2D\u0E34\u0E07', dataIndex: 'reference', key: 'reference', width: 120 },
+    {
+      title: 'Location', key: 'location', width: 160,
+      render: (_, record) => {
+        if (!record.location_name) return <span style={{ color: COLORS.textSecondary }}>-</span>;
+        return <span>{record.warehouse_name} / {record.location_name}</span>;
+      },
+    },
+    { title: 'อ้างอิง', dataIndex: 'reference', key: 'reference', width: 120 },
     {
       title: '\u0E2A\u0E16\u0E32\u0E19\u0E30', dataIndex: 'is_reversed', key: 'is_reversed', width: 100,
       render: (v) => v ? <StatusBadge status="REVERSED" /> : null,
@@ -123,11 +137,21 @@ export default function MovementListPage({ embedded = false }) {
         <SearchInput onSearch={setSearch} />
         <Select
           allowClear
-          placeholder={'\u0E1B\u0E23\u0E30\u0E40\u0E20\u0E17'}
+          placeholder="ประเภท"
           style={{ width: 160 }}
           value={typeFilter}
           onChange={setTypeFilter}
           options={['RECEIVE', 'ISSUE', 'TRANSFER', 'ADJUST', 'CONSUME', 'REVERSAL'].map((v) => ({ value: v, label: v }))}
+        />
+        <Select
+          allowClear
+          showSearch
+          optionFilterProp="label"
+          placeholder="Location"
+          style={{ width: 200 }}
+          value={locationFilter}
+          onChange={setLocationFilter}
+          options={allLocations.map((l) => ({ value: l.id, label: `${l.code} - ${l.name}` }))}
         />
       </div>
       <Table

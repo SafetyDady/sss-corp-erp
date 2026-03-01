@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Table, Button, App, Space, Popconfirm } from 'antd';
-import { Plus, Pencil, Trash2, ArrowRightLeft } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowRightLeft, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
@@ -10,6 +10,7 @@ import StatusBadge from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
 import ProductFormModal from './ProductFormModal';
 import { formatCurrency } from '../../utils/formatters';
+import { COLORS } from '../../utils/constants';
 
 export default function ProductListPage({ embedded = false }) {
   const { can } = usePermission();
@@ -67,7 +68,20 @@ export default function ProductListPage({ embedded = false }) {
       render: (v) => formatCurrency(v),
     },
     {
-      title: '\u0E04\u0E07\u0E40\u0E2B\u0E25\u0E37\u0E2D', dataIndex: 'on_hand', key: 'on_hand', width: 100, align: 'right',
+      title: 'คงเหลือ', dataIndex: 'on_hand', key: 'on_hand', width: 100, align: 'right',
+      render: (v, record) => {
+        const isLow = record.is_low_stock || (record.min_stock > 0 && v <= record.min_stock);
+        return (
+          <span style={{ color: isLow ? COLORS.danger : COLORS.text, fontWeight: isLow ? 700 : 400, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            {v}
+            {isLow && <AlertTriangle size={12} style={{ color: COLORS.danger }} />}
+          </span>
+        );
+      },
+    },
+    {
+      title: 'Min Stock', dataIndex: 'min_stock', key: 'min_stock', width: 90, align: 'right',
+      render: (v) => v > 0 ? v : <span style={{ color: COLORS.textSecondary }}>-</span>,
     },
     {
       title: '', key: 'actions', width: 100, align: 'right',
@@ -127,6 +141,11 @@ export default function ProductListPage({ embedded = false }) {
         columns={columns}
         rowKey="id"
         locale={{ emptyText: <EmptyState /> }}
+        rowClassName={(record) =>
+          (record.is_low_stock || (record.min_stock > 0 && record.on_hand <= record.min_stock))
+            ? 'low-stock-row'
+            : ''
+        }
         pagination={{
           current: pagination.current,
           pageSize: pagination.pageSize,

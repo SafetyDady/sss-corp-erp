@@ -1,7 +1,7 @@
 # TODO.md — SSS Corp ERP Implementation Tracker
 
 > อ้างอิง: `CLAUDE.md` → Implementation Phases + Business Rules
-> อัปเดตล่าสุด: 2026-03-01 (Code Review Fixes + Shift UX Improvements)
+> อัปเดตล่าสุด: 2026-03-01 (Stock-Location Integration + Low Stock Alert)
 
 ---
 
@@ -825,6 +825,117 @@
 | 6 | `backend/app/api/hr.py` | แก้ไข | Pass pattern_offset to service |
 | 7 | `frontend/src/pages/approval/PRApprovalTab.jsx` | แก้ไข | Reject reason: hardcoded → Modal+TextArea |
 | 8 | `frontend/src/pages/my/MyTimesheetPage.jsx` | แก้ไข | +pattern offset Select, +1Mar format, +can dep fix |
+
+---
+
+## Phase 11 (Partial) — Stock-Location Integration + Low Stock Alert ✅
+
+> **Scope**: เชื่อม StockMovement กับ Location, Track Stock แยกตาม Location, GR/Manual Movement เลือก Location, Low Stock Alert, Seed Data
+> **Business Rules**: BR#69-73
+> **สร้าง**: 2026-03-01
+
+### 11.1 Database Migration ✅
+
+- [x] New table: `stock_by_location` (product_id + location_id → on_hand, UniqueConstraint)
+- [x] New column: `stock_movements.location_id` (FK → locations, nullable, SET NULL)
+- [x] Migration file: `a3b4c5d6e7f8_stock_location_integration.py`
+- [x] Backward compatible — all existing data works without location_id
+
+### 11.2 Backend Models ✅
+
+- [x] `StockByLocation` model in `models/inventory.py` (id, product_id, location_id, on_hand, org_id)
+- [x] `StockMovement.location_id` FK added
+- [x] `models/__init__.py` — import StockByLocation
+
+### 11.3 Backend Schemas ✅
+
+- [x] `StockMovementCreate` — +location_id optional
+- [x] `StockMovementResponse` — +location_id, location_name, warehouse_name
+- [x] `StockByLocationResponse` — NEW (location_code, location_name, warehouse_id, warehouse_name, zone_type, on_hand)
+- [x] `ProductResponse` — +stock_by_location list, +is_low_stock bool
+- [x] `LowStockCountResponse` — NEW ({count: int})
+- [x] `GoodsReceiptLine` (purchasing) — +location_id optional
+
+### 11.4 Backend Services ✅
+
+- [x] `create_movement()` — +location_id param, validate location, upsert stock_by_location, atomic update
+- [x] `reverse_movement()` — reverse stock_by_location if original had location_id
+- [x] `list_movements()` — +location_id filter, batch join location/warehouse names
+- [x] `_validate_location()` — check exists + active + org match
+- [x] `_get_or_create_stock_by_location()` — upsert pattern
+- [x] `list_stock_by_location()` — per-product/location/warehouse breakdown
+- [x] `get_low_stock_count()` — count products where on_hand ≤ min_stock AND min_stock > 0
+- [x] `receive_goods()` (purchasing) — pass location_id to create_movement for GOODS lines
+
+### 11.5 Backend API ✅
+
+- [x] `POST /api/stock/movements` — accepts location_id in body
+- [x] `GET /api/stock/movements` — +location_id query param filter
+- [x] `GET /api/inventory/products` — +is_low_stock in response
+- [x] `GET /api/inventory/products/{id}` — +stock_by_location list
+- [x] `GET /api/inventory/stock-by-location` — NEW (inventory.product.read)
+- [x] `GET /api/inventory/low-stock-count` — NEW (inventory.product.read)
+
+### 11.6 Frontend — GoodsReceiptModal ✅
+
+- [x] Warehouse/Location cascade picker (header level for all GOODS lines)
+- [x] Fetch warehouses on modal open, locations when warehouse changes
+- [x] Submit: location_id sent for GOODS lines only (not SERVICE)
+- [x] Reset state on success
+
+### 11.7 Frontend — MovementCreateModal ✅
+
+- [x] Warehouse/Location cascade picker in styled container
+- [x] warehouse_id stripped from API payload (UI-only)
+- [x] location_id removed from payload if undefined
+
+### 11.8 Frontend — ProductListPage (Low Stock) ✅
+
+- [x] on_hand column: red color + bold + AlertTriangle icon when low stock
+- [x] New "Min Stock" column
+- [x] `rowClassName` for `low-stock-row` CSS highlight
+- [x] App.css: `.low-stock-row` styles (red tint background)
+
+### 11.9 Frontend — MovementListPage (Location column) ✅
+
+- [x] New "Location" column showing `warehouse_name / location_name`
+- [x] Location filter dropdown (Select with all locations)
+- [x] location_id passed to API fetchData
+
+### 11.10 Frontend — SupplyChainPage (Low Stock stat) ✅
+
+- [x] New "Low Stock" stat card (AlertTriangle icon, danger color)
+- [x] Fetch `/api/inventory/low-stock-count` in stats
+- [x] lowStock initial state + special handling ({count} vs {total})
+
+### 11.11 Seed Data ✅
+
+- [x] 1 Warehouse: WH-MAIN (คลังสินค้าหลัก)
+- [x] 3 Locations: RECV-01 (RECEIVING), STOR-01 (STORAGE), SHIP-01 (SHIPPING)
+- [x] 5 Products: 3 MATERIAL (เหล็กแผ่น, ท่อ PVC, น็อตสแตนเลส) + 1 CONSUMABLE (ถุงมือยาง, low stock) + 1 SERVICE (ตรวจสอบคุณภาพ)
+- [x] 3 Tools: สว่าน Bosch (200฿/hr), เครื่องเชื่อม Lincoln (350฿/hr), เครื่องตัดเลเซอร์ Trumpf (500฿/hr)
+
+### สรุปไฟล์ทั้งหมด
+
+| # | ไฟล์ | ประเภท |
+|---|------|--------|
+| 1 | `backend/app/models/inventory.py` | แก้ไข |
+| 2 | `backend/app/models/__init__.py` | แก้ไข |
+| 3 | `backend/alembic/versions/a3b4c5d6e7f8_stock_location_integration.py` | สร้างใหม่ |
+| 4 | `backend/app/schemas/inventory.py` | แก้ไข |
+| 5 | `backend/app/schemas/purchasing.py` | แก้ไข |
+| 6 | `backend/app/services/inventory.py` | แก้ไข |
+| 7 | `backend/app/services/purchasing.py` | แก้ไข |
+| 8 | `backend/app/api/inventory.py` | แก้ไข |
+| 9 | `backend/app/seed.py` | แก้ไข |
+| 10 | `frontend/src/pages/purchasing/GoodsReceiptModal.jsx` | แก้ไข |
+| 11 | `frontend/src/pages/inventory/MovementCreateModal.jsx` | แก้ไข |
+| 12 | `frontend/src/pages/inventory/ProductListPage.jsx` | แก้ไข |
+| 13 | `frontend/src/pages/inventory/MovementListPage.jsx` | แก้ไข |
+| 14 | `frontend/src/pages/supply-chain/SupplyChainPage.jsx` | แก้ไข |
+| 15 | `frontend/src/App.css` | แก้ไข |
+
+**รวม: 1 ไฟล์ใหม่ (migration) + 14 ไฟล์แก้ไข = 15 ไฟล์**
 
 ---
 

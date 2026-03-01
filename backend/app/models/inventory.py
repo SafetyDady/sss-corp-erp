@@ -19,6 +19,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -153,5 +154,51 @@ class StockMovement(Base, TimestampMixin, OrgMixin):
         Index("ix_movements_product_type", "product_id", "movement_type"),
     )
 
+    # Location link (nullable — backward compatible with existing movements)
+    location_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("locations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     def __repr__(self) -> str:
         return f"<StockMovement {self.movement_type.value} qty={self.quantity}>"
+
+
+# ============================================================
+# STOCK BY LOCATION (per-location on_hand tracking)
+# ============================================================
+
+class StockByLocation(Base, TimestampMixin, OrgMixin):
+    """Track on_hand per product per location."""
+    __tablename__ = "stock_by_location"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("products.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    location_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("locations.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    on_hand: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0
+    )
+
+    __table_args__ = (
+        CheckConstraint("on_hand >= 0", name="ck_stock_by_location_on_hand_non_negative"),
+        UniqueConstraint("product_id", "location_id", name="uq_stock_by_location_product_location"),
+        Index("ix_stock_by_location_product", "product_id"),
+        Index("ix_stock_by_location_location", "location_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<StockByLocation product={self.product_id} location={self.location_id} on_hand={self.on_hand}>"

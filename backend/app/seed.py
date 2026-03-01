@@ -12,6 +12,10 @@ Creates:
   - 5 Employees (linked to users + departments)
   - Department heads (ADMIN→owner, PROD→supervisor)
   - 20 Leave Balances (5 employees × 4 leave types with quota)
+  - 6 Shift Types + 4 Work Schedules
+  - 1 Warehouse (WH-MAIN) + 3 Locations (RECEIVING, STORAGE, SHIPPING)
+  - 5 Products (3 MATERIAL + 1 CONSUMABLE + 1 SERVICE)
+  - 3 Tools (สว่าน, เครื่องเชื่อม, เครื่องตัดเลเซอร์)
 """
 
 import asyncio
@@ -27,6 +31,9 @@ from app.models import User, Organization
 from app.models.master import CostCenter, OTType, LeaveType, ShiftType, WorkSchedule, ScheduleType
 from app.models.organization import Department
 from app.models.hr import Employee, LeaveBalance, PayType
+from app.models.warehouse import Warehouse, Location
+from app.models.inventory import Product, ProductType
+from app.models.tools import Tool, ToolStatus
 
 
 # ============================================================
@@ -75,6 +82,26 @@ WS_REGULAR_MF_ID    = UUID("00000000-0000-0000-0007-000000000001")
 WS_ROTATING_3S_ID   = UUID("00000000-0000-0000-0007-000000000002")
 WS_ROTATING_12H_ID  = UUID("00000000-0000-0000-0007-000000000003")
 WS_MANUAL_ID        = UUID("00000000-0000-0000-0007-000000000004")
+
+# Warehouses
+WH_MAIN_ID = UUID("00000000-0000-0000-0008-000000000001")
+
+# Locations
+LOC_RECEIVING_ID = UUID("00000000-0000-0000-0009-000000000001")
+LOC_STORAGE_ID   = UUID("00000000-0000-0000-0009-000000000002")
+LOC_SHIPPING_ID  = UUID("00000000-0000-0000-0009-000000000003")
+
+# Products
+PROD_STEEL_ID    = UUID("00000000-0000-0000-000a-000000000001")
+PROD_PVC_ID      = UUID("00000000-0000-0000-000a-000000000002")
+PROD_BOLT_ID     = UUID("00000000-0000-0000-000a-000000000003")
+PROD_GLOVE_ID    = UUID("00000000-0000-0000-000a-000000000004")
+PROD_QC_ID       = UUID("00000000-0000-0000-000a-000000000005")
+
+# Tools
+TOOL_DRILL_ID   = UUID("00000000-0000-0000-000b-000000000001")
+TOOL_WELDER_ID  = UUID("00000000-0000-0000-000b-000000000002")
+TOOL_LASER_ID   = UUID("00000000-0000-0000-000b-000000000003")
 
 
 # ============================================================
@@ -196,6 +223,44 @@ DEPT_HEADS = {
     DEPT_PROD_ID: EMP_SUPERVISOR_ID,   # supervisor heads PROD
     # SALES has no head yet
 }
+
+
+WAREHOUSES = [
+    {"id": WH_MAIN_ID, "code": "WH-MAIN", "name": "คลังสินค้าหลัก", "description": "คลังสินค้าหลัก สำนักงานใหญ่"},
+]
+
+LOCATIONS = [
+    {"id": LOC_RECEIVING_ID, "warehouse_id": WH_MAIN_ID, "code": "RECV-01", "name": "จุดรับสินค้า", "zone_type": "RECEIVING", "description": "จุดรับสินค้าเข้า"},
+    {"id": LOC_STORAGE_ID, "warehouse_id": WH_MAIN_ID, "code": "STOR-01", "name": "พื้นที่จัดเก็บ", "zone_type": "STORAGE", "description": "พื้นที่จัดเก็บสินค้า"},
+    {"id": LOC_SHIPPING_ID, "warehouse_id": WH_MAIN_ID, "code": "SHIP-01", "name": "จุดจัดส่ง", "zone_type": "SHIPPING", "description": "จุดจัดส่งสินค้าออก"},
+]
+
+PRODUCTS = [
+    {"id": PROD_STEEL_ID, "sku": "MAT-001", "name": "เหล็กแผ่น SS400", "product_type": ProductType.MATERIAL,
+     "unit": "แผ่น", "cost": Decimal("850.00"), "on_hand": 100, "min_stock": 20,
+     "description": "เหล็กแผ่น SS400 ขนาด 4x8 ฟุต หนา 6mm"},
+    {"id": PROD_PVC_ID, "sku": "MAT-002", "name": "ท่อ PVC 4 นิ้ว", "product_type": ProductType.MATERIAL,
+     "unit": "เส้น", "cost": Decimal("120.00"), "on_hand": 50, "min_stock": 15,
+     "description": "ท่อ PVC ชั้น 13.5 ขนาด 4 นิ้ว ยาว 4 เมตร"},
+    {"id": PROD_BOLT_ID, "sku": "MAT-003", "name": "น็อตสแตนเลส M10", "product_type": ProductType.MATERIAL,
+     "unit": "ตัว", "cost": Decimal("5.00"), "on_hand": 500, "min_stock": 100,
+     "description": "น็อตสแตนเลส 304 M10x30mm"},
+    {"id": PROD_GLOVE_ID, "sku": "CON-001", "name": "ถุงมือยาง", "product_type": ProductType.CONSUMABLE,
+     "unit": "คู่", "cost": Decimal("25.00"), "on_hand": 10, "min_stock": 50,
+     "description": "ถุงมือยางไนไตรล์ ไซส์ L"},
+    {"id": PROD_QC_ID, "sku": "SVC-001", "name": "บริการตรวจสอบคุณภาพ", "product_type": ProductType.SERVICE,
+     "unit": "ครั้ง", "cost": Decimal("0.00"), "on_hand": 0, "min_stock": 0,
+     "description": "บริการตรวจสอบคุณภาพงานเชื่อม/งานโลหะ"},
+]
+
+TOOLS = [
+    {"id": TOOL_DRILL_ID, "code": "TL-001", "name": "สว่านไฟฟ้า Bosch GSB 13RE",
+     "rate_per_hour": Decimal("200.00"), "description": "สว่านไฟฟ้ากระแทก 600W"},
+    {"id": TOOL_WELDER_ID, "code": "TL-002", "name": "เครื่องเชื่อม Lincoln V270-T",
+     "rate_per_hour": Decimal("350.00"), "description": "เครื่องเชื่อม MIG/MAG 270A"},
+    {"id": TOOL_LASER_ID, "code": "TL-003", "name": "เครื่องตัดเลเซอร์ Trumpf",
+     "rate_per_hour": Decimal("500.00"), "description": "เครื่องตัดเลเซอร์ไฟเบอร์ 3kW"},
+]
 
 
 # ============================================================
@@ -476,6 +541,63 @@ async def seed():
             print(f"  [WS]   {ws_count} work schedules created")
         else:
             print(f"  [WS]   All work schedules exist")
+
+        # ── 12. Warehouses ─────────────────────────────
+        print()
+        for wh_data in WAREHOUSES:
+            existing = await _check_exists(db, Warehouse, id=wh_data["id"])
+            if not existing:
+                wh = Warehouse(org_id=DEFAULT_ORG_ID, **wh_data)
+                db.add(wh)
+                print(f"  [WH]   {wh_data['code']} — {wh_data['name']}")
+            else:
+                print(f"  [WH]   {wh_data['code']} (exists)")
+
+        await db.flush()  # Warehouse IDs needed for Locations
+
+        # ── 13. Locations ─────────────────────────────
+        for loc_data in LOCATIONS:
+            existing = await _check_exists(db, Location, id=loc_data["id"])
+            if not existing:
+                loc = Location(org_id=DEFAULT_ORG_ID, **loc_data)
+                db.add(loc)
+                print(f"  [Loc]  {loc_data['code']} — {loc_data['name']} ({loc_data['zone_type']})")
+            else:
+                print(f"  [Loc]  {loc_data['code']} (exists)")
+
+        await db.flush()  # Location IDs needed for StockByLocation
+
+        # ── 14. Products ──────────────────────────────
+        print()
+        for prod_data in PRODUCTS:
+            existing = await _check_exists(db, Product, id=prod_data["id"])
+            if not existing:
+                # Also check by SKU to avoid unique constraint violation
+                existing_by_sku = await _check_exists(db, Product, sku=prod_data["sku"])
+                if existing_by_sku:
+                    print(f"  [Prod] {prod_data['sku']} (exists with different ID, skipping)")
+                    continue
+                prod = Product(org_id=DEFAULT_ORG_ID, **prod_data)
+                db.add(prod)
+                type_str = prod_data["product_type"].value
+                print(f"  [Prod] {prod_data['sku']} — {prod_data['name']} ({type_str})")
+            else:
+                print(f"  [Prod] {prod_data['sku']} (exists)")
+
+        # ── 15. Tools ─────────────────────────────────
+        print()
+        for tool_data in TOOLS:
+            existing = await _check_exists(db, Tool, id=tool_data["id"])
+            if not existing:
+                tool = Tool(
+                    org_id=DEFAULT_ORG_ID,
+                    status=ToolStatus.AVAILABLE,
+                    **tool_data,
+                )
+                db.add(tool)
+                print(f"  [Tool] {tool_data['code']} — {tool_data['name']} ({tool_data['rate_per_hour']} ฿/hr)")
+            else:
+                print(f"  [Tool] {tool_data['code']} (exists)")
 
         # ----- COMMIT -----
         await db.commit()

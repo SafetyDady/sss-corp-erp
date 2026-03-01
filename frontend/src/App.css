@@ -91,6 +91,14 @@ body {
   color: #06b6d4;
 }
 
+/* Low stock row highlight */
+.ant-table-wrapper .ant-table-tbody > tr.low-stock-row > td {
+  background: #ef444410 !important;
+}
+.ant-table-wrapper .ant-table-tbody > tr.low-stock-row:hover > td {
+  background: #ef444420 !important;
+}
+
 /* Sidebar menu group labels */
 .ant-menu-dark .ant-menu-item-group-title {
   color: #64748b !important;

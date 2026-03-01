@@ -25,8 +25,10 @@ from app.models.inventory import (
     MovementType,
     Product,
     ProductType,
+    StockByLocation,
     StockMovement,
 )
+from app.models.warehouse import Location, Warehouse
 
 
 # ============================================================
@@ -218,16 +220,16 @@ async def create_movement(
     note: Optional[str],
     created_by: UUID,
     org_id: UUID,
+    location_id: Optional[UUID] = None,
 ) -> StockMovement:
     """
     Create a stock movement and update on_hand.
-    Business Rules #5, #6.
+    Business Rules #5, #6, #69-72.
     """
     # Get product (must be active)
     product = await get_product(db, product_id)
 
     # BR#65: SERVICE products cannot have stock movements
-    from app.models.inventory import ProductType
     if product.product_type == ProductType.SERVICE:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -245,6 +247,18 @@ async def create_movement(
             detail=f"Insufficient stock: on_hand={product.on_hand}, requested={quantity}",
         )
 
+    # BR#69-70: If location_id provided, validate + update stock_by_location
+    if location_id:
+        await _validate_location(db, location_id, org_id)
+        sbl = await _get_or_create_stock_by_location(db, product_id, location_id, org_id)
+        new_sbl_on_hand = sbl.on_hand + qty_delta
+        if new_sbl_on_hand < 0:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Insufficient stock at location: on_hand={sbl.on_hand}, requested={quantity}",
+            )
+        sbl.on_hand = new_sbl_on_hand
+
     # Create movement record (immutable — BR#8)
     movement = StockMovement(
         product_id=product_id,
@@ -255,6 +269,7 @@ async def create_movement(
         note=note,
         created_by=created_by,
         org_id=org_id,
+        location_id=location_id,
     )
     db.add(movement)
 
@@ -308,6 +323,19 @@ async def reverse_movement(
             detail=f"Cannot reverse — would result in negative stock: {new_on_hand}",
         )
 
+    # Reverse stock_by_location if original had location_id
+    if original.location_id:
+        sbl = await _get_or_create_stock_by_location(
+            db, original.product_id, original.location_id, org_id
+        )
+        new_sbl_on_hand = sbl.on_hand + reverse_delta
+        if new_sbl_on_hand < 0:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Cannot reverse — would result in negative stock at location: {new_sbl_on_hand}",
+            )
+        sbl.on_hand = new_sbl_on_hand
+
     # Create reversal movement
     reversal = StockMovement(
         product_id=original.product_id,
@@ -318,6 +346,7 @@ async def reverse_movement(
         note=note or f"Reversal of movement {movement_id}",
         created_by=created_by,
         org_id=org_id,
+        location_id=original.location_id,
     )
     db.add(reversal)
 
@@ -340,6 +369,7 @@ async def list_movements(
     offset: int = 0,
     product_id: Optional[UUID] = None,
     movement_type: Optional[str] = None,
+    location_id: Optional[UUID] = None,
     org_id: Optional[UUID] = None,
 ) -> tuple[list[StockMovement], int]:
     """List stock movements with pagination and filters."""
@@ -352,6 +382,9 @@ async def list_movements(
 
     if movement_type:
         query = query.where(StockMovement.movement_type == movement_type)
+
+    if location_id:
+        query = query.where(StockMovement.location_id == location_id)
 
     # Total count
     count_query = select(func.count()).select_from(query.subquery())
@@ -399,3 +432,142 @@ async def _product_has_movements(db: AsyncSession, product_id: UUID) -> bool:
     )
     count = result.scalar() or 0
     return count > 0
+
+
+# ============================================================
+# STOCK BY LOCATION HELPERS
+# ============================================================
+
+async def _validate_location(db: AsyncSession, location_id: UUID, org_id: UUID) -> Location:
+    """Validate location exists, is active, and belongs to org."""
+    result = await db.execute(
+        select(Location).where(
+            Location.id == location_id,
+            Location.is_active == True,
+            Location.org_id == org_id,
+        )
+    )
+    location = result.scalar_one_or_none()
+    if not location:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Location not found or inactive",
+        )
+    return location
+
+
+async def _get_or_create_stock_by_location(
+    db: AsyncSession, product_id: UUID, location_id: UUID, org_id: UUID
+) -> StockByLocation:
+    """Get existing stock_by_location record or create with on_hand=0."""
+    result = await db.execute(
+        select(StockByLocation).where(
+            StockByLocation.product_id == product_id,
+            StockByLocation.location_id == location_id,
+        )
+    )
+    sbl = result.scalar_one_or_none()
+    if not sbl:
+        sbl = StockByLocation(
+            product_id=product_id,
+            location_id=location_id,
+            on_hand=0,
+            org_id=org_id,
+        )
+        db.add(sbl)
+        await db.flush()
+    return sbl
+
+
+async def list_stock_by_location(
+    db: AsyncSession,
+    *,
+    product_id: Optional[UUID] = None,
+    location_id: Optional[UUID] = None,
+    warehouse_id: Optional[UUID] = None,
+    org_id: UUID,
+) -> list[dict]:
+    """List stock breakdown by location with joined warehouse/location info."""
+    query = (
+        select(
+            StockByLocation,
+            Location.code.label("location_code"),
+            Location.name.label("location_name"),
+            Location.zone_type.label("zone_type"),
+            Location.warehouse_id.label("warehouse_id"),
+            Warehouse.name.label("warehouse_name"),
+        )
+        .join(Location, StockByLocation.location_id == Location.id)
+        .join(Warehouse, Location.warehouse_id == Warehouse.id)
+        .where(StockByLocation.org_id == org_id)
+        .where(StockByLocation.on_hand > 0)
+    )
+
+    if product_id:
+        query = query.where(StockByLocation.product_id == product_id)
+    if location_id:
+        query = query.where(StockByLocation.location_id == location_id)
+    if warehouse_id:
+        query = query.where(Location.warehouse_id == warehouse_id)
+
+    query = query.order_by(Warehouse.name, Location.code)
+    result = await db.execute(query)
+    rows = result.all()
+
+    return [
+        {
+            "id": row.StockByLocation.id,
+            "product_id": row.StockByLocation.product_id,
+            "location_id": row.StockByLocation.location_id,
+            "location_code": row.location_code,
+            "location_name": row.location_name,
+            "warehouse_id": row.warehouse_id,
+            "warehouse_name": row.warehouse_name,
+            "zone_type": row.zone_type,
+            "on_hand": row.StockByLocation.on_hand,
+        }
+        for row in rows
+    ]
+
+
+async def get_low_stock_count(db: AsyncSession, *, org_id: UUID) -> int:
+    """Count products where on_hand <= min_stock AND min_stock > 0."""
+    result = await db.execute(
+        select(func.count()).select_from(
+            select(Product).where(
+                Product.org_id == org_id,
+                Product.is_active == True,
+                Product.min_stock > 0,
+                Product.on_hand <= Product.min_stock,
+            ).subquery()
+        )
+    )
+    return result.scalar() or 0
+
+
+async def get_movement_location_info(
+    db: AsyncSession, movement_ids: list[UUID]
+) -> dict[UUID, dict]:
+    """Batch-fetch location+warehouse names for movements."""
+    if not movement_ids:
+        return {}
+
+    result = await db.execute(
+        select(
+            StockMovement.id,
+            Location.name.label("location_name"),
+            Warehouse.name.label("warehouse_name"),
+        )
+        .join(Location, StockMovement.location_id == Location.id, isouter=True)
+        .join(Warehouse, Location.warehouse_id == Warehouse.id, isouter=True)
+        .where(StockMovement.id.in_(movement_ids))
+        .where(StockMovement.location_id.isnot(None))
+    )
+    rows = result.all()
+    return {
+        row.id: {
+            "location_name": row.location_name,
+            "warehouse_name": row.warehouse_name,
+        }
+        for row in rows
+    }

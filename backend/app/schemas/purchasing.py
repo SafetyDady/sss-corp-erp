@@ -283,6 +283,7 @@ class PurchaseOrderListResponse(BaseModel):
 class GoodsReceiptLine(BaseModel):
     line_id: UUID
     received_qty: int = Field(gt=0)
+    location_id: Optional[UUID] = None  # Receiving location (GOODS only)
     note: Optional[str] = None
 
 

@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { Modal, Table, InputNumber, App, Tag } from 'antd';
+import { useState, useEffect } from 'react';
+import { Modal, Table, InputNumber, App, Tag, Row, Col, Select } from 'antd';
+import { Warehouse as WarehouseIcon, MapPin } from 'lucide-react';
 import api from '../../services/api';
 import { getApiErrorMsg } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
@@ -7,7 +8,28 @@ import { COLORS } from '../../utils/constants';
 export default function GoodsReceiptModal({ open, po, products, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [receiptQtys, setReceiptQtys] = useState({});
+  const [warehouses, setWarehouses] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState(undefined);
+  const [selectedLocationId, setSelectedLocationId] = useState(undefined);
   const { message } = App.useApp();
+
+  // Fetch warehouses on open
+  useEffect(() => {
+    if (!open) return;
+    api.get('/api/warehouse/warehouses', { params: { limit: 100, offset: 0 } })
+      .then((r) => setWarehouses(r.data.items || []))
+      .catch(() => {});
+  }, [open]);
+
+  // Fetch locations when warehouse changes
+  useEffect(() => {
+    if (!selectedWarehouseId) { setLocations([]); setSelectedLocationId(undefined); return; }
+    api.get('/api/warehouse/locations', { params: { limit: 100, offset: 0, warehouse_id: selectedWarehouseId } })
+      .then((r) => setLocations(r.data.items || []))
+      .catch(() => {});
+    setSelectedLocationId(undefined);
+  }, [selectedWarehouseId]);
 
   const getReceiptQty = (lineId) => receiptQtys[lineId] || 0;
   const updateReceiptQty = (lineId, value) => {
@@ -17,10 +39,14 @@ export default function GoodsReceiptModal({ open, po, products, onClose, onSucce
   const handleSubmit = async () => {
     const receiptLines = (po?.lines || [])
       .filter((line) => getReceiptQty(line.id) > 0)
-      .map((line) => ({
-        line_id: line.id,
-        received_qty: getReceiptQty(line.id),
-      }));
+      .map((line) => {
+        const isGoods = (line.item_type || 'GOODS') === 'GOODS';
+        return {
+          line_id: line.id,
+          received_qty: getReceiptQty(line.id),
+          ...(isGoods && selectedLocationId ? { location_id: selectedLocationId } : {}),
+        };
+      });
 
     if (receiptLines.length === 0) {
       message.error('กรุณาระบุจำนวนรับอย่างน้อย 1 รายการ');
@@ -32,6 +58,8 @@ export default function GoodsReceiptModal({ open, po, products, onClose, onSucce
       await api.post(`/api/purchasing/po/${po.id}/receive`, { lines: receiptLines });
       message.success('รับสินค้า/บริการสำเร็จ');
       setReceiptQtys({});
+      setSelectedWarehouseId(undefined);
+      setSelectedLocationId(undefined);
       onSuccess();
     } catch (err) {
       message.error(getApiErrorMsg(err, 'เกิดข้อผิดพลาด'));
@@ -101,6 +129,37 @@ export default function GoodsReceiptModal({ open, po, products, onClose, onSucce
           <h4 style={{ color: COLORS.text, marginBottom: 8 }}>
             <Tag color="blue">GOODS</Tag> สินค้า — รับเข้าคลัง (สร้าง Stock Movement อัตโนมัติ)
           </h4>
+          <Row gutter={16} style={{ marginBottom: 12 }}>
+            <Col span={12}>
+              <label style={{ color: COLORS.textSecondary, fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                <WarehouseIcon size={12} /> คลังสินค้า
+              </label>
+              <Select
+                allowClear
+                style={{ width: '100%' }}
+                placeholder="เลือกคลังสินค้า"
+                value={selectedWarehouseId}
+                onChange={setSelectedWarehouseId}
+                options={warehouses.map((w) => ({ value: w.id, label: `${w.code} - ${w.name}` }))}
+                size="small"
+              />
+            </Col>
+            <Col span={12}>
+              <label style={{ color: COLORS.textSecondary, fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                <MapPin size={12} /> ตำแหน่ง (Location)
+              </label>
+              <Select
+                allowClear
+                style={{ width: '100%' }}
+                placeholder="เลือก Location"
+                value={selectedLocationId}
+                onChange={setSelectedLocationId}
+                disabled={!selectedWarehouseId}
+                options={locations.map((l) => ({ value: l.id, label: `${l.code} - ${l.name} (${l.zone_type})` }))}
+                size="small"
+              />
+            </Col>
+          </Row>
           <Table
             dataSource={goodsLines}
             columns={makeColumns(false)}
