@@ -99,6 +99,41 @@ body {
   background: #ef444420 !important;
 }
 
+/* Print styles for QR Code label */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .qr-print-content,
+  .qr-print-content * {
+    visibility: visible !important;
+    color: #000 !important;
+  }
+  .qr-print-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 15mm;
+    background: #fff !important;
+  }
+  .qr-print-content h2,
+  .qr-print-content p,
+  .qr-print-content li,
+  .qr-print-content span,
+  .qr-print-content strong {
+    color: #000 !important;
+  }
+  .qr-print-content .ant-divider {
+    border-color: #ccc !important;
+  }
+  .ant-modal-mask,
+  .ant-modal-wrap > .ant-modal > .ant-modal-content > .ant-modal-footer,
+  .ant-modal-wrap > .ant-modal > .ant-modal-content > .ant-modal-header {
+    display: none !important;
+  }
+}
+
 /* Sidebar menu group labels */
 .ant-menu-dark .ant-menu-item-group-title {
   color: #64748b !important;

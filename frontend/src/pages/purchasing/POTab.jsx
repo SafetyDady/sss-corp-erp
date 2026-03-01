@@ -85,6 +85,10 @@ export default function POTab() {
       render: (v) => <StatusBadge status={v} />,
     },
     {
+      title: 'ใบวางของ', dataIndex: 'delivery_note_number', key: 'delivery_note_number', width: 130,
+      render: (v) => v ? <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{v}</span> : '-',
+    },
+    {
       title: '', key: 'actions', width: 120, align: 'right',
       render: (_, record) => (
         <Space size={4}>

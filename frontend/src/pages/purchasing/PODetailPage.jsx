@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, Table, Button, App, Space, Descriptions, Spin, Popconfirm, Tag } from 'antd';
-import { ArrowLeft, Check, PackageCheck } from 'lucide-react';
+import { ArrowLeft, Check, PackageCheck, QrCode } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
 import PageHeader from '../../components/PageHeader';
@@ -9,16 +9,19 @@ import StatusBadge from '../../components/StatusBadge';
 import { formatCurrency, formatDate, formatDateTime, getApiErrorMsg } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
 import GoodsReceiptModal from './GoodsReceiptModal';
+import POQRCodeModal from './POQRCodeModal';
 
 export default function PODetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { can } = usePermission();
   const { message } = App.useApp();
   const [po, setPo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState({});
   const [grModalOpen, setGrModalOpen] = useState(false);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -29,6 +32,10 @@ export default function PODetailPage() {
       ]);
       setPo(poRes.data);
       setProducts(Object.fromEntries(prodRes.data.items.map((p) => [p.id, p])));
+      // Auto-open GR modal when scanned via QR code
+      if (searchParams.get('action') === 'receive' && poRes.data.status === 'APPROVED') {
+        setGrModalOpen(true);
+      }
     } catch (err) {
       message.error('ไม่พบข้อมูล');
       navigate('/purchasing');
@@ -110,6 +117,11 @@ export default function PODetailPage() {
                 Goods Receipt
               </Button>
             )}
+            {(po.status === 'APPROVED' || po.status === 'RECEIVED') && can('purchasing.po.read') && (
+              <Button icon={<QrCode size={14} />} onClick={() => setQrModalOpen(true)}>
+                QR Code
+              </Button>
+            )}
           </Space>
         }
       />
@@ -132,8 +144,13 @@ export default function PODetailPage() {
               </Button>
             </Descriptions.Item>
           )}
+          {po.delivery_note_number && (
+            <Descriptions.Item label="เลขใบวางของ">
+              <span style={{ fontFamily: 'monospace', color: COLORS.accent }}>{po.delivery_note_number}</span>
+            </Descriptions.Item>
+          )}
           {po.note && (
-            <Descriptions.Item label="หมายเหตุ" span={3}>{po.note}</Descriptions.Item>
+            <Descriptions.Item label="หมายเหตุ" span={po.delivery_note_number ? 2 : 3}>{po.note}</Descriptions.Item>
           )}
         </Descriptions>
       </Card>
@@ -153,6 +170,13 @@ export default function PODetailPage() {
         products={products}
         onClose={() => setGrModalOpen(false)}
         onSuccess={() => { setGrModalOpen(false); fetchData(); }}
+      />
+
+      <POQRCodeModal
+        open={qrModalOpen}
+        po={po}
+        products={products}
+        onClose={() => setQrModalOpen(false)}
       />
     </div>
   );

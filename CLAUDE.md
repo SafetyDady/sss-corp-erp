@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-01 v11 (Stock-Location Integration + Low Stock Alert)
+> อัปเดตล่าสุด: 2026-03-01 v12 (PO QR Code + Delivery Note Number)
 
 ---
 
@@ -72,7 +72,7 @@ sss-corp-erp/
 │   │   │   ├── planning.py       # Planning + Reservation service (Phase 4.5)
 │   │   │   └── ...
 │   │   └── main.py               # FastAPI app + Sentry init
-│   ├── alembic/                  # DB migrations (10 revisions)
+│   ├── alembic/                  # DB migrations (14 revisions)
 │   ├── tests/                    # pytest
 │   ├── Dockerfile                # Production (Railway, non-root user)
 │   ├── Dockerfile.dev            # Dev (hot-reload)
@@ -681,7 +681,7 @@ GET    /api/purchasing/po/{id}             purchasing.po.read
 PUT    /api/purchasing/po/{id}             purchasing.po.update
 DELETE /api/purchasing/po/{id}             purchasing.po.delete
 POST   /api/purchasing/po/{id}/approve      purchasing.po.approve
-POST   /api/purchasing/po/{id}/receive      purchasing.po.update    (GOODS→stock movement, SERVICE→confirm only)
+POST   /api/purchasing/po/{id}/receive      purchasing.po.update    (GOODS→stock movement, SERVICE→confirm only, +delivery_note_number)
 ```
 
 ### Sales
@@ -1124,11 +1124,13 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **11.4** Manual Movement Location — MovementCreateModal Warehouse/Location cascade picker
 - [x] **11.5** Movement Location Display — MovementListPage Location column + location filter
 - [x] **11.6** Seed Data — 1 Warehouse, 3 Locations (RECEIVING/STORAGE/SHIPPING), 5 Products (3 MATERIAL + 1 CONSUMABLE + 1 SERVICE), 3 Tools
-- [ ] **11.7** Stock Aging Report — inventory value by age bracket (0-30, 31-60, 61-90, 90+ days)
+- [x] **11.7** PO QR Code — QR Code on PO document (antd `<QRCode>`), scan → auto-open GR, print label (`@media print`)
+- [x] **11.8** Delivery Note Number — เลขใบวางของ field in GR Modal → stored on PO → displayed in PO Detail + PO List
+- [ ] **11.9** Stock Aging Report — inventory value by age bracket (0-30, 31-60, 61-90, 90+ days)
 - [ ] **11.8** Batch/Lot Tracking — batch_number on StockMovement, FIFO/LIFO costing option
-- [ ] **11.9** Barcode/QR — generate barcode for SKU (frontend display + print label)
-- [ ] **11.10** Stock Take — cycle count workflow (count → variance → adjust)
-- [ ] **11.11** Multi-warehouse Transfer — TRANSFER movement between warehouses with approval
+- [ ] **11.11** Barcode/QR — generate barcode for SKU (frontend display + print label)
+- [ ] **11.12** Stock Take — cycle count workflow (count → variance → adjust)
+- [ ] **11.13** Multi-warehouse Transfer — TRANSFER movement between warehouses with approval
 
 ### Phase 12 — Mobile Responsive 📱 (Planned)
 - [ ] **12.1** Responsive layout — Ant Design Grid breakpoints, collapsible sidebar mobile-first
@@ -1240,7 +1242,8 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/purchasing/PRDetailPage.jsx` | PR detail + approve/reject/convert/cancel (Phase 7.9) |
 | `frontend/src/pages/purchasing/ConvertToPOModal.jsx` | Convert approved PR to PO — price comparison (Phase 7.9) |
 | `frontend/src/pages/purchasing/POTab.jsx` | PO list embedded tab — no create button (Phase 7.9) |
-| `frontend/src/pages/purchasing/GoodsReceiptModal.jsx` | Line-by-line GR — GOODS + SERVICE sections + Warehouse/Location picker (Phase 7.9 + 11) |
+| `frontend/src/pages/purchasing/GoodsReceiptModal.jsx` | Line-by-line GR — GOODS + SERVICE sections + Warehouse/Location picker + Delivery Note Number (Phase 7.9 + 11) |
+| `frontend/src/pages/purchasing/POQRCodeModal.jsx` | QR Code display + print for PO (Phase 11.7) |
 | `frontend/src/pages/approval/PRApprovalTab.jsx` | PR approval tab for Approval Center (Phase 7.9) |
 | `backend/app/middleware/performance.py` | Request timing middleware (Phase 14) |
 | `backend/app/services/ai_performance.py` | AI performance analysis engine — Claude API (Phase 14) |
@@ -1269,4 +1272,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v12 (Phase 0-7.9 complete + Phase 11 partial: Stock-Location Integration + Low Stock Alert, Phase 8-14 planned)*
+*End of CLAUDE.md — SSS Corp ERP v12 (Phase 0-7.9 complete + Phase 11 partial: Stock-Location + Low Stock + QR Code + Delivery Note, Phase 8-14 planned)*

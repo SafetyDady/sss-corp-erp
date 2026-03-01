@@ -450,7 +450,12 @@ async def api_receive_goods(
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     receipt_lines = [l.model_dump() for l in body.lines]
     po = await receive_goods(
-        db, po_id, receipt_lines=receipt_lines, received_by=user_id, org_id=org_id
+        db,
+        po_id,
+        receipt_lines=receipt_lines,
+        received_by=user_id,
+        org_id=org_id,
+        delivery_note_number=body.delivery_note_number,
     )
     return _po_to_response(po)
 
@@ -528,6 +533,7 @@ def _po_to_response(po) -> dict:
         "total_amount": po.total_amount,
         "cost_center_id": po.cost_center_id,
         "note": po.note,
+        "delivery_note_number": getattr(po, "delivery_note_number", None),
         "created_by": po.created_by,
         "approved_by": po.approved_by,
         "requested_approver_id": po.requested_approver_id,

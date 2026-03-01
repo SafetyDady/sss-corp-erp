@@ -1,7 +1,7 @@
 # TODO.md — SSS Corp ERP Implementation Tracker
 
 > อ้างอิง: `CLAUDE.md` → Implementation Phases + Business Rules
-> อัปเดตล่าสุด: 2026-03-01 (Stock-Location Integration + Low Stock Alert)
+> อัปเดตล่าสุด: 2026-03-01 (PO QR Code + Delivery Note Number)
 
 ---
 
@@ -939,6 +939,54 @@
 
 ---
 
+## Phase 11 (Continued) — PO QR Code + Delivery Note Number ✅
+
+> **Scope**: (1) QR Code บน PO ให้ scan แล้วเปิดหน้ารับของอัตโนมัติ (2) ช่องกรอกเลขใบวางของจาก Supplier
+> **สร้าง**: 2026-03-01
+
+### 11.7 PO QR Code ✅
+
+- [x] ปุ่ม "QR Code" บนหน้า PODetailPage (status=APPROVED/RECEIVED)
+- [x] `POQRCodeModal.jsx` — Ant Design `<QRCode>` component (no extra library)
+- [x] QR encode: `${window.location.origin}/purchasing/po/${po.id}?action=receive`
+- [x] แสดงข้อมูล PO: number, supplier, dates, total, items (max 5)
+- [x] QR สีดำพื้นขาว (always scannable regardless of dark theme)
+- [x] ปุ่ม "Print" → `window.print()` พิมพ์เฉพาะ QR label
+- [x] `@media print` CSS rules ใน `App.css` (visibility hidden/visible pattern)
+- [x] Auto-open GR Modal: `?action=receive` query param → `setGrModalOpen(true)` (useSearchParams)
+
+### 11.8 Delivery Note Number (เลขใบวางของ) ✅
+
+- [x] Migration: `b4c5d6e7f8a9_po_delivery_note_number.py` — `delivery_note_number` String(100) nullable
+- [x] Model: `PurchaseOrder.delivery_note_number` Mapped[str | None]
+- [x] Schema: `GoodsReceiptRequest.delivery_note_number` (header-level, optional)
+- [x] Schema: `PurchaseOrderResponse.delivery_note_number`
+- [x] Service: `receive_goods()` — stores delivery_note_number on PO
+- [x] API: `api_receive_goods()` — passes delivery_note_number to service
+- [x] API: `_po_to_response()` — includes delivery_note_number in response
+- [x] Frontend: GoodsReceiptModal — Input field "เลขใบวางของ (Delivery Note)" with FileText icon
+- [x] Frontend: PODetailPage — แสดง delivery_note_number ใน Descriptions
+- [x] Frontend: POTab — column "ใบวางของ" (monospace font)
+
+### สรุปไฟล์ทั้งหมด
+
+| # | ไฟล์ | ประเภท |
+|---|------|--------|
+| 1 | `backend/alembic/versions/b4c5d6e7f8a9_po_delivery_note_number.py` | สร้างใหม่ |
+| 2 | `backend/app/models/purchasing.py` | แก้ไข |
+| 3 | `backend/app/schemas/purchasing.py` | แก้ไข |
+| 4 | `backend/app/services/purchasing.py` | แก้ไข |
+| 5 | `backend/app/api/purchasing.py` | แก้ไข |
+| 6 | `frontend/src/pages/purchasing/GoodsReceiptModal.jsx` | แก้ไข |
+| 7 | `frontend/src/pages/purchasing/PODetailPage.jsx` | แก้ไข |
+| 8 | `frontend/src/pages/purchasing/POQRCodeModal.jsx` | สร้างใหม่ |
+| 9 | `frontend/src/App.css` | แก้ไข |
+| 10 | `frontend/src/pages/purchasing/POTab.jsx` | แก้ไข |
+
+**รวม: 2 ไฟล์ใหม่ + 8 ไฟล์แก้ไข = 10 ไฟล์**
+
+---
+
 ## Phase 8 — Dashboard & Analytics 📊 (Planned)
 
 ### 8.1 KPI Dashboard
@@ -1066,44 +1114,33 @@
 
 ---
 
-## Phase 11 — Inventory Enhancement 📦 (Planned)
+## Phase 11 — Inventory Enhancement 📦 (Partial ✅ — Remaining)
 
-### 11.1 Reorder Point
-- [ ] Product model: + `min_stock` (Numeric(12,2), nullable), `reorder_qty` (Numeric(12,2), nullable)
-- [ ] Schema: add to ProductCreate/Update
-- [ ] Migration: `k_phase11_inventory_enhance.py`
-
-### 11.2 Low Stock Alert
-- [ ] Backend: `GET /api/inventory/products/low-stock` — products where on_hand <= min_stock
-- [ ] Dashboard widget: Low Stock card with count + link to list
-- [ ] Integration with Notification Center (Phase 9): auto-create STOCK_ALERT notification
-- [ ] Optional: scheduled check (cron/background task)
-
-### 11.3 Stock Aging Report
+### 11.9 Stock Aging Report
 - [ ] Backend: `GET /api/inventory/reports/aging` — group by age bracket (0-30, 31-60, 61-90, 90+ days)
 - [ ] Calculate based on last RECEIVE movement date per product
 - [ ] Frontend: Aging report page with table + chart
 - [ ] Permission: `inventory.product.export`
 
-### 11.4 Batch/Lot Tracking
+### 11.10 Batch/Lot Tracking
 - [ ] StockMovement model: + `batch_number` (string, nullable)
 - [ ] FIFO costing option: track cost per batch
 - [ ] Frontend: batch_number input on RECEIVE movement form
 - [ ] Batch history: trace movements per batch number
 
-### 11.5 Barcode/QR Code
+### 11.11 Barcode/QR Code (SKU)
 - [ ] Install: `python-barcode` (backend) or `react-barcode` (frontend)
 - [ ] Generate barcode from SKU — display on product detail
 - [ ] Print label: SKU + barcode + product name
 - [ ] QR code option: encode product URL for mobile scanning
 
-### 11.6 Stock Take (Cycle Count)
+### 11.12 Stock Take (Cycle Count)
 - [ ] Model: `StockTake` (date, warehouse_id, status DRAFT/IN_PROGRESS/COMPLETED)
 - [ ] Model: `StockTakeLine` (product_id, system_qty, counted_qty, variance)
 - [ ] Workflow: create → count → review variances → approve → auto ADJUST movements
 - [ ] Permission: `inventory.movement.create` for creating, `inventory.movement.delete` for approving adjustments
 
-### 11.7 Multi-warehouse Transfer
+### 11.13 Multi-warehouse Transfer
 - [ ] TRANSFER movement type: source_warehouse_id → destination_warehouse_id
 - [ ] Two movements created: ISSUE from source + RECEIVE to destination (atomic)
 - [ ] Optional approval for inter-warehouse transfers

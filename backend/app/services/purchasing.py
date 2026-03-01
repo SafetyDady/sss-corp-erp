@@ -567,6 +567,7 @@ async def receive_goods(
     receipt_lines: list[dict],
     received_by: UUID,
     org_id: UUID,
+    delivery_note_number: str | None = None,
 ) -> PurchaseOrder:
     """
     Goods Receipt: receive items from PO.
@@ -580,6 +581,10 @@ async def receive_goods(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Can only receive goods for APPROVED purchase orders",
         )
+
+    # Store delivery note number if provided
+    if delivery_note_number:
+        po.delivery_note_number = delivery_note_number
 
     lines_by_id = {line.id: line for line in po.lines}
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Modal, Table, InputNumber, App, Tag, Row, Col, Select } from 'antd';
-import { Warehouse as WarehouseIcon, MapPin } from 'lucide-react';
+import { Modal, Table, InputNumber, Input, App, Tag, Row, Col, Select } from 'antd';
+import { Warehouse as WarehouseIcon, MapPin, FileText } from 'lucide-react';
 import api from '../../services/api';
 import { getApiErrorMsg } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
@@ -12,6 +12,7 @@ export default function GoodsReceiptModal({ open, po, products, onClose, onSucce
   const [locations, setLocations] = useState([]);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState(undefined);
   const [selectedLocationId, setSelectedLocationId] = useState(undefined);
+  const [deliveryNoteNumber, setDeliveryNoteNumber] = useState('');
   const { message } = App.useApp();
 
   // Fetch warehouses on open
@@ -55,11 +56,15 @@ export default function GoodsReceiptModal({ open, po, products, onClose, onSucce
 
     setLoading(true);
     try {
-      await api.post(`/api/purchasing/po/${po.id}/receive`, { lines: receiptLines });
+      await api.post(`/api/purchasing/po/${po.id}/receive`, {
+        delivery_note_number: deliveryNoteNumber.trim() || undefined,
+        lines: receiptLines,
+      });
       message.success('รับสินค้า/บริการสำเร็จ');
       setReceiptQtys({});
       setSelectedWarehouseId(undefined);
       setSelectedLocationId(undefined);
+      setDeliveryNoteNumber('');
       onSuccess();
     } catch (err) {
       message.error(getApiErrorMsg(err, 'เกิดข้อผิดพลาด'));
@@ -124,6 +129,21 @@ export default function GoodsReceiptModal({ open, po, products, onClose, onSucce
       okText="ยืนยันการรับ"
       destroyOnHidden
     >
+      <Row gutter={16} style={{ marginBottom: 16 }}>
+        <Col span={12}>
+          <label style={{ color: COLORS.textSecondary, fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+            <FileText size={12} /> เลขใบวางของ (Delivery Note)
+          </label>
+          <Input
+            placeholder="กรอกเลขใบวางของจากซัพพลายเออร์"
+            value={deliveryNoteNumber}
+            onChange={(e) => setDeliveryNoteNumber(e.target.value)}
+            maxLength={100}
+            size="small"
+          />
+        </Col>
+      </Row>
+
       {goodsLines.length > 0 && (
         <>
           <h4 style={{ color: COLORS.text, marginBottom: 8 }}>

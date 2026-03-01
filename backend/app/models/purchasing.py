@@ -231,6 +231,9 @@ class PurchaseOrder(Base, TimestampMixin, OrgMixin):
         nullable=True,
     )
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    delivery_note_number: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="RESTRICT"),

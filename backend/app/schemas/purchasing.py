@@ -257,6 +257,7 @@ class PurchaseOrderResponse(BaseModel):
     total_amount: Decimal
     cost_center_id: Optional[UUID] = None
     note: Optional[str] = None
+    delivery_note_number: Optional[str] = None
     created_by: UUID
     approved_by: Optional[UUID] = None
     requested_approver_id: Optional[UUID] = None
@@ -288,4 +289,7 @@ class GoodsReceiptLine(BaseModel):
 
 
 class GoodsReceiptRequest(BaseModel):
+    delivery_note_number: Optional[str] = Field(
+        default=None, max_length=100, description="เลขใบวางของจากซัพพลายเออร์"
+    )
     lines: list[GoodsReceiptLine] = Field(min_length=1)
