@@ -46,12 +46,7 @@ export default function WOReturnModal({ open, workOrderId, materials, onClose, o
     form.setFieldsValue({ location_id: undefined });
   };
 
-  const handleProductChange = (productId) => {
-    const prod = consumedProducts.find((p) => p.id === productId);
-    if (prod && prod.unit_cost > 0) {
-      form.setFieldsValue({ unit_cost: Number(prod.unit_cost) });
-    }
-  };
+  // unit_cost is auto-filled from product.cost on backend — no need for user input
 
   const onFinish = async (values) => {
     const { warehouse_id, ...rest } = values;
@@ -61,7 +56,7 @@ export default function WOReturnModal({ open, workOrderId, materials, onClose, o
       ...rest,
     };
     if (!payload.location_id) delete payload.location_id;
-    if (!payload.unit_cost) payload.unit_cost = 0;
+    payload.unit_cost = 0; // backend auto-fills from product.cost
 
     setLoading(true);
     try {
@@ -95,19 +90,13 @@ export default function WOReturnModal({ open, workOrderId, materials, onClose, o
             optionFilterProp="label"
             placeholder="เลือกสินค้าที่เคยเบิก"
             options={consumedProducts.map((p) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
-            onChange={handleProductChange}
           />
         </Form.Item>
 
-        <div style={{ display: 'flex', gap: 16 }}>
-          <Form.Item name="quantity" label="จำนวนที่คืน" style={{ flex: 1 }}
-            rules={[{ required: true, message: 'กรุณากรอกจำนวน' }]}>
-            <InputNumber min={1} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="unit_cost" label="ต้นทุน/หน่วย (บาท)" style={{ flex: 1 }}>
-            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
-          </Form.Item>
-        </div>
+        <Form.Item name="quantity" label="จำนวนที่คืน"
+          rules={[{ required: true, message: 'กรุณากรอกจำนวน' }]}>
+          <InputNumber min={1} style={{ width: '100%' }} />
+        </Form.Item>
 
         {/* Return to Location (optional) */}
         <div style={{ background: COLORS.surface, borderRadius: 8, padding: '12px 16px', border: `1px solid ${COLORS.card}` }}>

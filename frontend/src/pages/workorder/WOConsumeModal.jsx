@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Modal, Form, InputNumber, Select, App } from 'antd';
+import { Modal, Form, InputNumber, Select, App, Input } from 'antd';
 import { Warehouse as WarehouseIcon, MapPin } from 'lucide-react';
 import api from '../../services/api';
 import { COLORS } from '../../utils/constants';
@@ -37,12 +37,7 @@ export default function WOConsumeModal({ open, workOrderId, onClose, onSuccess }
     form.setFieldsValue({ location_id: undefined });
   };
 
-  const handleProductChange = (productId) => {
-    const prod = products.find((p) => p.id === productId);
-    if (prod && prod.cost > 0) {
-      form.setFieldsValue({ unit_cost: Number(prod.cost) });
-    }
-  };
+  // unit_cost is auto-filled from product.cost on backend — no need for user input
 
   const onFinish = async (values) => {
     const { warehouse_id, ...rest } = values;
@@ -52,7 +47,7 @@ export default function WOConsumeModal({ open, workOrderId, onClose, onSuccess }
       ...rest,
     };
     if (!payload.location_id) delete payload.location_id;
-    if (!payload.unit_cost) payload.unit_cost = 0;
+    payload.unit_cost = 0; // backend auto-fills from product.cost
 
     setLoading(true);
     try {
@@ -86,19 +81,13 @@ export default function WOConsumeModal({ open, workOrderId, onClose, onSuccess }
             optionFilterProp="label"
             placeholder="เลือกสินค้า (เฉพาะ MATERIAL / CONSUMABLE)"
             options={products.map((p) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
-            onChange={handleProductChange}
           />
         </Form.Item>
 
-        <div style={{ display: 'flex', gap: 16 }}>
-          <Form.Item name="quantity" label="จำนวน" style={{ flex: 1 }}
-            rules={[{ required: true, message: 'กรุณากรอกจำนวน' }]}>
-            <InputNumber min={1} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="unit_cost" label="ต้นทุน/หน่วย (บาท)" style={{ flex: 1 }}>
-            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
-          </Form.Item>
-        </div>
+        <Form.Item name="quantity" label="จำนวน"
+          rules={[{ required: true, message: 'กรุณากรอกจำนวน' }]}>
+          <InputNumber min={1} style={{ width: '100%' }} />
+        </Form.Item>
 
         {/* Source Location (optional) */}
         <div style={{ background: COLORS.surface, borderRadius: 8, padding: '12px 16px', border: `1px solid ${COLORS.card}` }}>
@@ -124,7 +113,7 @@ export default function WOConsumeModal({ open, workOrderId, onClose, onSuccess }
         </div>
 
         <Form.Item name="reference" label="อ้างอิง" style={{ marginTop: 16 }}>
-          <input className="ant-input" placeholder="PO-001, etc." style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 6, padding: '4px 11px', width: '100%' }} />
+          <input className="ant-input" placeholder="เลขที่ใบเบิก, หมายเลขอ้างอิง" style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 6, padding: '4px 11px', width: '100%' }} />
         </Form.Item>
         <Form.Item name="note" label="หมายเหตุ">
           <textarea className="ant-input" rows={2} style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 6, padding: '4px 11px', width: '100%' }} />

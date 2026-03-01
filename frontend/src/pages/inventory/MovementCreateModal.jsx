@@ -91,7 +91,7 @@ export default function MovementCreateModal({ open, products, onClose, onSuccess
   const showWorkOrder = moveType === 'CONSUME' || moveType === 'RETURN';
   const showCostCenter = moveType === 'ISSUE';
   const showCostElement = moveType === 'ISSUE';
-  const showUnitCost = moveType !== 'TRANSFER' && moveType !== 'ADJUST';
+  const showUnitCost = moveType !== 'TRANSFER' && moveType !== 'ADJUST' && moveType !== 'CONSUME' && moveType !== 'RETURN';
   const showSourceLocation = moveType !== 'RETURN';
   const showDestLocation = moveType === 'TRANSFER';
   const showAdjustType = moveType === 'ADJUST';
@@ -108,7 +108,10 @@ export default function MovementCreateModal({ open, products, onClose, onSuccess
     if (!payload.cost_center_id) delete payload.cost_center_id;
     if (!payload.cost_element_id) delete payload.cost_element_id;
     if (!payload.adjust_type) delete payload.adjust_type;
-    if (!payload.unit_cost) payload.unit_cost = 0;
+    // CONSUME/RETURN: backend auto-fills unit_cost from product.cost
+    if (payload.movement_type === 'CONSUME' || payload.movement_type === 'RETURN' || !payload.unit_cost) {
+      payload.unit_cost = 0;
+    }
 
     setLoading(true);
     try {
@@ -281,7 +284,7 @@ export default function MovementCreateModal({ open, products, onClose, onSuccess
         )}
 
         <Form.Item name="reference" label="อ้างอิง">
-          <Input placeholder="PO-001, WO-001, etc." />
+          <Input placeholder="เลขที่เอกสารอ้างอิง" />
         </Form.Item>
         <Form.Item name="note" label="หมายเหตุ">
           <Input.TextArea rows={2} />
