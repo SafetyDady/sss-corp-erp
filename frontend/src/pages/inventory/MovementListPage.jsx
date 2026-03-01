@@ -94,6 +94,14 @@ export default function MovementListPage({ embedded = false }) {
         return <span>{record.warehouse_name} / {record.location_name}</span>;
       },
     },
+    {
+      title: 'WO', dataIndex: 'work_order_number', key: 'wo', width: 120,
+      render: (v) => v ? <span style={{ fontFamily: 'monospace', color: COLORS.accent }}>{v}</span> : '-',
+    },
+    {
+      title: 'Cost Center', dataIndex: 'cost_center_name', key: 'cc', width: 130,
+      render: (v) => v || '-',
+    },
     { title: 'อ้างอิง', dataIndex: 'reference', key: 'reference', width: 120 },
     {
       title: '\u0E2A\u0E16\u0E32\u0E19\u0E30', dataIndex: 'is_reversed', key: 'is_reversed', width: 100,
@@ -141,7 +149,7 @@ export default function MovementListPage({ embedded = false }) {
           style={{ width: 160 }}
           value={typeFilter}
           onChange={setTypeFilter}
-          options={['RECEIVE', 'ISSUE', 'TRANSFER', 'ADJUST', 'CONSUME', 'REVERSAL'].map((v) => ({ value: v, label: v }))}
+          options={['RECEIVE', 'ISSUE', 'TRANSFER', 'ADJUST', 'CONSUME', 'RETURN', 'REVERSAL'].map((v) => ({ value: v, label: v }))}
         />
         <Select
           allowClear

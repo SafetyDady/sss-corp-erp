@@ -45,6 +45,7 @@ class MovementType(str, enum.Enum):
     TRANSFER = "TRANSFER"
     ADJUST = "ADJUST"
     CONSUME = "CONSUME"       # WO consumption
+    RETURN = "RETURN"         # Return unused material to stock from WO
     REVERSAL = "REVERSAL"
 
 
@@ -156,6 +157,27 @@ class StockMovement(Base, TimestampMixin, OrgMixin):
 
     # Location link (nullable — backward compatible with existing movements)
     location_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("locations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    # ISSUE → cost tracking
+    cost_center_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cost_centers.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    cost_element_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cost_elements.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    # TRANSFER → destination location
+    to_location_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("locations.id", ondelete="SET NULL"),
         nullable=True,

@@ -1,7 +1,7 @@
 # TODO.md — SSS Corp ERP Implementation Tracker
 
 > อ้างอิง: `CLAUDE.md` → Implementation Phases + Business Rules
-> อัปเดตล่าสุด: 2026-03-01 (Supplier Master Data + PO Integration)
+> อัปเดตล่าสุด: 2026-03-01 (Stock Withdrawal Scenarios — 5 movement types fixed)
 
 ---
 
@@ -1075,6 +1075,99 @@
 | 18 | `frontend/src/utils/permissionMeta.js` | แก้ไข |
 
 **รวม: 3 ไฟล์ใหม่ + 15 ไฟล์แก้ไข = 18 ไฟล์**
+
+---
+
+## Phase 11 (Continued) — Stock Withdrawal Scenarios (Part A) ✅
+
+> 5 movement types fixed: CONSUME→WO, ISSUE→CostCenter, TRANSFER 2-way, ADJUST ±, RETURN new type
+> Business Rules: BR#74-79 (new)
+
+### 11.10.1 Database Migration ✅
+
+- [x] `d6e7f8a9b0c1_stock_withdrawal_scenarios.py` (down_revision: `c5d6e7f8a9b0`)
+- [x] `ALTER TYPE movement_type_enum ADD VALUE 'RETURN'`
+- [x] ADD COLUMN `stock_movements.cost_center_id` — UUID FK → cost_centers.id, nullable, SET NULL, index
+- [x] ADD COLUMN `stock_movements.cost_element_id` — UUID FK → cost_elements.id, nullable, SET NULL
+- [x] ADD COLUMN `stock_movements.to_location_id` — UUID FK → locations.id, nullable, SET NULL, index
+
+### 11.10.2 Backend Model ✅
+
+- [x] `models/inventory.py` — `RETURN = "RETURN"` in MovementType + 3 new columns on StockMovement
+
+### 11.10.3 Backend Schema ✅
+
+- [x] `schemas/inventory.py` — StockMovementCreate: +work_order_id, cost_center_id, cost_element_id, to_location_id, adjust_type
+- [x] model_validator: per-type cross-field validation (CONSUME/RETURN→WO, ISSUE→CC, TRANSFER→locations, ADJUST→type)
+- [x] StockMovementResponse: +enrichment fields (work_order_number, cost_center_name, cost_element_name, to_location_name, to_warehouse_name)
+
+### 11.10.4 Backend Service ✅
+
+- [x] `services/inventory.py` — create_movement: accepts 4 new fields
+- [x] CONSUME/RETURN: validate WO exists + OPEN + product type ∈ {MATERIAL, CONSUMABLE} + auto-fill unit_cost
+- [x] ISSUE: validate CostCenter exists + active + org match, CostElement optional
+- [x] TRANSFER: atomic 2-way (source −qty, dest +qty), product.on_hand unchanged (delta=0)
+- [x] ADJUST: adjust_type → effective_quantity = ±quantity
+- [x] RETURN: delta = +quantity (stock increases)
+- [x] reverse_movement: copies scenario fields, TRANSFER reversal reverses both locations
+- [x] list_movements: +work_order_id filter
+- [x] get_movement_enrichment_info: batch-fetch WO/CC/CE/to_location names
+
+### 11.10.5 Backend API ✅
+
+- [x] `api/inventory.py` — api_create_movement: pass 4 new fields to service
+- [x] api_list_movements: +work_order_id query param, RETURN in type filter, enrichment in response
+
+### 11.10.6 WO Cost Summary ✅
+
+- [x] `services/workorder.py` — Material Cost = Σ(CONSUME) − Σ(RETURN), capped at 0.00
+
+### 11.10.7 WO Materials Endpoint ✅
+
+- [x] `api/workorder.py` — `GET /api/work-orders/{id}/materials` (workorder.order.read)
+- [x] Returns CONSUME + RETURN movements with product info + location info
+
+### 11.10.8 Frontend — MovementCreateModal ✅
+
+- [x] `MovementCreateModal.jsx` — Complete rewrite with conditional fields per type
+- [x] CONSUME/RETURN: Work Order selector (OPEN only), filters out SERVICE products
+- [x] ISSUE: Cost Center (required) + Cost Element (optional) selectors
+- [x] TRANSFER: Source location (required) + Destination location (required) pickers
+- [x] ADJUST: Radio group INCREASE/DECREASE
+- [x] Fetches on open: warehouses, OPEN WOs, cost centers, cost elements
+
+### 11.10.9 Frontend — WO Material Section + Modals ✅
+
+- [x] `WorkOrderDetailPage.jsx` — "วัสดุที่เบิก" section: materials table + consume/return buttons
+- [x] `WOConsumeModal.jsx` (NEW) — Pre-filled CONSUME: product (non-SERVICE), qty, unit_cost (auto), location
+- [x] `WOReturnModal.jsx` (NEW) — Pre-filled RETURN: product (from consumed list), qty, unit_cost, location
+
+### 11.10.10 Frontend — MovementList + StatusBadge ✅
+
+- [x] `MovementListPage.jsx` — +RETURN in type filter, +WO Number column, +Cost Center column
+- [x] `StatusBadge.jsx` — Movement type colors (RECEIVE/ISSUE/TRANSFER/ADJUST/CONSUME/RETURN/REVERSAL/REVERSED + INCREASE/DECREASE)
+
+### สรุปไฟล์ทั้งหมด
+
+| # | ไฟล์ | ประเภท |
+|---|------|--------|
+| 1 | `backend/alembic/versions/d6e7f8a9b0c1_stock_withdrawal_scenarios.py` | สร้างใหม่ |
+| 2 | `backend/app/models/inventory.py` | แก้ไข |
+| 3 | `backend/app/schemas/inventory.py` | แก้ไข |
+| 4 | `backend/app/services/inventory.py` | แก้ไข |
+| 5 | `backend/app/api/inventory.py` | แก้ไข |
+| 6 | `backend/app/services/workorder.py` | แก้ไข |
+| 7 | `backend/app/api/workorder.py` | แก้ไข |
+| 8 | `frontend/src/pages/inventory/MovementCreateModal.jsx` | แก้ไข |
+| 9 | `frontend/src/pages/workorder/WOConsumeModal.jsx` | สร้างใหม่ |
+| 10 | `frontend/src/pages/workorder/WOReturnModal.jsx` | สร้างใหม่ |
+| 11 | `frontend/src/pages/workorder/WorkOrderDetailPage.jsx` | แก้ไข |
+| 12 | `frontend/src/pages/inventory/MovementListPage.jsx` | แก้ไข |
+| 13 | `frontend/src/components/StatusBadge.jsx` | แก้ไข |
+
+**รวม: 3 ไฟล์ใหม่ + 10 ไฟล์แก้ไข = 13 ไฟล์**
+
+**Build: `npm run build` → 0 errors ✅**
 
 ---
 

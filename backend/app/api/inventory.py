@@ -2,6 +2,7 @@
 SSS Corp ERP — Inventory API Routes
 Phase 1: Product CRUD + Stock Movements
 Stock-Location Integration: location-aware movements + low stock
+Stock Withdrawal: CONSUME->WO, ISSUE->CC, TRANSFER 2-way, ADJUST +/-, RETURN
 
 Endpoints (from CLAUDE.md):
   GET    /api/inventory/products              inventory.product.read
@@ -45,6 +46,7 @@ from app.services.inventory import (
     create_product,
     delete_product,
     get_low_stock_count,
+    get_movement_enrichment_info,
     get_movement_location_info,
     get_product,
     list_movements,
@@ -225,9 +227,10 @@ async def api_list_movements(
     product_id: Optional[UUID] = Query(default=None),
     movement_type: Optional[str] = Query(
         default=None,
-        pattern=r"^(RECEIVE|ISSUE|TRANSFER|ADJUST|CONSUME|REVERSAL)$",
+        pattern=r"^(RECEIVE|ISSUE|TRANSFER|ADJUST|CONSUME|RETURN|REVERSAL)$",
     ),
     location_id: Optional[UUID] = Query(default=None),
+    work_order_id: Optional[UUID] = Query(default=None),
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -235,20 +238,31 @@ async def api_list_movements(
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     items, total = await list_movements(
         db, limit=limit, offset=offset, product_id=product_id,
-        movement_type=movement_type, location_id=location_id, org_id=org_id
+        movement_type=movement_type, location_id=location_id,
+        work_order_id=work_order_id, org_id=org_id
     )
 
     # Batch-fetch location names for movements
     movement_ids = [m.id for m in items if m.location_id]
     location_info = await get_movement_location_info(db, movement_ids)
 
-    # Build response with location names
+    # Batch-fetch enrichment info (WO/CC/CE/to_location names)
+    enrichment_info = await get_movement_enrichment_info(db, items)
+
+    # Build response with location + enrichment names
     response_items = []
     for m in items:
         resp = StockMovementResponse.model_validate(m)
         if m.id in location_info:
             resp.location_name = location_info[m.id]["location_name"]
             resp.warehouse_name = location_info[m.id]["warehouse_name"]
+        if m.id in enrichment_info:
+            ei = enrichment_info[m.id]
+            resp.work_order_number = ei.get("work_order_number")
+            resp.cost_center_name = ei.get("cost_center_name")
+            resp.cost_element_name = ei.get("cost_element_name")
+            resp.to_location_name = ei.get("to_location_name")
+            resp.to_warehouse_name = ei.get("to_warehouse_name")
         response_items.append(resp)
 
     return StockMovementListResponse(items=response_items, total=total, limit=limit, offset=offset)
@@ -293,6 +307,11 @@ async def api_create_movement(
         created_by=user_id,
         org_id=org_id,
         location_id=body.location_id,
+        work_order_id=body.work_order_id,
+        cost_center_id=body.cost_center_id,
+        cost_element_id=body.cost_element_id,
+        to_location_id=body.to_location_id,
+        adjust_type=body.adjust_type,
     )
     return movement
 

@@ -263,8 +263,8 @@ async def get_cost_summary(db: AsyncSession, wo_id: UUID) -> dict:
 
     wo = await get_work_order(db, wo_id)
 
-    # 1. Material cost from CONSUME movements
-    mat_result = await db.execute(
+    # 1. Material cost = CONSUME - RETURN (capped at 0)
+    consume_result = await db.execute(
         select(
             func.coalesce(func.sum(StockMovement.quantity * StockMovement.unit_cost), 0)
         ).where(
@@ -273,7 +273,20 @@ async def get_cost_summary(db: AsyncSession, wo_id: UUID) -> dict:
             StockMovement.is_reversed == False,
         )
     )
-    material_cost = Decimal(str(mat_result.scalar() or 0))
+    consume_cost = Decimal(str(consume_result.scalar() or 0))
+
+    return_result = await db.execute(
+        select(
+            func.coalesce(func.sum(StockMovement.quantity * StockMovement.unit_cost), 0)
+        ).where(
+            StockMovement.work_order_id == wo_id,
+            StockMovement.movement_type == "RETURN",
+            StockMovement.is_reversed == False,
+        )
+    )
+    return_cost = Decimal(str(return_result.scalar() or 0))
+
+    material_cost = max(consume_cost - return_cost, Decimal("0.00"))
 
     # 2. ManHour cost from FINAL timesheets (BR#15)
     ts_result = await db.execute(

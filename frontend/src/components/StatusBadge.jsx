@@ -29,6 +29,18 @@ const STATUS_CONFIG = {
   PERSONAL: { color: '#8b5cf6' },
   RESERVED: { color: '#06b6d4' },
   FULFILLED: { color: '#10b981' },
+  // Movement types
+  RECEIVE: { color: '#10b981' },
+  ISSUE: { color: '#f59e0b' },
+  TRANSFER: { color: '#06b6d4' },
+  ADJUST: { color: '#8b5cf6' },
+  CONSUME: { color: '#ef4444' },
+  RETURN: { color: '#3b82f6' },
+  REVERSAL: { color: '#718096' },
+  REVERSED: { color: '#718096' },
+  // ADJUST directions
+  INCREASE: { color: '#10b981' },
+  DECREASE: { color: '#ef4444' },
 };
 
 export default function StatusBadge({ status }) {

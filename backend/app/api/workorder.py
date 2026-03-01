@@ -11,6 +11,7 @@ Endpoints (from CLAUDE.md):
   POST   /api/work-orders/{id}/open           workorder.order.update
   POST   /api/work-orders/{id}/close          workorder.order.approve
   GET    /api/work-orders/{id}/cost-summary   workorder.order.read
+  GET    /api/work-orders/{id}/materials      workorder.order.read
 """
 
 from typing import Optional
@@ -204,3 +205,76 @@ async def api_manhour_summary(
 ):
     """Get planned vs actual manhour breakdown for a work order."""
     return await get_manhour_summary(db, wo_id)
+
+
+# ============================================================
+# MATERIALS (CONSUME + RETURN movements for a WO)
+# ============================================================
+
+@workorder_router.get(
+    "/{wo_id}/materials",
+    dependencies=[Depends(require("workorder.order.read"))],
+)
+async def api_wo_materials(
+    wo_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Get CONSUME + RETURN movements for a work order, enriched with product/location info."""
+    from app.models.inventory import StockMovement
+    from app.services.inventory import get_movement_enrichment_info, get_movement_location_info
+    from sqlalchemy import select
+
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+
+    # Verify WO exists
+    await get_work_order(db, wo_id, org_id=org_id)
+
+    # Fetch CONSUME + RETURN movements for this WO
+    result = await db.execute(
+        select(StockMovement).where(
+            StockMovement.work_order_id == wo_id,
+            StockMovement.movement_type.in_(["CONSUME", "RETURN"]),
+        ).order_by(StockMovement.created_at.desc())
+    )
+    movements = list(result.scalars().all())
+
+    # Batch-fetch location + enrichment info
+    movement_ids = [m.id for m in movements if m.location_id]
+    location_info = await get_movement_location_info(db, movement_ids)
+    enrichment_info = await get_movement_enrichment_info(db, movements)
+
+    # Fetch product info for display
+    product_ids = {m.product_id for m in movements}
+    product_map = {}
+    if product_ids:
+        from app.models.inventory import Product
+        prod_result = await db.execute(
+            select(Product.id, Product.sku, Product.name, Product.unit).where(Product.id.in_(product_ids))
+        )
+        product_map = {
+            row.id: {"sku": row.sku, "name": row.name, "unit": row.unit}
+            for row in prod_result.all()
+        }
+
+    items = []
+    for m in movements:
+        item = {
+            "id": str(m.id),
+            "product_id": str(m.product_id),
+            "product_sku": product_map.get(m.product_id, {}).get("sku", ""),
+            "product_name": product_map.get(m.product_id, {}).get("name", ""),
+            "unit": product_map.get(m.product_id, {}).get("unit", ""),
+            "movement_type": m.movement_type.value if hasattr(m.movement_type, 'value') else m.movement_type,
+            "quantity": m.quantity,
+            "unit_cost": float(m.unit_cost),
+            "total_cost": float(m.quantity * m.unit_cost),
+            "is_reversed": m.is_reversed,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+        }
+        if m.id in location_info:
+            item["location_name"] = location_info[m.id]["location_name"]
+            item["warehouse_name"] = location_info[m.id]["warehouse_name"]
+        items.append(item)
+
+    return {"items": items, "total": len(items)}

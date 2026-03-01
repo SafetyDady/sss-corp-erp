@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-01 v13 (Supplier Master Data + PO Integration)
+> อัปเดตล่าสุด: 2026-03-01 v14 (Stock Withdrawal Scenarios — 5 movement types fixed)
 
 ---
 
@@ -579,6 +579,12 @@ Manager จองเครื่องมือ → POST /api/planning/reservati
 | 71 | inventory | Stock | Product.on_hand = SUM(stock_by_location.on_hand) + unlocated stock (denormalized) | Atomic update |
 | 72 | inventory | Stock | location_id optional บน StockMovement (backward compatible กับ movements เก่า) | Nullable FK |
 | 73 | inventory | Stock | Low stock = on_hand ≤ min_stock AND min_stock > 0 | Computed |
+| 74 | inventory | CONSUME | CONSUME ต้องมี work_order_id + WO.status=OPEN + product ∈ {MATERIAL, CONSUMABLE} | Service check |
+| 75 | inventory | RETURN | RETURN ต้องมี work_order_id + WO.status=OPEN + product ∈ {MATERIAL, CONSUMABLE} | Service check |
+| 76 | inventory | ISSUE | ISSUE ต้องมี cost_center_id (active + org match) | Service check |
+| 77 | inventory | TRANSFER | TRANSFER ต้องมี location_id (source) + to_location_id (dest), ต่างกัน, atomic 2 ฝั่ง | Service check |
+| 78 | inventory | ADJUST | ADJUST ต้องมี adjust_type (INCREASE/DECREASE), owner only | Service check |
+| 79 | inventory | RETURN | Material Cost = Σ(CONSUME) − Σ(RETURN), capped at 0 | Service calc |
 
 ---
 
@@ -628,8 +634,8 @@ DELETE /api/inventory/products/{id}         inventory.product.delete
 
 ### Stock Movements
 ```
-GET    /api/stock/movements                 inventory.movement.read      (?location_id=)
-POST   /api/stock/movements                 inventory.movement.create    (body: +location_id optional)
+GET    /api/stock/movements                 inventory.movement.read      (?location_id=&work_order_id=&movement_type=)
+POST   /api/stock/movements                 inventory.movement.create    (body: +location_id, work_order_id, cost_center_id, cost_element_id, to_location_id, adjust_type)
 POST   /api/stock/movements/{id}/reverse    inventory.movement.delete
 ```
 
@@ -663,6 +669,7 @@ DELETE /api/work-orders/{id}               workorder.order.delete
 POST   /api/work-orders/{id}/open           workorder.order.update
 POST   /api/work-orders/{id}/close          workorder.order.approve
 GET    /api/work-orders/{id}/cost-summary   workorder.order.read
+GET    /api/work-orders/{id}/materials      workorder.order.read         (CONSUME + RETURN movements)
 ```
 
 ### Purchasing — PR (Purchase Requisition)
@@ -1136,11 +1143,12 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **11.7** PO QR Code — QR Code on PO document (antd `<QRCode>`), scan → auto-open GR, print label (`@media print`)
 - [x] **11.8** Delivery Note Number — เลขใบวางของ field in GR Modal → stored on PO → displayed in PO Detail + PO List
 - [x] **11.9** Supplier Master Data — Supplier CRUD (code, name, contact, email, phone, address, tax_id) + PO.supplier_id FK + ConvertToPO dropdown + 4 permissions (127 total)
-- [ ] **11.10** Stock Aging Report — inventory value by age bracket (0-30, 31-60, 61-90, 90+ days)
-- [ ] **11.8** Batch/Lot Tracking — batch_number on StockMovement, FIFO/LIFO costing option
-- [ ] **11.11** Barcode/QR — generate barcode for SKU (frontend display + print label)
-- [ ] **11.12** Stock Take — cycle count workflow (count → variance → adjust)
-- [ ] **11.13** Multi-warehouse Transfer — TRANSFER movement between warehouses with approval
+- [x] **11.10** Stock Withdrawal Scenarios — 5 movement types fixed: CONSUME→WO (work_order_id), ISSUE→CostCenter, TRANSFER 2-way atomic, ADJUST INCREASE/DECREASE, RETURN new type + WO Material Cost = CONSUME−RETURN (BR#74-79)
+- [ ] **11.11** Stock Aging Report — inventory value by age bracket (0-30, 31-60, 61-90, 90+ days)
+- [ ] **11.12** Batch/Lot Tracking — batch_number on StockMovement, FIFO/LIFO costing option
+- [ ] **11.13** Barcode/QR — generate barcode for SKU (frontend display + print label)
+- [ ] **11.14** Stock Take — cycle count workflow (count → variance → adjust)
+- [ ] **11.15** Multi-warehouse Transfer — TRANSFER movement between warehouses with approval
 
 ### Phase 12 — Mobile Responsive 📱 (Planned)
 - [ ] **12.1** Responsive layout — Ant Design Grid breakpoints, collapsible sidebar mobile-first
@@ -1202,6 +1210,10 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 22. ❌ อย่าลืม cost_center_id บน PR + cost_element_id บนทุก PR line (BR#56-57)
 23. ❌ อย่าลืมอัปเดต stock_by_location เมื่อสร้าง movement ที่มี location_id — ต้อง atomic กับ Product.on_hand (BR#71)
 24. ❌ อย่า ISSUE/CONSUME จาก location ที่มี stock ไม่พอ — ต้องเช็ค stock_by_location.on_hand ก่อน (BR#70)
+25. ❌ อย่าสร้าง CONSUME/RETURN movement โดยไม่มี work_order_id — ต้อง validate WO exists + OPEN (BR#74-75)
+26. ❌ อย่าสร้าง ISSUE movement โดยไม่มี cost_center_id — ต้อง validate CostCenter exists + active (BR#76)
+27. ❌ อย่าลืม TRANSFER ต้อง atomic 2 ฝั่ง — source ลด + dest เพิ่ม, product.on_hand ไม่เปลี่ยน (BR#77)
+28. ❌ อย่าลืม RETURN หักจาก Material Cost ใน WO Cost Summary — Material = CONSUME − RETURN, cap 0 (BR#79)
 
 ---
 
@@ -1257,6 +1269,8 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/approval/PRApprovalTab.jsx` | PR approval tab for Approval Center (Phase 7.9) |
 | `frontend/src/pages/master/SupplierTab.jsx` | Supplier master data list tab (Phase 11.9) |
 | `frontend/src/pages/master/SupplierFormModal.jsx` | Supplier create/edit modal (Phase 11.9) |
+| `frontend/src/pages/workorder/WOConsumeModal.jsx` | CONSUME material from WO Detail — pre-filled WO (Phase 11.10) |
+| `frontend/src/pages/workorder/WOReturnModal.jsx` | RETURN material to stock from WO Detail (Phase 11.10) |
 | `backend/app/middleware/performance.py` | Request timing middleware (Phase 14) |
 | `backend/app/services/ai_performance.py` | AI performance analysis engine — Claude API (Phase 14) |
 | `frontend/src/pages/admin/PerformancePage.jsx` | AI Performance Dashboard (Phase 14) |
@@ -1284,4 +1298,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v13 (Phase 0-7.9 complete + Phase 11 partial: Stock-Location + Low Stock + QR Code + Delivery Note + Supplier Master Data, Phase 8-14 planned)*
+*End of CLAUDE.md — SSS Corp ERP v14 (Phase 0-7.9 complete + Phase 11 partial: Stock-Location + Low Stock + QR Code + Delivery Note + Supplier + Stock Withdrawal, Phase 8-14 planned)*

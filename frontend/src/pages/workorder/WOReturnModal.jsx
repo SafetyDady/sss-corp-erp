@@ -1,0 +1,144 @@
+import { useState, useEffect } from 'react';
+import { Modal, Form, InputNumber, Select, App } from 'antd';
+import { Warehouse as WarehouseIcon, MapPin } from 'lucide-react';
+import api from '../../services/api';
+import { COLORS } from '../../utils/constants';
+
+export default function WOReturnModal({ open, workOrderId, materials, onClose, onSuccess }) {
+  const [form] = Form.useForm();
+  const [loading, setLoading] = useState(false);
+  const [warehouses, setWarehouses] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [selectedWarehouse, setSelectedWarehouse] = useState(undefined);
+  const { message } = App.useApp();
+
+  // Build unique consumed product list from materials
+  const consumedProducts = [];
+  const seen = new Set();
+  (materials || []).forEach((m) => {
+    if (m.movement_type === 'CONSUME' && !m.is_reversed && !seen.has(m.product_id)) {
+      seen.add(m.product_id);
+      consumedProducts.push({
+        id: m.product_id,
+        sku: m.product_sku,
+        name: m.product_name,
+        unit_cost: m.unit_cost,
+      });
+    }
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    api.get('/api/warehouse/warehouses', { params: { limit: 100, offset: 0 } })
+      .then((r) => setWarehouses(r.data.items || []))
+      .catch(() => {});
+  }, [open]);
+
+  useEffect(() => {
+    if (!selectedWarehouse) { setLocations([]); return; }
+    api.get('/api/warehouse/locations', { params: { limit: 100, offset: 0, warehouse_id: selectedWarehouse } })
+      .then((r) => setLocations(r.data.items || []))
+      .catch(() => {});
+  }, [selectedWarehouse]);
+
+  const handleWarehouseChange = (val) => {
+    setSelectedWarehouse(val);
+    form.setFieldsValue({ location_id: undefined });
+  };
+
+  const handleProductChange = (productId) => {
+    const prod = consumedProducts.find((p) => p.id === productId);
+    if (prod && prod.unit_cost > 0) {
+      form.setFieldsValue({ unit_cost: Number(prod.unit_cost) });
+    }
+  };
+
+  const onFinish = async (values) => {
+    const { warehouse_id, ...rest } = values;
+    const payload = {
+      movement_type: 'RETURN',
+      work_order_id: workOrderId,
+      ...rest,
+    };
+    if (!payload.location_id) delete payload.location_id;
+    if (!payload.unit_cost) payload.unit_cost = 0;
+
+    setLoading(true);
+    try {
+      await api.post('/api/stock/movements', payload);
+      message.success('คืนวัสดุสำเร็จ');
+      form.resetFields();
+      setSelectedWarehouse(undefined);
+      onSuccess();
+    } catch (err) {
+      message.error(err.response?.data?.detail || 'เกิดข้อผิดพลาด');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="คืนวัสดุจาก Work Order"
+      open={open}
+      onCancel={onClose}
+      onOk={() => form.submit()}
+      confirmLoading={loading}
+      width={520}
+      destroyOnHidden
+    >
+      <Form form={form} layout="vertical" onFinish={onFinish}>
+        <Form.Item name="product_id" label="สินค้าที่คืน"
+          rules={[{ required: true, message: 'กรุณาเลือกสินค้า' }]}>
+          <Select
+            showSearch
+            optionFilterProp="label"
+            placeholder="เลือกสินค้าที่เคยเบิก"
+            options={consumedProducts.map((p) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
+            onChange={handleProductChange}
+          />
+        </Form.Item>
+
+        <div style={{ display: 'flex', gap: 16 }}>
+          <Form.Item name="quantity" label="จำนวนที่คืน" style={{ flex: 1 }}
+            rules={[{ required: true, message: 'กรุณากรอกจำนวน' }]}>
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="unit_cost" label="ต้นทุน/หน่วย (บาท)" style={{ flex: 1 }}>
+            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
+          </Form.Item>
+        </div>
+
+        {/* Return to Location (optional) */}
+        <div style={{ background: COLORS.surface, borderRadius: 8, padding: '12px 16px', border: `1px solid ${COLORS.card}` }}>
+          <div style={{ color: COLORS.textSecondary, fontSize: 12, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <MapPin size={12} /> ตำแหน่งที่คืน (ไม่บังคับ)
+          </div>
+          <Form.Item name="warehouse_id" label={<span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><WarehouseIcon size={12} /> คลัง</span>} style={{ marginBottom: 8 }}>
+            <Select
+              allowClear
+              placeholder="เลือกคลังสินค้า"
+              options={warehouses.map((w) => ({ value: w.id, label: `${w.code} - ${w.name}` }))}
+              onChange={handleWarehouseChange}
+            />
+          </Form.Item>
+          <Form.Item name="location_id" label={<span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MapPin size={12} /> ตำแหน่ง</span>} style={{ marginBottom: 0 }}>
+            <Select
+              allowClear
+              placeholder="เลือก Location"
+              disabled={!selectedWarehouse}
+              options={locations.map((l) => ({ value: l.id, label: `${l.code} - ${l.name} (${l.zone_type})` }))}
+            />
+          </Form.Item>
+        </div>
+
+        <Form.Item name="reference" label="อ้างอิง" style={{ marginTop: 16 }}>
+          <input className="ant-input" placeholder="เลขที่ใบคืน, etc." style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 6, padding: '4px 11px', width: '100%' }} />
+        </Form.Item>
+        <Form.Item name="note" label="หมายเหตุ">
+          <textarea className="ant-input" rows={2} style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 6, padding: '4px 11px', width: '100%' }} />
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
+}

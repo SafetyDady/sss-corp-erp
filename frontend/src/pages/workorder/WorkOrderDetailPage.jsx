@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Row, Col, Button, App, Space, Descriptions, Spin, Popconfirm, Progress, Table } from 'antd';
-import { ArrowLeft, Play, Square, Users } from 'lucide-react';
+import { Card, Row, Col, Button, App, Space, Descriptions, Spin, Popconfirm, Progress, Table, Tag } from 'antd';
+import { ArrowLeft, Play, Square, Users, Package, PackageMinus, PackagePlus } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
 import MasterPlanSection from './MasterPlanSection';
+import WOConsumeModal from './WOConsumeModal';
+import WOReturnModal from './WOReturnModal';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
 
@@ -18,19 +20,24 @@ export default function WorkOrderDetailPage() {
   const [wo, setWo] = useState(null);
   const [cost, setCost] = useState(null);
   const [manhour, setManhour] = useState(null);
+  const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [consumeOpen, setConsumeOpen] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [woRes, costRes, mhRes] = await Promise.all([
+      const [woRes, costRes, mhRes, matRes] = await Promise.all([
         api.get(`/api/work-orders/${id}`),
         api.get(`/api/work-orders/${id}/cost-summary`).catch(() => ({ data: null })),
         api.get(`/api/work-orders/${id}/manhour-summary`).catch(() => ({ data: null })),
+        api.get(`/api/work-orders/${id}/materials`).catch(() => ({ data: { items: [] } })),
       ]);
       setWo(woRes.data);
       setCost(costRes.data);
       setManhour(mhRes.data);
+      setMaterials(matRes.data?.items || []);
     } catch (err) {
       message.error(err.response?.data?.detail || '\u0E44\u0E21\u0E48\u0E1E\u0E1A\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25');
       navigate('/work-orders');
@@ -215,6 +222,82 @@ export default function WorkOrderDetailPage() {
           )}
         </>
       )}
+
+      {/* Materials Section (CONSUME + RETURN) */}
+      <h3 style={{ color: COLORS.text, marginBottom: 16, marginTop: 24, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Package size={18} /> วัสดุที่เบิก
+        {wo.status === 'OPEN' && can('inventory.movement.create') && (
+          <Space style={{ marginLeft: 'auto' }}>
+            <Button size="small" icon={<PackageMinus size={14} />} onClick={() => setConsumeOpen(true)}>
+              เบิกวัสดุ
+            </Button>
+            <Button size="small" icon={<PackagePlus size={14} />} onClick={() => setReturnOpen(true)}>
+              คืนวัสดุ
+            </Button>
+          </Space>
+        )}
+      </h3>
+
+      {materials.length > 0 ? (
+        <Table
+          dataSource={materials}
+          rowKey="id"
+          pagination={false}
+          size="small"
+          style={{ marginBottom: 24 }}
+          columns={[
+            {
+              title: 'ประเภท', dataIndex: 'movement_type', key: 'type', width: 100,
+              render: (v) => <StatusBadge status={v} />,
+            },
+            {
+              title: 'สินค้า', key: 'product', ellipsis: true,
+              render: (_, r) => `${r.product_sku} - ${r.product_name}`,
+            },
+            { title: 'หน่วย', dataIndex: 'unit', key: 'unit', width: 60 },
+            { title: 'จำนวน', dataIndex: 'quantity', key: 'qty', width: 80, align: 'right' },
+            {
+              title: 'ต้นทุน/หน่วย', dataIndex: 'unit_cost', key: 'unit_cost', width: 120, align: 'right',
+              render: (v) => formatCurrency(v),
+            },
+            {
+              title: 'รวม', dataIndex: 'total_cost', key: 'total', width: 120, align: 'right',
+              render: (v) => formatCurrency(v),
+            },
+            {
+              title: 'Location', key: 'location', width: 150,
+              render: (_, r) => r.location_name ? `${r.warehouse_name || ''} / ${r.location_name}` : '-',
+            },
+            {
+              title: 'วันที่', dataIndex: 'created_at', key: 'date', width: 140,
+              render: (v) => formatDateTime(v),
+            },
+            {
+              title: 'สถานะ', dataIndex: 'is_reversed', key: 'reversed', width: 90,
+              render: (v) => v ? <Tag color="error">REVERSED</Tag> : null,
+            },
+          ]}
+        />
+      ) : (
+        <Card style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, marginBottom: 24, textAlign: 'center' }}>
+          <span style={{ color: COLORS.textSecondary }}>ยังไม่มีรายการเบิก/คืนวัสดุ</span>
+        </Card>
+      )}
+
+      <WOConsumeModal
+        open={consumeOpen}
+        workOrderId={id}
+        onClose={() => setConsumeOpen(false)}
+        onSuccess={() => { setConsumeOpen(false); fetchData(); }}
+      />
+
+      <WOReturnModal
+        open={returnOpen}
+        workOrderId={id}
+        materials={materials}
+        onClose={() => setReturnOpen(false)}
+        onSuccess={() => { setReturnOpen(false); fetchData(); }}
+      />
     </div>
   );
 }
