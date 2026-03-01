@@ -864,6 +864,7 @@ async def api_generate_roster(
         org_id=org_id,
         overwrite_existing=body.overwrite_existing,
         work_schedule_id=body.work_schedule_id,
+        pattern_offset=body.pattern_offset,
     )
     return RosterGenerateResponse(**result)
 

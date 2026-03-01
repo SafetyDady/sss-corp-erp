@@ -13,12 +13,15 @@ import { COLORS } from '../../utils/constants';
 const { Text } = Typography;
 
 const DAY_NAMES = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const SHIFT_COLORS = {
   REGULAR: 'blue',
   MORNING: 'green',
   AFTERNOON: 'orange',
   NIGHT: 'purple',
+  DAY12: 'gold',
+  NIGHT12: 'magenta',
 };
 
 /**
@@ -42,10 +45,40 @@ export default function MyTimesheetPage({ embedded = false }) {
   // Schedule selector state
   const [schedules, setSchedules] = useState([]);
   const [selectedScheduleId, setSelectedScheduleId] = useState(null);
+  const [patternOffset, setPatternOffset] = useState(0);
   const [generateLoading, setGenerateLoading] = useState(false);
 
   const periodStart = currentMonth.format('YYYY-MM-DD');
   const periodEnd = currentMonth.endOf('month').format('YYYY-MM-DD');
+
+  // Get selected schedule object
+  const selectedSchedule = useMemo(
+    () => schedules.find((s) => s.id === selectedScheduleId),
+    [schedules, selectedScheduleId],
+  );
+
+  // Rotation pattern from selected schedule
+  const rotationPattern = selectedSchedule?.rotation_pattern || [];
+  const isRotating = selectedSchedule?.schedule_type === 'ROTATING' && rotationPattern.length > 0;
+
+  // Build rotation start options — each shows preview of first N days from that offset
+  const rotationStartOptions = useMemo(() => {
+    if (!isRotating) return [];
+    const patLen = rotationPattern.length;
+    const previewLen = Math.min(patLen, 5); // show up to 5 days
+    return rotationPattern.map((_, idx) => {
+      const preview = [];
+      for (let i = 0; i < previewLen; i++) {
+        preview.push(rotationPattern[(idx + i) % patLen].toUpperCase());
+      }
+      const remaining = patLen > previewLen;
+      return {
+        value: idx,
+        label: preview.join(' → ') + (remaining ? ' → ...' : ''),
+        preview,
+      };
+    });
+  }, [isRotating, rotationPattern]);
 
   // Load available WorkSchedules on mount
   useEffect(() => {
@@ -57,7 +90,12 @@ export default function MyTimesheetPage({ embedded = false }) {
         setSchedules(items.filter((w) => w.is_active !== false));
       })
       .catch(() => {});
-  }, []);
+  }, [can]);
+
+  // Reset offset when schedule changes
+  useEffect(() => {
+    setPatternOffset(0);
+  }, [selectedScheduleId]);
 
   const loadData = useCallback(async () => {
     if (!employeeId) return;
@@ -98,7 +136,7 @@ export default function MyTimesheetPage({ embedded = false }) {
     } finally {
       setLoading(false);
     }
-  }, [employeeId, periodStart, periodEnd, message]);
+  }, [employeeId, periodStart, periodEnd, message, can]);
 
   useEffect(() => {
     loadData();
@@ -115,6 +153,7 @@ export default function MyTimesheetPage({ embedded = false }) {
         end_date: periodEnd,
         overwrite_existing: true,
         work_schedule_id: selectedScheduleId,
+        pattern_offset: patternOffset,
       });
       message.success(`สร้างตารางกะสำเร็จ — ${data.created_count} รายการ`);
       loadData(); // Reload all data including roster
@@ -123,6 +162,13 @@ export default function MyTimesheetPage({ embedded = false }) {
     } finally {
       setGenerateLoading(false);
     }
+  };
+
+  // Format date as "1Mar", "15Feb" etc.
+  const formatShortDate = (dayjsDate) => {
+    const day = dayjsDate.date();
+    const monthIdx = dayjsDate.month();
+    return `${day}${MONTH_ABBR[monthIdx]}`;
   };
 
   // Build day-by-day table data
@@ -202,7 +248,7 @@ export default function MyTimesheetPage({ embedded = false }) {
 
       rows.push({
         key: dateStr,
-        date: date.format('DD/MM'),
+        date: formatShortDate(date),
         dayName: DAY_NAMES[dayOfWeek],
         status,
         regularHours,
@@ -366,7 +412,7 @@ export default function MyTimesheetPage({ embedded = false }) {
               gap: 12,
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <CalendarClock size={16} style={{ color: COLORS.accent, flexShrink: 0 }} />
               <Text style={{ color: COLORS.textSecondary, whiteSpace: 'nowrap' }}>
                 ประเภท Timesheet:
@@ -401,6 +447,39 @@ export default function MyTimesheetPage({ embedded = false }) {
               </Popconfirm>
             )}
           </div>
+
+          {/* Rotation Pattern — Select start offset with multi-day preview */}
+          {isRotating && (
+            <div style={{ marginTop: 12 }}>
+              <Text style={{ color: COLORS.textSecondary, fontSize: 12, display: 'block', marginBottom: 6 }}>
+                เลือกลำดับกะวันแรก (วันที่ 1 ของเดือน) — แสดงลำดับ {Math.min(rotationPattern.length, 5)} วันแรก:
+              </Text>
+              <Select
+                style={{ width: '100%' }}
+                value={patternOffset}
+                onChange={setPatternOffset}
+                options={rotationStartOptions}
+                optionRender={(option) => (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', padding: '2px 0' }}>
+                    {option.data.preview.map((shift, i) => {
+                      const isOff = shift === 'OFF';
+                      const color = isOff ? 'default' : (SHIFT_COLORS[shift] || 'cyan');
+                      return (
+                        <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                          {i > 0 && <span style={{ color: COLORS.textMuted, fontSize: 11 }}>→</span>}
+                          <Tag color={color} style={{ margin: 0 }}>{shift}</Tag>
+                        </span>
+                      );
+                    })}
+                    {rotationPattern.length > 5 && (
+                      <span style={{ color: COLORS.textMuted, fontSize: 11 }}>→ ...</span>
+                    )}
+                  </div>
+                )}
+              />
+            </div>
+          )}
+
           {workScheduleId && !selectedScheduleId && (
             <Text
               style={{

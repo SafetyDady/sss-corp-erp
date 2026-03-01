@@ -1,7 +1,7 @@
 # TODO.md — SSS Corp ERP Implementation Tracker
 
 > อ้างอิง: `CLAUDE.md` → Implementation Phases + Business Rules
-> อัปเดตล่าสุด: 2026-03-01 (Phase 7.9 — PR/PO Redesign: Purchase Requisition System)
+> อัปเดตล่าสุด: 2026-03-01 (Code Review Fixes + Shift UX Improvements)
 
 ---
 
@@ -785,6 +785,49 @@
 
 ---
 
+## Code Review Fixes + Shift UX Improvements ✅
+
+> Manus AI Code Review Report (2026-03-01) — 5 issues confirmed & fixed + 2 UX improvements
+
+### Bug Fixes (Manus Code Review) ✅
+
+- [x] **BUG-1 (High)**: GoodsReceipt API body mismatch — frontend ส่ง `{lines: [...]}` แต่ backend คาด raw `list[GoodsReceiptLine]`
+  - Fix: เพิ่ม `GoodsReceiptRequest` wrapper schema ใน `schemas/purchasing.py`
+  - Fix: เปลี่ยน `api_receive_goods()` ใน `api/purchasing.py` ให้รับ `body: GoodsReceiptRequest`
+- [x] **ISSUE-1 (Low)**: cycle_start_date ในอนาคตทำให้ roster generation ผิดพลาด
+  - Fix: เพิ่ม validation ใน `services/hr.py` — raise HTTPException 400 ถ้า cycle_start_date > start_date
+- [x] **ISSUE-2 (Low)**: useEffect dependency array ใน MyTimesheetPage ขาด `can`
+  - Fix: เพิ่ม `can` ใน dependency array ของ useEffect + useCallback
+- [x] **ISSUE-3 (Medium)**: PO list ไม่มี data scope (PR list มี) — supervisor เห็น PO ทั้ง org
+  - Fix: เพิ่ม `created_by_filter` + `department_filter` params ใน `list_purchase_orders()` service
+  - Fix: เพิ่ม role-based scope logic ใน `api_list_pos()` (staff=own, supervisor=dept via PR, manager/owner=all)
+- [x] **ISSUE-4 (Minor)**: PRApprovalTab ใช้ hardcoded reject reason 'ปฏิเสธจากหน้าอนุมัติ'
+  - Fix: เปลี่ยนเป็น Modal + TextArea ให้ผู้อนุมัติกรอกเหตุผลเอง (ตาม pattern PRDetailPage)
+
+### Shift Management UX Improvements ✅
+
+- [x] **Pattern Offset**: กะหมุนเวียนสามารถเลือกตำแหน่งเริ่มต้นได้ (เช่น เริ่มจากกะบ่ายแทนกะเช้า)
+  - Backend: `pattern_offset: int = Field(default=0, ge=0)` ใน `RosterGenerateRequest`
+  - Backend: `position = (days_since + pattern_offset) % len(pattern)` ใน `generate_shift_roster()`
+  - Frontend: Select dropdown แสดง multi-day preview เพื่อ disambiguate กะซ้ำ (เช่น NIGHT→NIGHT)
+- [x] **Date Format**: เปลี่ยนจาก `01/03` เป็น `1Mar` ใน MyTimesheetPage — อ่านง่ายขึ้น
+- [x] `npm run build` → 0 errors
+
+### Files Modified (7 total) ✅
+
+| # | ไฟล์ | ประเภท | การเปลี่ยนแปลง |
+|---|------|--------|----------------|
+| 1 | `backend/app/schemas/purchasing.py` | แก้ไข | +GoodsReceiptRequest wrapper schema |
+| 2 | `backend/app/api/purchasing.py` | แก้ไข | GR body fix + PO data scope logic |
+| 3 | `backend/app/services/purchasing.py` | แก้ไข | PO list: +created_by_filter, +department_filter |
+| 4 | `backend/app/services/hr.py` | แก้ไข | +cycle_start_date validation, +pattern_offset param |
+| 5 | `backend/app/schemas/hr.py` | แก้ไข | +pattern_offset field in RosterGenerateRequest |
+| 6 | `backend/app/api/hr.py` | แก้ไข | Pass pattern_offset to service |
+| 7 | `frontend/src/pages/approval/PRApprovalTab.jsx` | แก้ไข | Reject reason: hardcoded → Modal+TextArea |
+| 8 | `frontend/src/pages/my/MyTimesheetPage.jsx` | แก้ไข | +pattern offset Select, +1Mar format, +can dep fix |
+
+---
+
 ## Phase 8 — Dashboard & Analytics 📊 (Planned)
 
 ### 8.1 KPI Dashboard
@@ -1047,6 +1090,327 @@
 
 ---
 
+## Phase 14 — AI-Powered Performance Monitoring ⚡🤖 (Planned)
+
+> **เป้าหมาย**: Plug AI เข้ากับระบบเพื่อวิเคราะห์ Performance ทุกชั้น (Frontend / Backend / Database)
+> ให้ AI สรุป, ตรวจจับปัญหา, แนะนำแก้ไข — แทนที่ Admin ต้องอ่าน log เอง
+> **Dependencies**: Sentry (Phase 4.8), Redis (Phase 0), Claude API (Anthropic SDK)
+
+### 14.1 Performance Data Collection — Backend Middleware
+
+**เป้าหมาย**: เก็บ response time + metadata ทุก request อัตโนมัติ
+
+- [ ] Middleware: `backend/app/middleware/performance.py` — `PerformanceMiddleware`
+  - บันทึก: method, path, status_code, duration_ms, user_id, org_id, timestamp
+  - เพิ่ม `X-Response-Time` header ทุก response
+  - Flag SLOW request (> 500ms) → `logger.warning`
+- [ ] Register middleware ใน `main.py` (ก่อน CORS)
+- [ ] Config: `PERF_SLOW_THRESHOLD_MS = 500` ใน `config.py` (ปรับได้)
+- [ ] Output: structured JSON log → compatible กับ Sentry, CloudWatch, etc.
+
+### 14.2 Database Query Profiler
+
+**เป้าหมาย**: ตรวจจับ slow queries + N+1 pattern อัตโนมัติ
+
+- [ ] SQLAlchemy event listener: `before_cursor_execute` + `after_cursor_execute`
+  - บันทึก: statement (truncated 500 chars), duration_ms, table_name (parsed)
+  - Log เฉพาะ query > 100ms (configurable `PERF_SLOW_QUERY_MS`)
+- [ ] N+1 Detection: นับจำนวน queries per request ใน middleware context
+  - Flag เมื่อ > 10 queries ใน 1 request → `logger.warning("N+1 SUSPECT")`
+- [ ] Query counter: inject `query_count` + `total_query_time_ms` ใน response header (dev mode)
+- [ ] Config: `PERF_QUERY_LOG_ENABLED = True/False` toggle
+
+### 14.3 Performance Data Storage
+
+**เป้าหมาย**: เก็บข้อมูล performance สำหรับ AI วิเคราะห์
+
+- [ ] Model: `PerformanceLog` — persistent storage for historical analysis
+  ```
+  id: UUID (PK)
+  timestamp: DateTime (indexed)
+  method: String(10)
+  path: String(255)
+  status_code: Integer
+  duration_ms: Numeric(10,2)
+  query_count: Integer
+  query_time_ms: Numeric(10,2)
+  user_id: UUID (nullable, FK)
+  org_id: UUID (FK)
+  is_slow: Boolean (computed: duration_ms > threshold)
+  ```
+- [ ] Migration: `phase14_performance_log.py`
+- [ ] Redis real-time buffer: `LPUSH perf:requests` (TTL 24h, circular buffer max 10k)
+  - สำหรับ real-time dashboard (ไม่ต้อง query DB)
+- [ ] Cleanup job: ลบ logs > 30 วัน (configurable `PERF_LOG_RETENTION_DAYS`)
+- [ ] Index: `(org_id, timestamp DESC)`, `(path, is_slow)`
+
+### 14.4 Frontend Performance Collection
+
+**เป้าหมาย**: เก็บ Web Vitals + API call timing จาก Browser
+
+- [ ] Install: `web-vitals` package
+- [ ] Utility: `frontend/src/utils/performance.js`
+  - Collect Core Web Vitals: LCP, FID, CLS, FCP, TTFB
+  - Track per-page: `pathname` + `rating` (good/needs-improvement/poor)
+- [ ] API Interceptor timing (เพิ่มใน `services/api.js`):
+  - `config._startTime = performance.now()` on request
+  - คำนวณ `duration_ms` on response
+  - อ่าน `X-Response-Time` header → แยก network vs server time
+  - `console.warn` ถ้า > 1000ms (dev mode only)
+- [ ] Beacon API: ส่ง collected metrics กลับ backend ทุก 60 วินาที
+  - `POST /api/admin/performance/vitals` — batch upload frontend metrics
+- [ ] Store: `frontend/src/stores/performanceStore.js` (Zustand) — in-memory metrics buffer
+- [ ] Config: `VITE_PERF_TRACKING = true/false` toggle
+
+### 14.5 Performance Aggregation API
+
+**เป้าหมาย**: สรุปข้อมูล performance เป็น JSON กระชับ สำหรับ AI + Dashboard
+
+- [ ] API: `GET /api/admin/performance/summary?period=24h|7d|30d`
+  - Permission: `admin.config.read`
+  - Response:
+    ```json
+    {
+      "period": "24h",
+      "total_requests": 12450,
+      "avg_response_ms": 145,
+      "p50_response_ms": 95,
+      "p95_response_ms": 520,
+      "p99_response_ms": 1200,
+      "error_rate": 0.02,
+      "slowest_endpoints": [...top 10],
+      "slow_queries": [...top 10],
+      "n1_suspects": [...endpoints with >10 queries],
+      "frontend_vitals": { "LCP": {...}, "FID": {...}, "CLS": {...} },
+      "top_errors": [...top 5 by count],
+      "requests_per_minute": [...time series],
+      "comparison_vs_previous": { "avg_ms_change": -5.2, "error_rate_change": +0.1 }
+    }
+    ```
+- [ ] API: `GET /api/admin/performance/endpoints` — per-endpoint breakdown
+  - Columns: path, method, call_count, avg_ms, p95_ms, error_rate, avg_query_count
+  - Sortable + filterable
+- [ ] API: `GET /api/admin/performance/slow-requests?limit=50` — recent slow requests list
+- [ ] Cache: Redis cache aggregated results (TTL 5 min) — avoid recalculating on every request
+- [ ] Service: `backend/app/services/performance.py` — aggregation logic (SQL GROUP BY + window functions)
+
+### 14.6 AI Analysis Engine — Claude API Integration
+
+**เป้าหมาย**: ใช้ Claude AI วิเคราะห์ performance data + สร้างรายงานภาษาคน
+
+- [ ] Install: `anthropic` Python SDK (`pip install anthropic`)
+- [ ] Config: `ANTHROPIC_API_KEY` ใน `.env` + `config.py` (optional, disabled if not set)
+- [ ] Service: `backend/app/services/ai_performance.py`
+  - `aggregate_for_ai(db, org_id, period)` → สรุปข้อมูลกระชับ (< 2000 tokens)
+  - `build_analysis_prompt(data, focus_area)` → system prompt + user context
+  - `analyze_performance(data)` → Claude API call → structured response
+  - `get_optimization_suggestions(slow_endpoints)` → แนะนำ index, cache, refactor
+- [ ] System Prompt Template:
+  ```
+  คุณเป็น Performance Engineer วิเคราะห์ระบบ ERP (FastAPI + PostgreSQL + React)
+  ตอบเป็นภาษาไทย กระชับ แบ่งเป็น:
+  1. สรุปสถานะ (🟢 ดี / 🟡 ต้องปรับปรุง / 🔴 วิกฤต)
+  2. ปัญหาที่พบ — เรียงตามความรุนแรง พร้อมระบุ endpoint/query ที่เป็นปัญหา
+  3. คำแนะนำแก้ไข — actionable, ระบุ file/table/index ที่ควรปรับ
+  4. เปรียบเทียบกับช่วงก่อนหน้า — ดีขึ้น/แย่ลง?
+  ```
+- [ ] Focus areas (เลือกได้): `overall`, `backend`, `frontend`, `database`, `specific_endpoint`
+- [ ] Rate limit: max 10 AI analysis requests per org per hour (ป้องกัน cost spike)
+- [ ] Fallback: ถ้า API key ไม่มี → return raw metrics only (no AI summary)
+- [ ] Cost tracking: log token usage per request → monthly cost report
+
+### 14.7 AI Analysis API
+
+**เป้าหมาย**: Endpoint สำหรับ trigger AI analysis + ดูผลลัพธ์
+
+- [ ] API: `POST /api/admin/performance/analyze`
+  - Permission: `admin.config.read`
+  - Body: `{ "period": "24h", "focus": "overall" }`
+  - Response: `{ "summary": "...", "severity": "warning", "issues": [...], "suggestions": [...], "generated_at": "..." }`
+  - Async: ถ้า analysis นาน > 5s → return job_id, poll for result
+- [ ] API: `GET /api/admin/performance/analysis/latest` — ดึง AI analysis ล่าสุด (cached)
+- [ ] API: `POST /api/admin/performance/analyze/endpoint`
+  - Body: `{ "path": "/api/finance/reports", "period": "7d" }`
+  - AI วิเคราะห์เจาะลึก endpoint เดียว: query plan, call pattern, suggestions
+- [ ] Cache: เก็บ AI analysis result ใน Redis (TTL 1 hour)
+- [ ] Model: `PerformanceAnalysis` (optional — persist historical AI reports)
+  ```
+  id: UUID (PK)
+  org_id: UUID (FK)
+  period: String
+  focus: String
+  severity: ENUM(good, warning, critical)
+  summary: Text
+  issues_json: JSONB
+  suggestions_json: JSONB
+  token_usage: Integer
+  created_at: DateTime
+  ```
+
+### 14.8 Natural Language Performance Query
+
+**เป้าหมาย**: Manager ถามเป็นภาษาคน → AI แปลเป็น query → ตอบกลับ
+
+- [ ] API: `POST /api/admin/performance/ask`
+  - Body: `{ "question": "ทำไม /api/finance/reports ช้า?" }`
+  - AI receives: question + aggregated perf data + endpoint metrics
+  - Response: คำตอบภาษาไทย + supporting data + recommended actions
+- [ ] Predefined questions (quick access):
+  - "สรุป performance วันนี้"
+  - "endpoint ไหนช้าสุด?"
+  - "มี N+1 query ที่ไหนบ้าง?"
+  - "เทียบกับสัปดาห์ก่อนเป็นยังไง?"
+  - "แนะนำ index ที่ควรสร้าง"
+- [ ] Context window management: ส่งเฉพาะ relevant metrics (ไม่ส่ง raw log ทั้งหมด)
+- [ ] Guard rails: ป้องกัน AI ตอบนอกเรื่อง performance (system prompt constraint)
+
+### 14.9 Performance Dashboard UI
+
+**เป้าหมาย**: หน้า Admin สำหรับดู performance metrics + AI insights
+
+- [ ] Page: `frontend/src/pages/admin/PerformancePage.jsx`
+- [ ] Route: `/admin/performance` — permission: `admin.config.read`
+- [ ] Layout — 4 sections:
+
+  **Section 1: Overview Cards (top)**
+  ```
+  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐
+  │ Avg RT  │ │ P95 RT  │ │ Error   │ │ Slow    │
+  │ 145ms   │ │ 520ms   │ │ Rate    │ │ Requests│
+  │ ✅ Good  │ │ ⚠️ Watch │ │ 2.0%   │ │ 28/day  │
+  └─────────┘ └─────────┘ └─────────┘ └─────────┘
+  ```
+  - Color coded: green (< 200ms), yellow (200-500ms), red (> 500ms)
+  - Trend arrow: ↑↓ vs previous period
+
+  **Section 2: AI Analysis Card (prominent)**
+  ```
+  ┌─────────────────────────────────────────────┐
+  │  🤖 AI Performance Analysis    [วิเคราะห์ใหม่] │
+  │  สถานะ: ⚠️ ต้องปรับปรุง                       │
+  │                                               │
+  │  🔴 /api/finance/reports — 890ms              │
+  │     → เพิ่ม index (org_id, created_at)         │
+  │  🟡 Frontend LCP สูง 3.2s (p95)              │
+  │     → ใช้ Redis cache + skeleton loading        │
+  │  🟢 API error rate ปกติ (2%)                   │
+  │                                               │
+  │  [📋 ดูแนะนำทั้งหมด]  [💬 ถาม AI]             │
+  └─────────────────────────────────────────────┘
+  ```
+
+  **Section 3: Charts (middle)**
+  - Response Time Trend — line chart (avg + p95 over time)
+  - Requests per Minute — area chart
+  - Error Rate — line chart with threshold line
+  - Frontend Web Vitals — gauge charts (LCP, FID, CLS)
+
+  **Section 4: Detail Tables (bottom)**
+  - Slowest Endpoints table (path, avg_ms, p95_ms, calls, trend)
+  - Slow Queries table (statement preview, avg_ms, count)
+  - N+1 Suspects table (endpoint, query_count, suggestion)
+  - Recent Errors table (path, status, message, count)
+
+- [ ] Period selector: 24h / 7d / 30d (top right)
+- [ ] Auto-refresh toggle: every 60s (optional)
+- [ ] Icons: Lucide only (Activity, Zap, AlertTriangle, Database, Globe, MessageSquare)
+
+### 14.10 AI Chat Panel (Performance Q&A)
+
+**เป้าหมาย**: Chat interface สำหรับถาม AI เรื่อง performance แบบ interactive
+
+- [ ] Component: `frontend/src/components/PerformanceAIChat.jsx`
+  - Drawer (right side) — trigger จากปุ่ม "💬 ถาม AI" บน PerformancePage
+  - Chat bubble UI: user question (right) + AI answer (left)
+  - Quick question buttons (predefined questions)
+  - Input field: free-form question
+- [ ] API integration: `POST /api/admin/performance/ask`
+- [ ] Response rendering: markdown → Ant Design Typography (with code blocks for SQL/index suggestions)
+- [ ] Chat history: เก็บใน component state (reset on close)
+- [ ] Loading state: skeleton + "กำลังวิเคราะห์..." message
+
+### 14.11 Sentry Integration Enhancement
+
+**เป้าหมาย**: ใช้ Sentry ที่มีอยู่แล้ว (Phase 4.8) เป็น data source เพิ่มเติม
+
+- [ ] Backend: Enable Sentry Performance Monitoring (transaction tracing)
+  - `sentry_sdk.init(traces_sample_rate=0.2)` — sample 20% of requests
+  - Auto-instrument: FastAPI, SQLAlchemy, httpx
+- [ ] Frontend: Sentry Browser Tracing
+  - `Sentry.init({ integrations: [new BrowserTracing()] })`
+  - Auto-track: page load, navigation, API calls
+- [ ] AI integration: Sentry API → fetch performance data → feed to AI
+  - `GET https://sentry.io/api/0/organizations/{org}/events/` — recent transactions
+  - Supplement internal metrics with Sentry data for richer analysis
+- [ ] Alert rules: Sentry auto-alert → in-app notification (Phase 9 integration)
+
+### 14.12 Scheduled AI Performance Report
+
+**เป้าหมาย**: AI สรุป performance report อัตโนมัติ ส่งให้ Admin ทุกเช้า
+
+- [ ] Background job: daily performance analysis (run at 06:00 via APScheduler or Celery)
+  - Aggregate previous 24h data
+  - Run AI analysis
+  - Save to `PerformanceAnalysis` table
+- [ ] Email report: ส่งสรุปให้ owner/manager ทุกเช้า (reuse Phase 4.6 email service)
+  - Subject: "⚡ รายงาน Performance ประจำวัน — {date}"
+  - Body: AI summary + top issues + trend comparison
+- [ ] Integration with Notification Center (Phase 9):
+  - Create SYSTEM notification เมื่อ severity = `critical`
+  - Link to `/admin/performance` page
+- [ ] Config: `PERF_DAILY_REPORT_ENABLED = True/False` + `PERF_REPORT_RECIPIENTS` (email list)
+- [ ] Weekly digest option: สรุป 7 วัน ส่งทุกวันจันทร์
+
+### 14.13 Performance Optimization Suggestions Engine
+
+**เป้าหมาย**: AI วิเคราะห์เชิงลึก + แนะนำ optimization ที่ทำได้จริง
+
+- [ ] Index Advisor: AI วิเคราะห์ slow queries → แนะนำ index ที่ควรสร้าง
+  - Input: top 20 slow queries + table schemas
+  - Output: `CREATE INDEX` statements + expected improvement
+- [ ] Cache Advisor: แนะนำ endpoint ที่ควรใส่ Redis cache
+  - Criteria: high call frequency + stable response + slow > 200ms
+  - Output: endpoint + suggested TTL + estimated improvement
+- [ ] N+1 Resolver: ตรวจจับ + แนะนำวิธีแก้ N+1
+  - Pattern: endpoint with > 10 queries → suggest `joinedload` / `selectinload`
+  - Output: specific SQLAlchemy code suggestion
+- [ ] Frontend Bundle Advisor: วิเคราะห์ LCP/FCP → แนะนำ optimization
+  - Suggest: lazy loading, code splitting, image optimization
+- [ ] Historical comparison: เทียบ performance ก่อน/หลังแก้ → วัดผลได้จริง
+
+---
+
+### Phase 14 — Sub-phase Implementation Order
+
+| Sub-phase | Name | Effort | Priority | Dependencies |
+|:---------:|------|:------:|:--------:|:------------:|
+| 14.1 | Backend Middleware (data collection) | 1 วัน | 🔴 สูง | — |
+| 14.2 | DB Query Profiler | 1 วัน | 🔴 สูง | — |
+| 14.3 | Performance Data Storage (model + migration) | 1 วัน | 🔴 สูง | 14.1, 14.2 |
+| 14.4 | Frontend Performance Collection | 1 วัน | 🟡 กลาง | — |
+| 14.5 | Aggregation API | 2 วัน | 🔴 สูง | 14.3 |
+| 14.6 | AI Analysis Engine (Claude API) | 2 วัน | 🔴 สูง | 14.5 |
+| 14.7 | AI Analysis API | 1 วัน | 🔴 สูง | 14.6 |
+| 14.8 | Natural Language Query | 1 วัน | 🟡 กลาง | 14.6 |
+| 14.9 | Performance Dashboard UI | 3 วัน | 🔴 สูง | 14.5, 14.7 |
+| 14.10 | AI Chat Panel | 2 วัน | 🟡 กลาง | 14.8, 14.9 |
+| 14.11 | Sentry Integration Enhancement | 1 วัน | 🟢 เสริม | Sentry (4.8) |
+| 14.12 | Scheduled AI Report | 1 วัน | 🟡 กลาง | 14.6, Email (4.6) |
+| 14.13 | Optimization Suggestions Engine | 2 วัน | 🟡 กลาง | 14.6 |
+| **Total** | | **~18 วัน** | | |
+
+### Phase 14 — Estimated Cost
+
+| Item | Cost |
+|------|------|
+| Claude API (Sonnet) | ~$0.01/analysis × 50/day = **$15/month** |
+| Sentry Performance | Free tier sufficient for SME |
+| Redis (existing) | No additional cost |
+| DB Storage (perf logs) | ~100MB/month (with 30-day retention) |
+| **Total** | **~$15-30/month** |
+
+---
+
 ## Summary
 
 | Phase | Backend | Frontend | Migrations | Status |
@@ -1066,7 +1430,8 @@
 | Phase 11 — Inventory Enhancement | TBD | TBD | 1-2 | 📋 Planned |
 | Phase 12 — Mobile Responsive | — | TBD | — | 📋 Planned |
 | Phase 13 — Audit & Security | TBD | TBD | 1-2 | 📋 Planned |
-| **Total (Done)** | **~104 files** | **~114 files** | **13** | **8/13 ✅** |
+| Phase 14 — AI Performance Monitoring | ~8 files | ~5 files | 1 | 📋 Planned |
+| **Total (Done)** | **~104 files** | **~114 files** | **13** | **8/14 ✅** |
 
 **Permissions:** 89 → 105 → 108 → 118 → 123 (Phase 4: +16, Phase 5: +3, Phase 4.9: +10, PR/PO: +5)
 **Business Rules:** 35 → 46 → 55 → 68 (Phase 4: +11, Phase 5: +9, PR/PO: +13)
@@ -1076,15 +1441,18 @@
 **New Components (Phase 7.9):** PurchasingPage, PRTab, POTab, PRFormModal, PRDetailPage, ConvertToPOModal, GoodsReceiptModal, PRApprovalTab
 **Sidebar (Phase 7):** 3-group layout: ME / อนุมัติ / ระบบงาน (was 2-group)
 **Bug Fix (Phase 7):** Leave reject API fixed — now accepts `{action: "approve"|"reject"}` body
+**Code Review Fixes:** 5 issues from Manus AI review (BUG-1 GR body, ISSUE-1 cycle_start, ISSUE-2 useEffect, ISSUE-3 PO scope, ISSUE-4 PR reject reason)
+**Shift UX:** Pattern offset selector (Select dropdown with multi-day preview) + date format 1Mar
 
-**Planned Phases (8-13):**
+**Planned Phases (8-14):**
 - Phase 8: Dashboard KPI + Charts + Manager/Staff/Finance dashboards
 - Phase 9: In-app notifications + bell icon + WebSocket/SSE + email integration
 - Phase 10: PDF/Excel export + print-friendly + report templates
 - Phase 11: Reorder point + low stock alert + batch tracking + barcode + stock take
 - Phase 12: Mobile responsive + PWA + touch UI + mobile approval
 - Phase 13: Enhanced audit trail + login history + 2FA + password policy
+- Phase 14: AI Performance Monitoring — Claude API + middleware + query profiler + dashboard + NL query + scheduled reports
 
 ---
 
-*Last updated: 2026-03-01 — Phase 7.9 complete (PR/PO Redesign), Phase 8-13 planned (123 permissions, 68 BRs, ~218 files)*
+*Last updated: 2026-03-01 — Code Review Fixes (5 issues) + Shift UX (pattern offset + date format), Phase 8-14 planned (123 permissions, 68 BRs, ~218 files)*

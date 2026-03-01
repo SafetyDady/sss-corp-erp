@@ -67,10 +67,14 @@ ST_REGULAR_ID   = UUID("00000000-0000-0000-0006-000000000001")
 ST_MORNING_ID   = UUID("00000000-0000-0000-0006-000000000002")
 ST_AFTERNOON_ID = UUID("00000000-0000-0000-0006-000000000003")
 ST_NIGHT_ID     = UUID("00000000-0000-0000-0006-000000000004")
+ST_DAY12_ID     = UUID("00000000-0000-0000-0006-000000000005")
+ST_NIGHT12_ID   = UUID("00000000-0000-0000-0006-000000000006")
 
 # Work Schedules (Phase 4.9)
 WS_REGULAR_MF_ID    = UUID("00000000-0000-0000-0007-000000000001")
 WS_ROTATING_3S_ID   = UUID("00000000-0000-0000-0007-000000000002")
+WS_ROTATING_12H_ID  = UUID("00000000-0000-0000-0007-000000000003")
+WS_MANUAL_ID        = UUID("00000000-0000-0000-0007-000000000004")
 
 
 # ============================================================
@@ -417,6 +421,12 @@ async def seed():
             {"id": ST_NIGHT_ID, "code": "NIGHT", "name": "กะดึก",
              "start_time": time_type(22, 0), "end_time": time_type(6, 0),
              "break_minutes": 30, "working_hours": Decimal("7.50"), "is_overnight": True},
+            {"id": ST_DAY12_ID, "code": "DAY12", "name": "กะกลางวัน 12ชม.",
+             "start_time": time_type(6, 0), "end_time": time_type(18, 0),
+             "break_minutes": 60, "working_hours": Decimal("11.00"), "is_overnight": False},
+            {"id": ST_NIGHT12_ID, "code": "NIGHT12", "name": "กะกลางคืน 12ชม.",
+             "start_time": time_type(18, 0), "end_time": time_type(6, 0),
+             "break_minutes": 60, "working_hours": Decimal("11.00"), "is_overnight": True},
         ]
         st_count = 0
         for st_data in SHIFT_TYPES:
@@ -443,6 +453,14 @@ async def seed():
              "schedule_type": ScheduleType.ROTATING,
              "rotation_pattern": ["MORNING", "MORNING", "AFTERNOON", "AFTERNOON", "NIGHT", "NIGHT", "OFF", "OFF"],
              "cycle_start_date": date(2026, 1, 1)},
+            {"id": WS_ROTATING_12H_ID, "code": "ROTATING-12H", "name": "2กะ 12ชม. ทำ4หยุด2",
+             "schedule_type": ScheduleType.ROTATING,
+             "rotation_pattern": ["DAY12", "DAY12", "NIGHT12", "NIGHT12", "OFF", "OFF"],
+             "cycle_start_date": date(2026, 1, 1)},
+            {"id": WS_MANUAL_ID, "code": "MANUAL", "name": "ตามตกลง (Manual)",
+             "schedule_type": ScheduleType.FIXED,
+             "working_days": [1, 2, 3, 4, 5, 6, 7],
+             "default_shift_type_id": ST_REGULAR_ID},
         ]
         ws_count = 0
         for ws_data in WORK_SCHEDULES:

@@ -743,7 +743,7 @@ POST   /api/hr/leave/{id}/approve           hr.leave.approve     (body: {action:
 ### HR — Shift Roster (Phase 4.9)
 ```
 GET    /api/hr/roster                       hr.roster.read       (?employee_id=&start_date=&end_date=)
-POST   /api/hr/roster/generate              hr.roster.create     (body: RosterGenerateRequest)
+POST   /api/hr/roster/generate              hr.roster.create     (body: RosterGenerateRequest + pattern_offset for ROTATING)
 PUT    /api/hr/roster/{id}                  hr.roster.create     (manual override)
 ```
 
@@ -856,6 +856,18 @@ POST   /api/daily-report/{id}/submit        hr.dailyreport.create
 POST   /api/daily-report/{id}/approve       hr.dailyreport.approve
 POST   /api/daily-report/batch-approve      hr.dailyreport.approve
 POST   /api/daily-report/{id}/reject        hr.dailyreport.approve
+```
+
+### Performance Monitoring (Phase 14)
+```
+GET    /api/admin/performance/summary       admin.config.read    (?period=24h|7d|30d)
+GET    /api/admin/performance/endpoints     admin.config.read    (per-endpoint breakdown)
+GET    /api/admin/performance/slow-requests admin.config.read    (?limit=50)
+POST   /api/admin/performance/vitals        — (JWT, frontend beacon)
+POST   /api/admin/performance/analyze       admin.config.read    (body: {period, focus})
+GET    /api/admin/performance/analysis/latest  admin.config.read
+POST   /api/admin/performance/analyze/endpoint admin.config.read (body: {path, period})
+POST   /api/admin/performance/ask           admin.config.read    (body: {question})
 ```
 
 ### System
@@ -997,7 +1009,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **4.6** Email Notification — SMTP service, approval request emails (disabled by default)
 - [x] **4.7** Multi-tenant Enforcement — org_id in JWT, all queries filtered, Setup Wizard v2 (4-step with departments)
 - [x] **4.8** Deploy & Production — Vercel (SPA + headers), Railway (Docker), Sentry, security hardening
-- [x] **4.9** Shift Management — ShiftType (master), WorkSchedule (FIXED/ROTATING), ShiftRoster (daily per-employee), Employee.work_schedule_id, Staff Schedule Selector (MyTimesheetPage), OrgWorkConfig-based weekend detection
+- [x] **4.9** Shift Management — ShiftType (master), WorkSchedule (FIXED/ROTATING), ShiftRoster (daily per-employee), Employee.work_schedule_id, Staff Schedule Selector (MyTimesheetPage), OrgWorkConfig-based weekend detection, pattern_offset for ROTATING roster start position
 
 ### Phase 5 — Staff Portal & Daily Report ✅
 - [x] **5.1** Employee hire_date + /me API employee fields (BR#47)
@@ -1113,6 +1125,21 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [ ] **13.6** API Rate Limiting per user — prevent abuse (beyond current global rate limit)
 - [ ] **13.7** Data Export Audit — log all export/download actions for compliance
 
+### Phase 14 — AI-Powered Performance Monitoring ⚡🤖 (Planned)
+- [ ] **14.1** Backend Middleware — `PerformanceMiddleware` (response time, `X-Response-Time` header, slow request flagging)
+- [ ] **14.2** DB Query Profiler — SQLAlchemy event listeners, slow query logging (>100ms), N+1 detection
+- [ ] **14.3** Performance Data Storage — `PerformanceLog` model + Redis real-time buffer + 30-day retention
+- [ ] **14.4** Frontend Performance Collection — Web Vitals (LCP/FID/CLS), API call timing, beacon upload
+- [ ] **14.5** Aggregation API — `GET /api/admin/performance/summary` (avg/p95/p99, slowest endpoints, error rate)
+- [ ] **14.6** AI Analysis Engine — Claude API (`anthropic` SDK), aggregation→prompt→analysis, Thai language output
+- [ ] **14.7** AI Analysis API — `POST /api/admin/performance/analyze`, cached results, severity rating
+- [ ] **14.8** Natural Language Query — `POST /api/admin/performance/ask` (ถามเป็นภาษาคน → AI ตอบ)
+- [ ] **14.9** Performance Dashboard UI — `PerformancePage.jsx` (stat cards + AI card + charts + detail tables)
+- [ ] **14.10** AI Chat Panel — `PerformanceAIChat.jsx` (drawer, chat bubbles, quick questions, markdown rendering)
+- [ ] **14.11** Sentry Integration Enhancement — transaction tracing, browser tracing, AI supplement
+- [ ] **14.12** Scheduled AI Report — daily 06:00 background job, email digest, critical severity notification
+- [ ] **14.13** Optimization Suggestions — Index Advisor, Cache Advisor, N+1 Resolver, Bundle Advisor
+
 ---
 
 ## Common Pitfalls (อย่าทำ!)
@@ -1191,6 +1218,11 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/purchasing/POTab.jsx` | PO list embedded tab — no create button (Phase 7.9) |
 | `frontend/src/pages/purchasing/GoodsReceiptModal.jsx` | Line-by-line GR — GOODS + SERVICE sections (Phase 7.9) |
 | `frontend/src/pages/approval/PRApprovalTab.jsx` | PR approval tab for Approval Center (Phase 7.9) |
+| `backend/app/middleware/performance.py` | Request timing middleware (Phase 14) |
+| `backend/app/services/ai_performance.py` | AI performance analysis engine — Claude API (Phase 14) |
+| `frontend/src/pages/admin/PerformancePage.jsx` | AI Performance Dashboard (Phase 14) |
+| `frontend/src/components/PerformanceAIChat.jsx` | AI Chat panel for performance Q&A (Phase 14) |
+| `frontend/src/utils/performance.js` | Web Vitals + API timing collection (Phase 14) |
 
 ---
 
@@ -1213,4 +1245,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v10 (Phase 0-7.9 complete — PR/PO Redesign: Purchase Requisition System)*
+*End of CLAUDE.md — SSS Corp ERP v11.1 (Phase 0-7.9 complete + Code Review Fixes + Shift UX, Phase 8-14 planned)*

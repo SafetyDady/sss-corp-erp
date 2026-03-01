@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Table, Button, App, Space, Tooltip, Tag } from 'antd';
+import { Table, Button, App, Space, Tooltip, Tag, Modal, Input } from 'antd';
 import { Check, X, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '../../hooks/usePermission';
@@ -20,6 +20,11 @@ export default function PRApprovalTab({ onAction }) {
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
+
+  // Reject modal state
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectTargetId, setRejectTargetId] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -57,11 +62,27 @@ export default function PRApprovalTab({ onAction }) {
     }
   };
 
-  const handleReject = async (id) => {
-    setActionLoading(id);
+  const openRejectModal = (id) => {
+    setRejectTargetId(id);
+    setRejectReason('');
+    setRejectModalOpen(true);
+  };
+
+  const handleReject = async () => {
+    if (!rejectReason.trim()) {
+      message.error('กรุณาระบุเหตุผลในการปฏิเสธ');
+      return;
+    }
+    setActionLoading(rejectTargetId);
     try {
-      await api.post(`/api/purchasing/pr/${id}/approve`, { action: 'reject', reason: 'ปฏิเสธจากหน้าอนุมัติ' });
+      await api.post(`/api/purchasing/pr/${rejectTargetId}/approve`, {
+        action: 'reject',
+        reason: rejectReason,
+      });
       message.success('ปฏิเสธใบขอซื้อสำเร็จ');
+      setRejectModalOpen(false);
+      setRejectReason('');
+      setRejectTargetId(null);
       fetchData();
       onAction?.();
     } catch (err) {
@@ -140,7 +161,7 @@ export default function PRApprovalTab({ onAction }) {
                   type="text" size="small" danger
                   icon={<X size={14} />}
                   loading={actionLoading === record.id}
-                  onClick={() => handleReject(record.id)}
+                  onClick={() => openRejectModal(record.id)}
                 />
               </Tooltip>
             </>
@@ -182,6 +203,32 @@ export default function PRApprovalTab({ onAction }) {
         }}
         size="middle"
       />
+
+      {/* Reject Reason Modal */}
+      <Modal
+        title="ปฏิเสธใบขอซื้อ"
+        open={rejectModalOpen}
+        onOk={handleReject}
+        onCancel={() => {
+          setRejectModalOpen(false);
+          setRejectReason('');
+          setRejectTargetId(null);
+        }}
+        confirmLoading={!!actionLoading}
+        okText="ยืนยันปฏิเสธ"
+        cancelText="ยกเลิก"
+        okButtonProps={{ danger: true }}
+      >
+        <p style={{ marginBottom: 8, color: COLORS.textSecondary }}>
+          กรุณาระบุเหตุผลในการปฏิเสธ:
+        </p>
+        <Input.TextArea
+          rows={3}
+          value={rejectReason}
+          onChange={(e) => setRejectReason(e.target.value)}
+          placeholder="เหตุผลที่ปฏิเสธ..."
+        />
+      </Modal>
     </div>
   );
 }

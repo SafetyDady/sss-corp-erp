@@ -1145,6 +1145,7 @@ async def generate_shift_roster(
     org_id: UUID,
     overwrite_existing: bool = False,
     work_schedule_id: Optional[UUID] = None,
+    pattern_offset: Optional[int] = None,
 ) -> dict:
     """
     Auto-generate ShiftRoster entries based on employee's WorkSchedule.
@@ -1201,6 +1202,15 @@ async def generate_shift_roster(
         if not ws:
             continue
 
+        # Validate cycle_start_date for ROTATING schedules
+        if ws.schedule_type == ScheduleType.ROTATING and ws.cycle_start_date:
+            if ws.cycle_start_date > start_date:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cycle start date ({ws.cycle_start_date}) cannot be after generation start date ({start_date}). "
+                           f"Please update the work schedule's cycle_start_date.",
+                )
+
         current = start_date
         while current <= end_date:
             # Check if roster already exists
@@ -1232,8 +1242,16 @@ async def generate_shift_roster(
                     shift_type_id = ws.default_shift_type_id
             elif ws.schedule_type == ScheduleType.ROTATING:
                 if ws.rotation_pattern and ws.cycle_start_date:
-                    days_since = (current - ws.cycle_start_date).days
-                    position = days_since % len(ws.rotation_pattern)
+                    pat_len = len(ws.rotation_pattern)
+                    if pattern_offset is not None:
+                        # User explicitly chose starting position:
+                        # day 1 of generation = pattern_offset, day 2 = offset+1, etc.
+                        day_in_period = (current - start_date).days
+                        position = (day_in_period + pattern_offset) % pat_len
+                    else:
+                        # Default: calculate from cycle_start_date (historical reference)
+                        days_since = (current - ws.cycle_start_date).days
+                        position = days_since % pat_len
                     pattern_entry = ws.rotation_pattern[position]
 
                     if pattern_entry.upper() == "OFF":

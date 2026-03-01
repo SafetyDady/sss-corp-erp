@@ -284,3 +284,7 @@ class GoodsReceiptLine(BaseModel):
     line_id: UUID
     received_qty: int = Field(gt=0)
     note: Optional[str] = None
+
+
+class GoodsReceiptRequest(BaseModel):
+    lines: list[GoodsReceiptLine] = Field(min_length=1)

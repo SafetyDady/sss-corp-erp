@@ -406,6 +406,7 @@ class RosterGenerateRequest(BaseModel):
     end_date: date
     overwrite_existing: bool = False
     work_schedule_id: Optional[UUID] = None  # Override: use this schedule instead of employee's assigned one
+    pattern_offset: Optional[int] = Field(default=None, ge=0)  # None = use cycle_start_date, int = override start position for day 1
 
     @field_validator("end_date")
     @classmethod

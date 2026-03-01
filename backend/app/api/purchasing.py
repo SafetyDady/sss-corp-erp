@@ -36,7 +36,7 @@ from app.core.security import get_token_payload
 from app.api._helpers import resolve_employee, resolve_employee_id
 from app.schemas.purchasing import (
     ConvertToPORequest,
-    GoodsReceiptLine,
+    GoodsReceiptRequest,
     PRApproveRequest,
     PRCreate,
     PRListResponse,
@@ -329,8 +329,26 @@ async def api_list_pos(
     token: dict = Depends(get_token_payload),
 ):
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    user_id = UUID(token["sub"])
+    role = token.get("role", "staff")
+
+    # Data Scope — consistent with PR list (Phase 6 compliance)
+    created_by_filter = None
+    department_filter = None
+
+    if role == "staff":
+        created_by_filter = user_id
+    elif role == "supervisor":
+        emp = await resolve_employee(db, user_id)
+        if emp and emp.department_id:
+            department_filter = [emp.department_id]
+        else:
+            created_by_filter = user_id
+    # manager/owner see all
+
     items, total = await list_purchase_orders(
-        db, limit=limit, offset=offset, search=search, po_status=status, org_id=org_id
+        db, limit=limit, offset=offset, search=search, po_status=status, org_id=org_id,
+        created_by_filter=created_by_filter, department_filter=department_filter,
     )
     response_items = [_po_to_response(po) for po in items]
     return PurchaseOrderListResponse(items=response_items, total=total, limit=limit, offset=offset)
@@ -424,13 +442,13 @@ async def api_approve_po(
 )
 async def api_receive_goods(
     po_id: UUID,
-    lines: list[GoodsReceiptLine],
+    body: GoodsReceiptRequest,
     token: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
     user_id = UUID(token["sub"])
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
-    receipt_lines = [l.model_dump() for l in lines]
+    receipt_lines = [l.model_dump() for l in body.lines]
     po = await receive_goods(
         db, po_id, receipt_lines=receipt_lines, received_by=user_id, org_id=org_id
     )

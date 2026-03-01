@@ -460,6 +460,8 @@ async def list_purchase_orders(
     search: Optional[str] = None,
     po_status: Optional[str] = None,
     org_id: Optional[UUID] = None,
+    created_by_filter: Optional[UUID] = None,
+    department_filter: Optional[list[UUID]] = None,
 ) -> tuple[list[PurchaseOrder], int]:
     query = select(PurchaseOrder).where(PurchaseOrder.is_active == True)
     if org_id:
@@ -473,6 +475,20 @@ async def list_purchase_orders(
         )
     if po_status:
         query = query.where(PurchaseOrder.status == po_status)
+
+    # Data Scope filters (consistent with PR list — Phase 6 compliance)
+    if created_by_filter:
+        query = query.where(PurchaseOrder.created_by == created_by_filter)
+    elif department_filter:
+        # Filter PO by department via linked PR
+        query = query.where(
+            PurchaseOrder.pr_id.isnot(None),
+            PurchaseOrder.pr_id.in_(
+                select(PurchaseRequisition.id).where(
+                    PurchaseRequisition.department_id.in_(department_filter)
+                )
+            )
+        )
 
     count_query = select(func.count()).select_from(query.subquery())
     total_result = await db.execute(count_query)
