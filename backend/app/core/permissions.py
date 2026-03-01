@@ -25,7 +25,7 @@ from app.core.security import get_token_payload
 # ============================================================
 
 ALL_PERMISSIONS: list[str] = [
-    # --- inventory (9) ---
+    # --- inventory (9 + 6 = 15) ---
     "inventory.product.create",
     "inventory.product.read",
     "inventory.product.update",
@@ -35,6 +35,13 @@ ALL_PERMISSIONS: list[str] = [
     "inventory.movement.read",
     "inventory.movement.delete",    # reverse movement
     "inventory.movement.export",
+    # Phase 11: Stock Withdrawal Slip
+    "inventory.withdrawal.create",
+    "inventory.withdrawal.read",
+    "inventory.withdrawal.update",
+    "inventory.withdrawal.delete",
+    "inventory.withdrawal.approve",  # issue (cut stock)
+    "inventory.withdrawal.export",   # print
 
     # --- warehouse (12) ---
     "warehouse.warehouse.create",
@@ -183,8 +190,8 @@ ALL_PERMISSIONS: list[str] = [
     "hr.roster.read",
 ]
 
-assert len(ALL_PERMISSIONS) == 127, f"Expected 127 permissions, got {len(ALL_PERMISSIONS)}"
-assert len(set(ALL_PERMISSIONS)) == 127, "Duplicate permissions found!"
+assert len(ALL_PERMISSIONS) == 133, f"Expected 133 permissions, got {len(ALL_PERMISSIONS)}"
+assert len(set(ALL_PERMISSIONS)) == 133, "Duplicate permissions found!"
 
 
 # ============================================================
@@ -202,6 +209,13 @@ PERMISSION_DESCRIPTIONS: dict[str, str] = {
     "inventory.movement.read": "ดูประวัติรายการเคลื่อนไหวสินค้า",
     "inventory.movement.delete": "กลับรายการเคลื่อนไหว (Reversal — Owner เท่านั้น)",
     "inventory.movement.export": "ส่งออกรายการเคลื่อนไหวเป็นไฟล์",
+    # Phase 11: Stock Withdrawal Slip
+    "inventory.withdrawal.create": "สร้างใบเบิกของ (Stock Withdrawal Slip)",
+    "inventory.withdrawal.read": "ดูใบเบิกของและรายละเอียด",
+    "inventory.withdrawal.update": "แก้ไขใบเบิกของ (DRAFT เท่านั้น)",
+    "inventory.withdrawal.delete": "ลบใบเบิกของ DRAFT (Owner เท่านั้น)",
+    "inventory.withdrawal.approve": "ยืนยันเบิกจ่าย (Issue — ตัดสต็อก)",
+    "inventory.withdrawal.export": "พิมพ์ใบเบิกของ",
     # --- warehouse (12) ---
     "warehouse.warehouse.create": "สร้างคลังสินค้าใหม่",
     "warehouse.warehouse.read": "ดูข้อมูลคลังสินค้า",
@@ -345,7 +359,7 @@ assert set(PERMISSION_DESCRIPTIONS.keys()) == set(ALL_PERMISSIONS), \
 # Legend:  ✅ = granted  ❌ = denied
 
 def _owner() -> set[str]:
-    """Owner: ALL 127 permissions."""
+    """Owner: ALL 133 permissions."""
     return set(ALL_PERMISSIONS)
 
 
@@ -365,6 +379,7 @@ def _manager() -> set[str]:
         # Deletes that only owner has
         "inventory.product.delete",
         "inventory.movement.delete",
+        "inventory.withdrawal.delete",
         "warehouse.warehouse.delete",
         "warehouse.zone.delete",
         "warehouse.location.delete",
@@ -401,6 +416,12 @@ def _supervisor() -> set[str]:
         "inventory.movement.create",
         "inventory.movement.read",
         "inventory.movement.export",
+        # Withdrawal Slip
+        "inventory.withdrawal.create",
+        "inventory.withdrawal.read",
+        "inventory.withdrawal.update",
+        "inventory.withdrawal.approve",
+        "inventory.withdrawal.export",
         # Warehouse
         "warehouse.warehouse.create",
         "warehouse.warehouse.read",
@@ -496,6 +517,9 @@ def _staff() -> set[str]:
         "inventory.movement.create",
         "inventory.movement.read",
         "inventory.movement.export",
+        # Withdrawal Slip
+        "inventory.withdrawal.create",
+        "inventory.withdrawal.read",
         # Warehouse
         "warehouse.warehouse.read",
         "warehouse.zone.read",
@@ -555,6 +579,9 @@ def _viewer() -> set[str]:
         "inventory.product.read",
         "inventory.product.export",
         "inventory.movement.read",
+        # Withdrawal Slip
+        "inventory.withdrawal.read",
+        "inventory.withdrawal.export",
         # Warehouse
         "warehouse.warehouse.read",
         "warehouse.zone.read",

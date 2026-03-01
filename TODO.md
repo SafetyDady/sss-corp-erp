@@ -1,7 +1,7 @@
 # TODO.md — SSS Corp ERP Implementation Tracker
 
 > อ้างอิง: `CLAUDE.md` → Implementation Phases + Business Rules
-> อัปเดตล่าสุด: 2026-03-01 (Stock Withdrawal Scenarios — 5 movement types fixed)
+> อัปเดตล่าสุด: 2026-03-02 (Stock Withdrawal Slip — ใบเบิกของ multi-line document)
 
 ---
 
@@ -1171,6 +1171,122 @@
 
 ---
 
+## Phase 11 (Continued) — Stock Withdrawal Slip / ใบเบิกของ (Part B) ✅
+
+> Multi-line withdrawal document (Header+Lines): สร้างใบเบิก → พิมพ์ → เตรียมของ → คนเบิกเซ็นรับ → ตัด stock
+> Status flow: DRAFT → PENDING → ISSUED (+ CANCELLED) — ไม่ต้อง approve
+> 2 types: WO_CONSUME (เบิกเข้า WO → CONSUME movements) / CC_ISSUE (เบิกจ่าย CC → ISSUE movements)
+> Business Rules: BR#80-88 (new)
+
+### 11.10B.1 Database Migration ✅
+
+- [x] `e7f8a9b0c1d2_stock_withdrawal_slip.py` (down_revision: `d6e7f8a9b0c1`)
+- [x] CREATE TYPE `withdrawal_type_enum` (WO_CONSUME, CC_ISSUE)
+- [x] CREATE TYPE `withdrawal_status_enum` (DRAFT, PENDING, ISSUED, CANCELLED)
+- [x] CREATE TABLE `stock_withdrawal_slips` (header: slip_number, withdrawal_type, status, work_order_id, cost_center_id, cost_element_id, requested_by, issued_by, issued_at, note, reference, created_by, org_id)
+- [x] CREATE TABLE `stock_withdrawal_slip_lines` (lines: slip_id, line_number, product_id, quantity, issued_qty, location_id, movement_id, note)
+
+### 11.10B.2 Backend Model ✅
+
+- [x] `models/inventory.py` — WithdrawalType enum (WO_CONSUME, CC_ISSUE) + WithdrawalStatus enum (DRAFT, PENDING, ISSUED, CANCELLED)
+- [x] StockWithdrawalSlip model — header with auto slip_number `SW-{YYYY}-{NNNN}`, FK to work_orders/cost_centers/cost_elements/employees/users
+- [x] StockWithdrawalSlipLine model — lines with product_id, quantity, issued_qty, location_id, movement_id (link to generated movement)
+- [x] `models/__init__.py` — added imports + __all__
+
+### 11.10B.3 Backend Schema ✅
+
+- [x] `schemas/withdrawal.py` (NEW) — Pydantic v2 schemas
+- [x] WithdrawalSlipCreate: model_validator (WO_CONSUME→work_order_id required, CC_ISSUE→cost_center_id required)
+- [x] WithdrawalSlipUpdate: partial update for DRAFT only
+- [x] WithdrawalSlipIssueRequest: per-line issued_qty + optional location_id override
+- [x] WithdrawalSlipResponse: enriched with WO/CC/CE/employee/product/location names
+
+### 11.10B.4 Backend Service ✅
+
+- [x] `services/withdrawal.py` (NEW) — 515 lines, fully async
+- [x] _next_slip_number: auto `SW-{YYYY}-{NNNN}`
+- [x] create_withdrawal_slip: validate type-specific fields, products must be MATERIAL/CONSUMABLE
+- [x] get/list/update/delete: standard CRUD (update/delete DRAFT only)
+- [x] submit_withdrawal_slip: DRAFT → PENDING
+- [x] issue_withdrawal_slip: PENDING → ISSUED, calls `create_movement()` per line, atomic transaction
+- [x] cancel_withdrawal_slip: DRAFT/PENDING → CANCELLED
+- [x] Enrichment helpers: get_slip_enrichment_info, get_line_enrichment_info (batch fetch names)
+
+### 11.10B.5 Backend API + Permissions ✅
+
+- [x] `api/withdrawal.py` (NEW) — 8 endpoints on prefix `/api/inventory/withdrawal-slips`
+- [x] `api/__init__.py` — added withdrawal_router
+- [x] `core/permissions.py` — 6 new permissions (127→133): inventory.withdrawal.{create,read,update,delete,approve,export}
+- [x] Permission matrix: owner=all, manager=all except delete, supervisor=CRUAE, staff=CR, viewer=RE
+
+### 11.10B.6 Frontend — WithdrawalSlipTab (list) ✅
+
+- [x] `WithdrawalSlipTab.jsx` (NEW) — List tab in SupplyChainPage
+- [x] Table: slip_number, type badge, status badge, WO/CC, requester, date, line_count, actions
+- [x] Filters: search + status + withdrawal_type, pagination
+- [x] Create button → open FormModal, row click → navigate to detail
+
+### 11.10B.7 Frontend — WithdrawalSlipFormModal (create/edit) ✅
+
+- [x] `WithdrawalSlipFormModal.jsx` (NEW) — Create/edit multi-line (PRFormModal pattern)
+- [x] Header: withdrawal_type Radio, conditional WO/CC selectors, employee picker
+- [x] Lines: dynamic table with product (non-SERVICE), quantity, warehouse→location picker, note
+
+### 11.10B.8 Frontend — WithdrawalSlipDetailPage ✅
+
+- [x] `WithdrawalSlipDetailPage.jsx` (NEW) — Detail at `/withdrawal-slips/:id`
+- [x] Header + StatusBadge + action buttons per status (Edit/Submit/Issue/Print/Cancel)
+- [x] Descriptions card + lines table with product/qty/issued_qty/location
+
+### 11.10B.9 Frontend — WithdrawalSlipIssueModal ✅
+
+- [x] `WithdrawalSlipIssueModal.jsx` (NEW) — Issue confirmation
+- [x] Per-line editable issued_qty (pre-filled from quantity), location override
+- [x] issued_qty = 0 → skip line (no movement)
+
+### 11.10B.10 Frontend — WithdrawalSlipPrintView ✅
+
+- [x] `WithdrawalSlipPrintView.jsx` (NEW) — Print-optimized component
+- [x] `.sw-print-content` CSS class for `@media print` isolation
+- [x] Black text/white background, HTML table, 3-column signature grid (ผู้เบิก/ผู้จัดเตรียม/ผู้อนุมัติ)
+
+### 11.10B.11 Frontend — Updates to existing files ✅
+
+- [x] `SupplyChainPage.jsx` — +WithdrawalSlipTab (ClipboardList icon), +pendingSlips stat card
+- [x] `App.jsx` — lazy import + route `/withdrawal-slips/:id` + selectedKey mapping
+- [x] `StatusBadge.jsx` — +ISSUED (#10b981), WO_CONSUME (#ef4444), CC_ISSUE (#f59e0b)
+- [x] `permissionMeta.js` — +withdrawal: 'ใบเบิกของ'
+- [x] `App.css` — +`.sw-print-content` print CSS
+
+### สรุปไฟล์ทั้งหมด Part B
+
+| # | ไฟล์ | ประเภท |
+|---|------|--------|
+| 1 | `backend/alembic/versions/e7f8a9b0c1d2_stock_withdrawal_slip.py` | สร้างใหม่ |
+| 2 | `backend/app/models/inventory.py` | แก้ไข |
+| 3 | `backend/app/models/__init__.py` | แก้ไข |
+| 4 | `backend/app/core/permissions.py` | แก้ไข |
+| 5 | `backend/app/schemas/withdrawal.py` | สร้างใหม่ |
+| 6 | `backend/app/services/withdrawal.py` | สร้างใหม่ |
+| 7 | `backend/app/api/withdrawal.py` | สร้างใหม่ |
+| 8 | `backend/app/api/__init__.py` | แก้ไข |
+| 9 | `frontend/src/pages/supply-chain/WithdrawalSlipTab.jsx` | สร้างใหม่ |
+| 10 | `frontend/src/pages/supply-chain/WithdrawalSlipFormModal.jsx` | สร้างใหม่ |
+| 11 | `frontend/src/pages/supply-chain/WithdrawalSlipDetailPage.jsx` | สร้างใหม่ |
+| 12 | `frontend/src/pages/supply-chain/WithdrawalSlipIssueModal.jsx` | สร้างใหม่ |
+| 13 | `frontend/src/pages/supply-chain/WithdrawalSlipPrintView.jsx` | สร้างใหม่ |
+| 14 | `frontend/src/pages/supply-chain/SupplyChainPage.jsx` | แก้ไข |
+| 15 | `frontend/src/App.jsx` | แก้ไข |
+| 16 | `frontend/src/App.css` | แก้ไข |
+| 17 | `frontend/src/components/StatusBadge.jsx` | แก้ไข |
+| 18 | `frontend/src/utils/permissionMeta.js` | แก้ไข |
+
+**รวม: 9 ไฟล์ใหม่ + 9 ไฟล์แก้ไข = 18 ไฟล์**
+
+**Build: `npm run build` → 0 errors ✅**
+
+---
+
 ## Phase 8 — Dashboard & Analytics 📊 (Planned)
 
 ### 8.1 KPI Dashboard
@@ -1300,31 +1416,31 @@
 
 ## Phase 11 — Inventory Enhancement 📦 (Partial ✅ — Remaining)
 
-### 11.9 Stock Aging Report
+### 11.11 Stock Aging Report
 - [ ] Backend: `GET /api/inventory/reports/aging` — group by age bracket (0-30, 31-60, 61-90, 90+ days)
 - [ ] Calculate based on last RECEIVE movement date per product
 - [ ] Frontend: Aging report page with table + chart
 - [ ] Permission: `inventory.product.export`
 
-### 11.10 Batch/Lot Tracking
+### 11.12 Batch/Lot Tracking
 - [ ] StockMovement model: + `batch_number` (string, nullable)
 - [ ] FIFO costing option: track cost per batch
 - [ ] Frontend: batch_number input on RECEIVE movement form
 - [ ] Batch history: trace movements per batch number
 
-### 11.11 Barcode/QR Code (SKU)
+### 11.13 Barcode/QR Code (SKU)
 - [ ] Install: `python-barcode` (backend) or `react-barcode` (frontend)
 - [ ] Generate barcode from SKU — display on product detail
 - [ ] Print label: SKU + barcode + product name
 - [ ] QR code option: encode product URL for mobile scanning
 
-### 11.12 Stock Take (Cycle Count)
+### 11.14 Stock Take (Cycle Count)
 - [ ] Model: `StockTake` (date, warehouse_id, status DRAFT/IN_PROGRESS/COMPLETED)
 - [ ] Model: `StockTakeLine` (product_id, system_qty, counted_qty, variance)
 - [ ] Workflow: create → count → review variances → approve → auto ADJUST movements
 - [ ] Permission: `inventory.movement.create` for creating, `inventory.movement.delete` for approving adjustments
 
-### 11.13 Multi-warehouse Transfer
+### 11.15 Multi-warehouse Transfer
 - [ ] TRANSFER movement type: source_warehouse_id → destination_warehouse_id
 - [ ] Two movements created: ISSUE from source + RECEIVE to destination (atomic)
 - [ ] Optional approval for inter-warehouse transfers
@@ -1765,9 +1881,9 @@
 | Phase 14 — AI Performance Monitoring | ~8 files | ~5 files | 1 | 📋 Planned |
 | **Total (Done)** | **~104 files** | **~114 files** | **13** | **8/14 ✅** |
 
-**Permissions:** 89 → 105 → 108 → 118 → 123 (Phase 4: +16, Phase 5: +3, Phase 4.9: +10, PR/PO: +5)
-**Business Rules:** 35 → 46 → 55 → 68 (Phase 4: +11, Phase 5: +9, PR/PO: +13)
-**Routes:** 17 → 20+ → 25+ → 26+ → 28+ (Phase 7.9: +2 PR routes)
+**Permissions:** 89 → 105 → 108 → 118 → 123 → 127 → 133 (Phase 4: +16, Phase 5: +3, Phase 4.9: +10, PR/PO: +5, Supplier: +4, Withdrawal: +6)
+**Business Rules:** 35 → 46 → 55 → 68 → 79 → 88 (Phase 4: +11, Phase 5: +9, PR/PO: +13, Stock-Location: +6, Stock Withdrawal: +11, Withdrawal Slip: +9)
+**Routes:** 17 → 20+ → 25+ → 26+ → 28+ → 29+ (Phase 7.9: +2 PR routes, Phase 11.10B: +1 withdrawal detail route)
 **New Components (Phase 6):** ScopeBadge, EmployeeContextSelector, SupervisorDashboard
 **New Components (Phase 7):** ApprovalPage, TimesheetApprovalTab, LeaveApprovalTab, POApprovalTab, SOApprovalTab
 **New Components (Phase 7.9):** PurchasingPage, PRTab, POTab, PRFormModal, PRDetailPage, ConvertToPOModal, GoodsReceiptModal, PRApprovalTab
@@ -1775,16 +1891,17 @@
 **Bug Fix (Phase 7):** Leave reject API fixed — now accepts `{action: "approve"|"reject"}` body
 **Code Review Fixes:** 5 issues from Manus AI review (BUG-1 GR body, ISSUE-1 cycle_start, ISSUE-2 useEffect, ISSUE-3 PO scope, ISSUE-4 PR reject reason)
 **Shift UX:** Pattern offset selector (Select dropdown with multi-day preview) + date format 1Mar
+**New Components (Phase 11.10B):** WithdrawalSlipTab, WithdrawalSlipFormModal, WithdrawalSlipDetailPage, WithdrawalSlipIssueModal, WithdrawalSlipPrintView
 
 **Planned Phases (8-14):**
 - Phase 8: Dashboard KPI + Charts + Manager/Staff/Finance dashboards
 - Phase 9: In-app notifications + bell icon + WebSocket/SSE + email integration
 - Phase 10: PDF/Excel export + print-friendly + report templates
-- Phase 11: Reorder point + low stock alert + batch tracking + barcode + stock take
+- Phase 11 (remaining): Stock aging + batch tracking + barcode + stock take + multi-warehouse transfer
 - Phase 12: Mobile responsive + PWA + touch UI + mobile approval
 - Phase 13: Enhanced audit trail + login history + 2FA + password policy
 - Phase 14: AI Performance Monitoring — Claude API + middleware + query profiler + dashboard + NL query + scheduled reports
 
 ---
 
-*Last updated: 2026-03-01 — Code Review Fixes (5 issues) + Shift UX (pattern offset + date format), Phase 8-14 planned (123 permissions, 68 BRs, ~218 files)*
+*Last updated: 2026-03-02 — Stock Withdrawal Slip / ใบเบิกของ (Part B complete), Phase 8-14 planned (133 permissions, 88 BRs, ~230 files)*

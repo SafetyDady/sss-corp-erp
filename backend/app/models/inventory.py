@@ -49,6 +49,18 @@ class MovementType(str, enum.Enum):
     REVERSAL = "REVERSAL"
 
 
+class WithdrawalType(str, enum.Enum):
+    WO_CONSUME = "WO_CONSUME"   # Withdraw for Work Order (generates CONSUME movements)
+    CC_ISSUE = "CC_ISSUE"       # Withdraw for Cost Center (generates ISSUE movements)
+
+
+class WithdrawalStatus(str, enum.Enum):
+    DRAFT = "DRAFT"
+    PENDING = "PENDING"
+    ISSUED = "ISSUED"
+    CANCELLED = "CANCELLED"
+
+
 # ============================================================
 # PRODUCT
 # ============================================================
@@ -224,3 +236,133 @@ class StockByLocation(Base, TimestampMixin, OrgMixin):
 
     def __repr__(self) -> str:
         return f"<StockByLocation product={self.product_id} location={self.location_id} on_hand={self.on_hand}>"
+
+
+# ============================================================
+# STOCK WITHDRAWAL SLIP (header + lines, Phase 11 Part B)
+# ============================================================
+
+class StockWithdrawalSlip(Base, TimestampMixin, OrgMixin):
+    """
+    Multi-line stock withdrawal document.
+    Flow: DRAFT → PENDING → ISSUED (+ CANCELLED)
+    When ISSUED, generates individual StockMovement per line.
+    """
+    __tablename__ = "stock_withdrawal_slips"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    slip_number: Mapped[str] = mapped_column(
+        String(20), nullable=False, index=True
+    )
+    withdrawal_type: Mapped[WithdrawalType] = mapped_column(
+        Enum(WithdrawalType, name="withdrawal_type_enum"),
+        nullable=False,
+    )
+    status: Mapped[WithdrawalStatus] = mapped_column(
+        Enum(WithdrawalStatus, name="withdrawal_status_enum"),
+        nullable=False,
+        default=WithdrawalStatus.DRAFT,
+    )
+
+    # WO_CONSUME target
+    work_order_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("work_orders.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    # CC_ISSUE target
+    cost_center_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cost_centers.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    cost_element_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cost_elements.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    # Tracking
+    requested_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("employees.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    issued_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    issued_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Relationships
+    lines: Mapped[list["StockWithdrawalSlipLine"]] = relationship(
+        back_populates="slip", cascade="all, delete-orphan",
+        order_by="StockWithdrawalSlipLine.line_number",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("org_id", "slip_number", name="uq_sw_org_number"),
+        Index("ix_sw_org_status", "org_id", "status"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<StockWithdrawalSlip {self.slip_number} ({self.status.value})>"
+
+
+class StockWithdrawalSlipLine(Base, TimestampMixin):
+    """Line item for StockWithdrawalSlip. No org_id (inherited from header)."""
+    __tablename__ = "stock_withdrawal_slip_lines"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    slip_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("stock_withdrawal_slips.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    line_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("products.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    issued_qty: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    location_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("locations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    movement_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("stock_movements.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Relationships
+    slip: Mapped["StockWithdrawalSlip"] = relationship(back_populates="lines")
+
+    __table_args__ = (
+        CheckConstraint("quantity > 0", name="ck_sw_line_qty_positive"),
+        CheckConstraint("issued_qty >= 0", name="ck_sw_line_issued_qty_non_negative"),
+        Index("ix_sw_lines_slip_id", "slip_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<SWLine #{self.line_number} product={self.product_id} qty={self.quantity}>"

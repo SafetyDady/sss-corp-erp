@@ -29,6 +29,9 @@ const STATUS_CONFIG = {
   PERSONAL: { color: '#8b5cf6' },
   RESERVED: { color: '#06b6d4' },
   FULFILLED: { color: '#10b981' },
+  ISSUED: { color: '#10b981' },
+  WO_CONSUME: { color: '#ef4444' },
+  CC_ISSUE: { color: '#f59e0b' },
   // Movement types
   RECEIVE: { color: '#10b981' },
   ISSUE: { color: '#f59e0b' },

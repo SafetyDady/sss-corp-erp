@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Tabs, Row, Col, App } from 'antd';
-import { Package, Warehouse, Wrench, ArrowRightLeft, MapPin, AlertTriangle } from 'lucide-react';
+import { Package, Warehouse, Wrench, ArrowRightLeft, MapPin, AlertTriangle, ClipboardList } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import StatCard from '../../components/StatCard';
 import { COLORS } from '../../utils/constants';
@@ -12,10 +12,11 @@ import MovementListPage from '../inventory/MovementListPage';
 import WarehouseListPage from '../warehouse/WarehouseListPage';
 import LocationListPage from '../warehouse/LocationListPage';
 import ToolListPage from '../tools/ToolListPage';
+import WithdrawalSlipTab from './WithdrawalSlipTab';
 
 export default function SupplyChainPage() {
   const { can } = usePermission();
-  const [stats, setStats] = useState({ products: 0, movements: 0, warehouses: 0, tools: 0, lowStock: 0 });
+  const [stats, setStats] = useState({ products: 0, movements: 0, warehouses: 0, tools: 0, lowStock: 0, pendingSlips: 0 });
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -42,6 +43,10 @@ export default function SupplyChainPage() {
         if (can('inventory.product.read')) {
           requests.push(api.get('/api/inventory/low-stock-count'));
           keys.push('lowStock');
+        }
+        if (can('inventory.withdrawal.read')) {
+          requests.push(api.get('/api/inventory/withdrawal-slips', { params: { limit: 1, offset: 0, status: 'PENDING' } }));
+          keys.push('pendingSlips');
         }
 
         const results = await Promise.allSettled(requests);
@@ -115,6 +120,16 @@ export default function SupplyChainPage() {
     });
   }
 
+  if (can('inventory.withdrawal.read')) {
+    tabItems.push({
+      key: 'withdrawal',
+      label: (
+        <span><ClipboardList size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />ใบเบิกของ</span>
+      ),
+      children: <WithdrawalSlipTab />,
+    });
+  }
+
   return (
     <div>
       <PageHeader title="Supply Chain" subtitle="Inventory, Warehouse & Tools" />
@@ -173,6 +188,17 @@ export default function SupplyChainPage() {
               subtitle="สินค้าต่ำกว่า Min Stock"
               icon={<AlertTriangle size={20} />}
               color={COLORS.danger}
+            />
+          </Col>
+        )}
+        {can('inventory.withdrawal.read') && (
+          <Col xs={12} sm={6}>
+            <StatCard
+              title="Pending Slips"
+              value={stats.pendingSlips}
+              subtitle="ใบเบิกรอจ่ายของ"
+              icon={<ClipboardList size={20} />}
+              color="#f59e0b"
             />
           </Col>
         )}

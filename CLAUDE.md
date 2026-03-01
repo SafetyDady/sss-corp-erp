@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-01 v14 (Stock Withdrawal Scenarios — 5 movement types fixed)
+> อัปเดตล่าสุด: 2026-03-02 v15 (Stock Withdrawal Slip — ใบเบิกของ multi-line document)
 
 ---
 
@@ -10,7 +10,7 @@
 
 **SSS Corp ERP** — ระบบ ERP สำหรับธุรกิจ Manufacturing/Trading ขนาดเล็ก-กลาง
 - Multi-tenant (Shared DB + org_id)
-- **11 Modules, 127 Permissions, 5 Roles**
+- **11 Modules, 133 Permissions, 5 Roles**
 - Job Costing: Material + ManHour + Tools Recharge + Admin Overhead
 - อ้างอิงเพิ่มเติม: `UI_GUIDELINES.md` (theme/icons), `BUSINESS_POLICY.md` (business rules)
 
@@ -39,11 +39,12 @@ sss-corp-erp/
 ├── frontend/                     ← Vercel deploys this (Root Dir = frontend/)
 │   ├── src/
 │   │   ├── components/           # Shared UI (StatusBadge, ScopeBadge, EmployeeContextSelector, etc.)
-│   │   ├── pages/                # Route pages (~90 files, 28+ routes)
+│   │   ├── pages/                # Route pages (~95 files, 29+ routes)
 │   │   │   ├── setup/            # SetupWizardPage (Phase 4.7)
 │   │   │   ├── planning/         # PlanningPage, DailyPlan, Reservation (Phase 4.5)
 │   │   │   ├── approval/         # ApprovalPage + 6 approval tabs (Phase 7+)
 │   │   │   ├── purchasing/       # PurchasingPage (PR+PO tabs), PRDetail, PODetail, ConvertToPO
+│   │   │   ├── supply-chain/    # SupplyChainPage, WithdrawalSlip (Tab, Form, Detail, Issue, Print)
 │   │   │   └── ...               # inventory, warehouse, workorder, hr, etc.
 │   │   ├── hooks/                # usePermission, useAuth, etc.
 │   │   ├── stores/               # Zustand stores
@@ -55,7 +56,7 @@ sss-corp-erp/
 │   └── vercel.json               # SPA rewrites + security headers + caching
 ├── backend/                      ← Railway deploys this (Dockerfile)
 │   ├── app/
-│   │   ├── api/                  # Route handlers (16 files, 17 routers)
+│   │   ├── api/                  # Route handlers (17 files, 18 routers)
 │   │   │   ├── _helpers.py       # Shared data scope helpers (Phase 6)
 │   │   │   ├── planning.py       # Daily plans, reservations (Phase 4.5)
 │   │   │   ├── setup.py          # One-time org setup (Phase 4.7)
@@ -160,9 +161,9 @@ sss-corp-erp/
 
 ---
 
-## RBAC — 5 Roles x 127 Permissions (Full Matrix)
+## RBAC — 5 Roles x 133 Permissions (Full Matrix)
 
-### Inventory (9 permissions)
+### Inventory (15 permissions)
 
 | Permission | owner | manager | supervisor | staff | viewer |
 |-----------|:-----:|:-------:|:----------:|:-----:|:------:|
@@ -175,6 +176,12 @@ sss-corp-erp/
 | inventory.movement.read | ✅ | ✅ | ✅ | ✅ | ✅ |
 | inventory.movement.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
 | inventory.movement.export | ✅ | ✅ | ✅ | ✅ | ❌ |
+| inventory.withdrawal.create | ✅ | ✅ | ✅ | ✅ | ❌ |
+| inventory.withdrawal.read | ✅ | ✅ | ✅ | ✅ | ✅ |
+| inventory.withdrawal.update | ✅ | ✅ | ✅ | ❌ | ❌ |
+| inventory.withdrawal.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
+| inventory.withdrawal.approve | ✅ | ✅ | ✅ | ❌ | ❌ |
+| inventory.withdrawal.export | ✅ | ✅ | ✅ | ❌ | ✅ |
 
 ### Warehouse (12 permissions)
 
@@ -348,11 +355,11 @@ sss-corp-erp/
 
 | Role | Count | Description |
 |------|-------|-------------|
-| owner | 127 | ALL permissions |
-| manager | ~76 | ไม่มี admin.*, ไม่มี *.delete + planning create/update |
-| supervisor | ~60 | read + approve + limited create + planning read |
-| staff | ~37 | read + own create (timesheet, leave, movement, dailyreport, roster, PR) |
-| viewer | ~24 | read + selected export only |
+| owner | 133 | ALL permissions |
+| manager | ~81 | ไม่มี admin.*, ไม่มี *.delete + planning create/update |
+| supervisor | ~65 | read + approve + limited create + planning read |
+| staff | ~39 | read + own create (timesheet, leave, movement, dailyreport, roster, PR, withdrawal) |
+| viewer | ~26 | read + selected export only |
 
 ### Permission Usage Pattern
 ```python
@@ -502,7 +509,7 @@ Manager จองเครื่องมือ → POST /api/planning/reservati
 
 ---
 
-## Business Rules (Complete — 68 Rules)
+## Business Rules (Complete — 77 Rules)
 
 | # | Module | Feature | Rule | Enforcement |
 |---|--------|---------|------|-------------|
@@ -585,6 +592,15 @@ Manager จองเครื่องมือ → POST /api/planning/reservati
 | 77 | inventory | TRANSFER | TRANSFER ต้องมี location_id (source) + to_location_id (dest), ต่างกัน, atomic 2 ฝั่ง | Service check |
 | 78 | inventory | ADJUST | ADJUST ต้องมี adjust_type (INCREASE/DECREASE), owner only | Service check |
 | 79 | inventory | RETURN | Material Cost = Σ(CONSUME) − Σ(RETURN), capped at 0 | Service calc |
+| 80 | inventory | Withdrawal | WO_CONSUME → work_order_id required, WO must be OPEN | Schema + Service |
+| 81 | inventory | Withdrawal | CC_ISSUE → cost_center_id required, active + org match | Schema + Service |
+| 82 | inventory | Withdrawal | ทุก product ต้องเป็น MATERIAL/CONSUMABLE (ห้าม SERVICE) | Service check |
+| 83 | inventory | Withdrawal | Status flow: DRAFT → PENDING → ISSUED (+ CANCELLED) | State machine |
+| 84 | inventory | Withdrawal | Delete DRAFT only | Permission + Service |
+| 85 | inventory | Withdrawal | Issue สร้าง StockMovement ต่อ line (issued_qty > 0) | Service logic |
+| 86 | inventory | Withdrawal | Lines with issued_qty = 0 → skip (ไม่สร้าง movement) | Service logic |
+| 87 | inventory | Withdrawal | Stock validation ผ่าน create_movement() ที่มีอยู่ (BR#5,6,69-70) | Reuse existing |
+| 88 | inventory | Withdrawal | ISSUED แล้วแก้ไม่ได้ — corrections ผ่าน movement REVERSAL | State machine |
 
 ---
 
@@ -643,6 +659,18 @@ POST   /api/stock/movements/{id}/reverse    inventory.movement.delete
 ```
 GET    /api/inventory/stock-by-location     inventory.product.read       (?product_id=&location_id=&warehouse_id=)
 GET    /api/inventory/low-stock-count       inventory.product.read       → {count: int}
+```
+
+### Stock Withdrawal Slips (ใบเบิกของ)
+```
+GET    /api/inventory/withdrawal-slips              inventory.withdrawal.read     (?search, status, withdrawal_type, limit, offset)
+POST   /api/inventory/withdrawal-slips              inventory.withdrawal.create
+GET    /api/inventory/withdrawal-slips/{id}         inventory.withdrawal.read
+PUT    /api/inventory/withdrawal-slips/{id}         inventory.withdrawal.update   (DRAFT only)
+DELETE /api/inventory/withdrawal-slips/{id}         inventory.withdrawal.delete   (DRAFT only)
+POST   /api/inventory/withdrawal-slips/{id}/submit  inventory.withdrawal.create   (DRAFT→PENDING)
+POST   /api/inventory/withdrawal-slips/{id}/issue   inventory.withdrawal.approve  (PENDING→ISSUED, creates movements)
+POST   /api/inventory/withdrawal-slips/{id}/cancel  inventory.withdrawal.update   (→CANCELLED)
 ```
 
 ### Warehouse
@@ -944,7 +972,7 @@ npm run build                                          # Production build
 
 | Email | Password | Role |
 |-------|----------|------|
-| owner@sss-corp.com | owner123 | owner (all 127 perms) |
+| owner@sss-corp.com | owner123 | owner (all 133 perms) |
 | manager@sss-corp.com | manager123 | manager (~73 perms) |
 | supervisor@sss-corp.com | supervisor123 | supervisor (~57 perms) |
 | staff@sss-corp.com | staff123 | staff (~36 perms) |
@@ -1144,6 +1172,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **11.8** Delivery Note Number — เลขใบวางของ field in GR Modal → stored on PO → displayed in PO Detail + PO List
 - [x] **11.9** Supplier Master Data — Supplier CRUD (code, name, contact, email, phone, address, tax_id) + PO.supplier_id FK + ConvertToPO dropdown + 4 permissions (127 total)
 - [x] **11.10** Stock Withdrawal Scenarios — 5 movement types fixed: CONSUME→WO (work_order_id), ISSUE→CostCenter, TRANSFER 2-way atomic, ADJUST INCREASE/DECREASE, RETURN new type + WO Material Cost = CONSUME−RETURN (BR#74-79)
+- [x] **11.10B** Stock Withdrawal Slip (ใบเบิกของ) — Multi-line withdrawal document (Header+Lines), DRAFT→PENDING→ISSUED workflow, WO_CONSUME/CC_ISSUE types, print, issue creates movements per line, 6 new permissions (127→133), 8 API endpoints (BR#80-88)
 - [ ] **11.11** Stock Aging Report — inventory value by age bracket (0-30, 31-60, 61-90, 90+ days)
 - [ ] **11.12** Batch/Lot Tracking — batch_number on StockMovement, FIFO/LIFO costing option
 - [ ] **11.13** Barcode/QR — generate barcode for SKU (frontend display + print label)
@@ -1214,6 +1243,9 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 26. ❌ อย่าสร้าง ISSUE movement โดยไม่มี cost_center_id — ต้อง validate CostCenter exists + active (BR#76)
 27. ❌ อย่าลืม TRANSFER ต้อง atomic 2 ฝั่ง — source ลด + dest เพิ่ม, product.on_hand ไม่เปลี่ยน (BR#77)
 28. ❌ อย่าลืม RETURN หักจาก Material Cost ใน WO Cost Summary — Material = CONSUME − RETURN, cap 0 (BR#79)
+29. ❌ อย่าแก้ไข Withdrawal Slip ที่ ISSUED แล้ว — corrections ผ่าน movement REVERSAL เท่านั้น (BR#88)
+30. ❌ อย่าสร้าง Withdrawal Slip ที่มี SERVICE products — ต้องเป็น MATERIAL/CONSUMABLE เท่านั้น (BR#82)
+31. ❌ อย่าลืม Issue ต้อง reuse `create_movement()` — ไม่ duplicate stock logic (BR#85,87)
 
 ---
 
@@ -1226,12 +1258,12 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `BUSINESS_POLICY.md` | Business rules (source of truth) |
 | `TODO.md` | Implementation tracker + checklist |
 | `SmartERP_Master_Document_v2.xlsx` | Original design spec |
-| `backend/app/core/permissions.py` | RBAC permissions + role mapping + PERMISSION_DESCRIPTIONS (127 Thai descriptions) |
+| `backend/app/core/permissions.py` | RBAC permissions + role mapping + PERMISSION_DESCRIPTIONS (133 Thai descriptions) |
 | `backend/app/core/security.py` | JWT token creation/validation |
 | `backend/app/core/config.py` | Environment settings + DEFAULT_ORG_ID |
 | `frontend/src/stores/authStore.js` | Auth state + token management |
 | `frontend/src/hooks/usePermission.js` | RBAC hook for components |
-| `frontend/src/components/StatusBadge.jsx` | Reusable status badge (30 statuses) |
+| `frontend/src/components/StatusBadge.jsx` | Reusable status badge (33+ statuses) |
 | `backend/app/models/organization.py` | Org, Department, OrgConfig models |
 | `backend/app/models/planning.py` | WOMasterPlan, DailyPlan, Reservations |
 | `backend/app/models/daily_report.py` | DailyWorkReport model (Phase 5) |
@@ -1271,6 +1303,14 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/master/SupplierFormModal.jsx` | Supplier create/edit modal (Phase 11.9) |
 | `frontend/src/pages/workorder/WOConsumeModal.jsx` | CONSUME material from WO Detail — pre-filled WO (Phase 11.10) |
 | `frontend/src/pages/workorder/WOReturnModal.jsx` | RETURN material to stock from WO Detail (Phase 11.10) |
+| `backend/app/schemas/withdrawal.py` | Withdrawal Slip Pydantic schemas (Phase 11.10B) |
+| `backend/app/services/withdrawal.py` | Withdrawal Slip business logic: CRUD + submit + issue + cancel (Phase 11.10B) |
+| `backend/app/api/withdrawal.py` | Withdrawal Slip 8 API endpoints (Phase 11.10B) |
+| `frontend/src/pages/supply-chain/WithdrawalSlipTab.jsx` | Withdrawal list tab in SupplyChainPage (Phase 11.10B) |
+| `frontend/src/pages/supply-chain/WithdrawalSlipFormModal.jsx` | Create/edit multi-line withdrawal slip (Phase 11.10B) |
+| `frontend/src/pages/supply-chain/WithdrawalSlipDetailPage.jsx` | Withdrawal detail + status actions (Phase 11.10B) |
+| `frontend/src/pages/supply-chain/WithdrawalSlipIssueModal.jsx` | Issue confirmation — per-line issued_qty (Phase 11.10B) |
+| `frontend/src/pages/supply-chain/WithdrawalSlipPrintView.jsx` | Print layout with signature fields (Phase 11.10B) |
 | `backend/app/middleware/performance.py` | Request timing middleware (Phase 14) |
 | `backend/app/services/ai_performance.py` | AI performance analysis engine — Claude API (Phase 14) |
 | `frontend/src/pages/admin/PerformancePage.jsx` | AI Performance Dashboard (Phase 14) |
@@ -1298,4 +1338,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v14 (Phase 0-7.9 complete + Phase 11 partial: Stock-Location + Low Stock + QR Code + Delivery Note + Supplier + Stock Withdrawal, Phase 8-14 planned)*
+*End of CLAUDE.md — SSS Corp ERP v15 (Phase 0-7.9 complete + Phase 11 partial: Stock-Location + Low Stock + QR Code + Delivery Note + Supplier + Stock Withdrawal + Withdrawal Slip, Phase 8-14 planned)*

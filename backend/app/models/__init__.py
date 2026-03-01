@@ -1,5 +1,8 @@
 from app.models.user import User, RefreshToken
-from app.models.inventory import Product, StockMovement, StockByLocation, ProductType, MovementType
+from app.models.inventory import (
+    Product, StockMovement, StockByLocation, ProductType, MovementType,
+    StockWithdrawalSlip, StockWithdrawalSlipLine, WithdrawalType, WithdrawalStatus,
+)
 from app.models.warehouse import Warehouse, Location
 from app.models.workorder import WorkOrder, WOStatus
 from app.models.master import CostCenter, CostElement, OTType, ShiftType, WorkSchedule, ScheduleType, Supplier
@@ -84,4 +87,8 @@ __all__ = [
     "ReportStatus",
     "LineType",
     "Supplier",
+    "StockWithdrawalSlip",
+    "StockWithdrawalSlipLine",
+    "WithdrawalType",
+    "WithdrawalStatus",
 ]

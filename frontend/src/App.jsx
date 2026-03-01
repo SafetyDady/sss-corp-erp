@@ -46,6 +46,7 @@ const MyTasksPage = lazy(() => import('./pages/my/MyTasksPage'));
 const MePage = lazy(() => import('./pages/my/MePage'));
 const ApprovalPage = lazy(() => import('./pages/approval/ApprovalPage'));
 const SupplyChainPage = lazy(() => import('./pages/supply-chain/SupplyChainPage'));
+const WithdrawalSlipDetailPage = lazy(() => import('./pages/supply-chain/WithdrawalSlipDetailPage'));
 
 const MY_MENU_ITEMS = [
   { key: '/me', icon: <User size={18} />, label: 'ME', permission: '_me_check' },
@@ -142,7 +143,7 @@ function AppLayout() {
     const path = location.pathname;
     if (path === '/me' || path.startsWith('/my/')) return '/me';
     if (path === '/approval') return '/approval';
-    if (path.startsWith('/supply-chain') || path.startsWith('/inventory') || path.startsWith('/warehouse') || path.startsWith('/tools')) return '/supply-chain';
+    if (path.startsWith('/supply-chain') || path.startsWith('/inventory') || path.startsWith('/warehouse') || path.startsWith('/tools') || path.startsWith('/withdrawal-slips')) return '/supply-chain';
     return '/' + path.split('/')[1];
   })();
 
@@ -250,6 +251,7 @@ function AppLayout() {
               <Route path="/warehouse" element={<Navigate to="/supply-chain" replace />} />
               <Route path="/warehouse/locations" element={<Navigate to="/supply-chain" replace />} />
               <Route path="/tools" element={<Navigate to="/supply-chain" replace />} />
+              <Route path="/withdrawal-slips/:id" element={<WithdrawalSlipDetailPage />} />
               <Route path="/work-orders" element={<WorkOrderListPage />} />
               <Route path="/work-orders/:id" element={<WorkOrderDetailPage />} />
               <Route path="/purchasing" element={<PurchasingPage />} />

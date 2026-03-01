@@ -20,7 +20,21 @@
       "Bash(docker exec sss-corp-erp-backend-1 pwd)",
       "Bash(docker exec sss-corp-erp-backend-1 python -c \"import app.seed; print\\(''DAY12'' in open\\(''/app/app/seed.py''\\).read\\(\\)\\)\")",
       "Bash(docker exec sss-corp-erp-backend-1 python -c \":*)",
-      "Bash(sort -k6,7)"
+      "Bash(sort -k6,7)",
+      "Bash(wc -c:*)",
+      "Bash(tee \"C:/web_project/sss-corp/sss-corp-erp/backend/app/services/withdrawal.py\")",
+      "Bash(/dev/null:*)",
+      "Bash(echo \"Part 1 exit: $?\")",
+      "Bash(tee -a \"C:/web_project/sss-corp/sss-corp-erp/backend/app/services/withdrawal.py\")",
+      "Bash(echo \"Part 2 exit: $?\")",
+      "Bash(echo \"Part 2a exit: $?\")",
+      "Bash(echo \"Part 3 exit: $?\")",
+      "Bash(echo \"Part 4 exit: $?\")",
+      "Bash(echo \"Part 5 exit: $?\")",
+      "Bash(echo \"Part 6 exit: $?\")",
+      "Bash(/c/Python313/python -c \"import ast; ast.parse\\(open\\(r''C:\\\\web_project\\\\sss-corp\\\\sss-corp-erp\\\\backend\\\\alembic\\\\versions\\\\e7f8a9b0c1d2_stock_withdrawal_slip.py''\\).read\\(\\)\\); print\\(''Migration: syntax OK''\\)\")",
+      "Bash(/c/Python313/python -c \"import ast; ast.parse\\(open\\(r''C:\\\\web_project\\\\sss-corp\\\\sss-corp-erp\\\\backend\\\\app\\\\schemas\\\\withdrawal.py''\\).read\\(\\)\\); print\\(''Schema: syntax OK''\\)\")",
+      "Bash(/c/Python313/python -c \"import ast; ast.parse\\(open\\(r''C:\\\\web_project\\\\sss-corp\\\\sss-corp-erp\\\\backend\\\\app\\\\services\\\\withdrawal.py''\\).read\\(\\)\\); print\\(''Service: syntax OK''\\)\")"
     ]
   }
 }

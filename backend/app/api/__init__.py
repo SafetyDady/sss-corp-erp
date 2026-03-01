@@ -14,6 +14,7 @@ from app.api.admin import admin_router
 from app.api.planning import master_plan_router, planning_router
 from app.api.setup import router as setup_router
 from app.api.daily_report import daily_report_router
+from app.api.withdrawal import withdrawal_router
 
 all_routers = [
     auth_router,
@@ -34,4 +35,5 @@ all_routers = [
     planning_router,
     setup_router,
     daily_report_router,
+    withdrawal_router,
 ]

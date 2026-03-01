@@ -99,17 +99,20 @@ body {
   background: #ef444420 !important;
 }
 
-/* Print styles for QR Code label */
+/* Print styles for QR Code label + Stock Withdrawal Slip */
 @media print {
   body * {
     visibility: hidden !important;
   }
   .qr-print-content,
-  .qr-print-content * {
+  .qr-print-content *,
+  .sw-print-content,
+  .sw-print-content * {
     visibility: visible !important;
     color: #000 !important;
   }
-  .qr-print-content {
+  .qr-print-content,
+  .sw-print-content {
     position: absolute;
     left: 0;
     top: 0;
@@ -121,11 +124,28 @@ body {
   .qr-print-content p,
   .qr-print-content li,
   .qr-print-content span,
-  .qr-print-content strong {
+  .qr-print-content strong,
+  .sw-print-content p,
+  .sw-print-content span,
+  .sw-print-content td,
+  .sw-print-content th,
+  .sw-print-content div {
     color: #000 !important;
   }
   .qr-print-content .ant-divider {
     border-color: #ccc !important;
+  }
+  .sw-print-content table {
+    border-collapse: collapse !important;
+  }
+  .sw-print-content th {
+    background: #e5e5e5 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .sw-print-content td,
+  .sw-print-content th {
+    border: 1px solid #444 !important;
   }
   .ant-modal-mask,
   .ant-modal-wrap > .ant-modal > .ant-modal-content > .ant-modal-footer,
