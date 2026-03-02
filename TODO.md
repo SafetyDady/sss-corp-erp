@@ -1,7 +1,7 @@
 # TODO.md — SSS Corp ERP Implementation Tracker
 
 > อ้างอิง: `CLAUDE.md` → Implementation Phases + Business Rules
-> อัปเดตล่าสุด: 2026-03-02 (Stock Withdrawal Slip — ใบเบิกของ multi-line document)
+> อัปเดตล่าสุด: 2026-03-02 (Documentation: SYSTEM_OVERVIEW_V3 + Word export)
 
 ---
 
@@ -1284,6 +1284,31 @@
 **รวม: 9 ไฟล์ใหม่ + 9 ไฟล์แก้ไข = 18 ไฟล์**
 
 **Build: `npm run build` → 0 errors ✅**
+
+---
+
+## Documentation — System Overview & PRD ✅
+
+> Owner review workflow: Markdown → Word (.docx) → Track Changes → feedback back to Claude
+
+### เอกสารที่สร้าง
+
+- [x] `SYSTEM_OVERVIEW.md` — V1: 19 Mermaid diagrams, 8 ASCII wireframes, 88 business rules (945 lines)
+- [x] `SYSTEM_OVERVIEW_V2.md` — V2: Merged V1 + SSS_CORP_ERP_MASTER.md (Manus AI review), checkbox validation, B/C/D sections (1,095 lines)
+- [x] `SYSTEM_OVERVIEW_V3.md` — V3: Merged V2 + SSS_CORP_ERP_PRD_V4.md (Manus AI PRD), per-module UX assessment, cross-cutting UX issues, open-ended questions (1,340 lines)
+- [x] `SYSTEM_OVERVIEW_V3.docx` — Word export for Track Changes review (68 KB)
+- [x] `convert_to_docx.py` — Python script (python-docx) for MD → Word conversion
+
+### V3 โครงสร้าง 4 ส่วน
+
+| ส่วน | เนื้อหา | Sections |
+|------|---------|----------|
+| **A** | ระบบปัจจุบัน | A1-A12: ภาพรวม, สถาปัตยกรรม, 12 Modules (UX assessment), จุดเชื่อมต่อ, Cross-cutting UX, 5 Flows, State Machines, หน้าจอ, สิทธิ์, กฎธุรกิจ, Hard Constraints, Progress |
+| **B** | แผนที่วางไว้ | B1-B7: Dashboard, Notification, Export, Inventory, Mobile, Security, AI |
+| **C** | ช่องว่างที่พบ | C1-C8: Invoice, DO, AP, Budget, Tax, Multi-currency, Gantt, Self-service |
+| **D** | ลำดับความสำคัญ | 10 items ranked + Glossary 21 terms |
+
+### สถานะ: รอ Owner review (Track Changes ใน Word)
 
 ---
 

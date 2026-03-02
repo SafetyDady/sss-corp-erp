@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-02 v15 (Stock Withdrawal Slip — ใบเบิกของ multi-line document)
+> อัปเดตล่าสุด: 2026-03-02 v16 (Documentation: SYSTEM_OVERVIEW_V3 + Word export for Owner review)
 
 ---
 
@@ -1316,6 +1316,9 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/admin/PerformancePage.jsx` | AI Performance Dashboard (Phase 14) |
 | `frontend/src/components/PerformanceAIChat.jsx` | AI Chat panel for performance Q&A (Phase 14) |
 | `frontend/src/utils/performance.js` | Web Vitals + API timing collection (Phase 14) |
+| `SYSTEM_OVERVIEW_V3.md` | PRD ฉบับสมบูรณ์ — 4 ส่วน (A:ระบบปัจจุบัน, B:แผน, C:ช่องว่าง, D:ลำดับ) + UX assessment ต่อ module |
+| `SYSTEM_OVERVIEW_V3.docx` | Word export สำหรับ Owner review ด้วย Track Changes |
+| `convert_to_docx.py` | Python script แปลง MD → Word (.docx) ด้วย python-docx |
 
 ---
 
