@@ -20,6 +20,8 @@ class ProductType(str, Enum):
     MATERIAL = "MATERIAL"
     CONSUMABLE = "CONSUMABLE"
     SERVICE = "SERVICE"
+    SPAREPART = "SPAREPART"
+    FINISHED_GOODS = "FINISHED_GOODS"
 
 
 class MovementType(str, Enum):
@@ -30,6 +32,7 @@ class MovementType(str, Enum):
     CONSUME = "CONSUME"
     RETURN = "RETURN"
     REVERSAL = "REVERSAL"
+    PRODUCE = "PRODUCE"
 
 
 # ============================================================
@@ -39,6 +42,7 @@ class MovementType(str, Enum):
 class ProductCreate(BaseModel):
     sku: str = Field(min_length=1, max_length=50, description="Unique SKU code")
     name: str = Field(min_length=1, max_length=255)
+    model: Optional[str] = Field(default=None, max_length=255)
     description: Optional[str] = None
     product_type: ProductType = ProductType.MATERIAL
     unit: str = Field(default="PCS", max_length=50)
@@ -60,6 +64,7 @@ class ProductCreate(BaseModel):
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    model: Optional[str] = Field(default=None, max_length=255)
     description: Optional[str] = None
     product_type: Optional[ProductType] = None
     unit: Optional[str] = Field(default=None, max_length=50)
@@ -81,6 +86,7 @@ class ProductResponse(BaseModel):
     id: UUID
     sku: str
     name: str
+    model: Optional[str] = None
     description: Optional[str] = None
     product_type: ProductType
     unit: str
@@ -115,9 +121,10 @@ class StockMovementCreate(BaseModel):
     reference: Optional[str] = Field(default=None, max_length=255)
     note: Optional[str] = None
     location_id: Optional[UUID] = None  # Source location (or general location)
+    bin_id: Optional[UUID] = None  # Bin within location (3rd level)
 
     # Scenario-specific fields
-    work_order_id: Optional[UUID] = None     # Required for CONSUME, RETURN
+    work_order_id: Optional[UUID] = None     # Required for CONSUME, RETURN, PRODUCE
     cost_center_id: Optional[UUID] = None    # Required for ISSUE
     cost_element_id: Optional[UUID] = None   # Optional for ISSUE
     to_location_id: Optional[UUID] = None    # Required for TRANSFER (destination)
@@ -160,6 +167,10 @@ class StockMovementCreate(BaseModel):
         if mt == MovementType.ADJUST and not self.adjust_type:
             raise ValueError("adjust_type (INCREASE/DECREASE) is required for ADJUST movements")
 
+        # PRODUCE: work_order_id required
+        if mt == MovementType.PRODUCE and not self.work_order_id:
+            raise ValueError("work_order_id is required for PRODUCE movements")
+
         return self
 
 
@@ -174,6 +185,8 @@ class StockMovementResponse(BaseModel):
     location_id: Optional[UUID] = None
     location_name: Optional[str] = None
     warehouse_name: Optional[str] = None
+    bin_id: Optional[UUID] = None
+    bin_name: Optional[str] = None
     work_order_id: Optional[UUID] = None
     work_order_number: Optional[str] = None
     cost_center_id: Optional[UUID] = None

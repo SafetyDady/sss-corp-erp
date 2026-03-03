@@ -101,6 +101,7 @@ class PRCreate(BaseModel):
     validity_end_date: Optional[date] = None
     note: Optional[str] = None
     requested_approver_id: Optional[UUID] = None
+    sourcer_id: Optional[UUID] = None
     lines: list[PRLineCreate] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -124,6 +125,7 @@ class PRUpdate(BaseModel):
     validity_end_date: Optional[date] = None
     note: Optional[str] = None
     requested_approver_id: Optional[UUID] = None
+    sourcer_id: Optional[UUID] = None
     lines: Optional[list[PRLineCreate]] = Field(default=None, min_length=1)
 
     @model_validator(mode="after")
@@ -163,6 +165,7 @@ class PRResponse(BaseModel):
     total_estimated: Optional[Decimal] = None
     note: Optional[str] = None
     requested_approver_id: Optional[UUID] = None
+    sourcer_id: Optional[UUID] = None
     approved_by: Optional[UUID] = None
     approved_at: Optional[datetime] = None
     rejected_reason: Optional[str] = None
@@ -190,6 +193,33 @@ class PRListResponse(BaseModel):
 class ConvertToPOLine(BaseModel):
     pr_line_id: UUID
     unit_cost: Decimal = Field(ge=0, decimal_places=2)
+    gr_mode: Optional[str] = "STOCK_GR"
+    work_order_id: Optional[UUID] = None
+    direct_cost_center_id: Optional[UUID] = None
+
+    @model_validator(mode="after")
+    def validate_gr_mode_allocation(self):
+        """§5: DIRECT_GR requires exactly one of work_order_id/direct_cost_center_id.
+        STOCK_GR must NOT have either."""
+        mode = self.gr_mode or "STOCK_GR"
+        has_wo = self.work_order_id is not None
+        has_cc = self.direct_cost_center_id is not None
+
+        if mode == "DIRECT_GR":
+            if not has_wo and not has_cc:
+                raise ValueError(
+                    "DIRECT_GR requires either work_order_id or direct_cost_center_id"
+                )
+            if has_wo and has_cc:
+                raise ValueError(
+                    "DIRECT_GR: provide work_order_id OR direct_cost_center_id, not both"
+                )
+        elif mode == "STOCK_GR":
+            if has_wo or has_cc:
+                raise ValueError(
+                    "STOCK_GR must not have work_order_id or direct_cost_center_id"
+                )
+        return self
 
 
 class ConvertToPORequest(BaseModel):
@@ -221,6 +251,9 @@ class POLineResponse(BaseModel):
     unit: str = "PCS"
     unit_cost: Decimal
     cost_element_id: Optional[UUID] = None
+    gr_mode: str = "STOCK_GR"
+    work_order_id: Optional[UUID] = None
+    direct_cost_center_id: Optional[UUID] = None
     received_qty: int
     received_by: Optional[UUID] = None
     received_at: Optional[datetime] = None

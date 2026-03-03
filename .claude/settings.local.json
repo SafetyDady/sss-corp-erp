@@ -38,7 +38,9 @@
       "Bash(done)",
       "Bash(sort -k5 -rh)",
       "Bash(sort -k1 -rh)",
-      "Bash(xargs head -100)"
+      "Bash(xargs head -100)",
+      "Bash(xargs -I {} basename {})",
+      "Bash(head -15 /c/web_project/sss-corp/sss-corp-erp/backend/alembic/versions/*.py)"
     ]
   }
 }

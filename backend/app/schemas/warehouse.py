@@ -118,3 +118,70 @@ class LocationListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+# ============================================================
+# BIN SCHEMAS (3rd level: Warehouse → Location → Bin)
+# ============================================================
+
+class BinCreate(BaseModel):
+    location_id: UUID
+    code: str = Field(min_length=1, max_length=50, description="Unique bin code per location")
+    name: str = Field(min_length=1, max_length=255)
+    description: Optional[str] = None
+
+    @field_validator("code")
+    @classmethod
+    def normalize_code(cls, v: str) -> str:
+        return v.strip().upper()
+
+
+class BinUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class BinResponse(BaseModel):
+    id: UUID
+    location_id: UUID
+    code: str
+    name: str
+    description: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class BinListResponse(BaseModel):
+    items: list[BinResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+# ============================================================
+# STOCK BY BIN SCHEMAS
+# ============================================================
+
+class StockByBinResponse(BaseModel):
+    id: UUID
+    product_id: UUID
+    bin_id: UUID
+    bin_code: str = ""
+    bin_name: str = ""
+    location_id: Optional[UUID] = None
+    location_name: str = ""
+    warehouse_name: str = ""
+    on_hand: int
+
+    class Config:
+        from_attributes = True
+
+
+class StockByBinListResponse(BaseModel):
+    items: list[StockByBinResponse]
+    total: int

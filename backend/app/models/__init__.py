@@ -3,7 +3,7 @@ from app.models.inventory import (
     Product, StockMovement, StockByLocation, ProductType, MovementType,
     StockWithdrawalSlip, StockWithdrawalSlipLine, WithdrawalType, WithdrawalStatus,
 )
-from app.models.warehouse import Warehouse, Location
+from app.models.warehouse import Warehouse, Location, Bin, StockByBin
 from app.models.workorder import WorkOrder, WOStatus
 from app.models.master import CostCenter, CostElement, OTType, ShiftType, WorkSchedule, ScheduleType, Supplier
 from app.models.hr import Employee, Timesheet, TimesheetStatus, Leave, LeaveStatus, PayrollRun, PayrollStatus, PayType, ShiftRoster
@@ -12,7 +12,7 @@ from app.models.customer import Customer
 from app.models.purchasing import (
     PurchaseRequisition, PurchaseRequisitionLine,
     PRStatus, PRPriority, PRItemType, PRType,
-    PurchaseOrder, PurchaseOrderLine, POStatus,
+    PurchaseOrder, PurchaseOrderLine, POStatus, GRMode,
 )
 from app.models.sales import SalesOrder, SalesOrderLine, SOStatus
 from app.models.organization import Organization, Department, OrgWorkConfig, OrgApprovalConfig
@@ -34,6 +34,8 @@ __all__ = [
     "MovementType",
     "Warehouse",
     "Location",
+    "Bin",
+    "StockByBin",
     "WorkOrder",
     "WOStatus",
     "CostCenter",
@@ -64,6 +66,7 @@ __all__ = [
     "PurchaseOrder",
     "PurchaseOrderLine",
     "POStatus",
+    "GRMode",
     "SalesOrder",
     "SalesOrderLine",
     "SOStatus",

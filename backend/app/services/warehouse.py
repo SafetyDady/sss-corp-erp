@@ -17,7 +17,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.warehouse import Location, Warehouse
+from app.models.warehouse import Bin, Location, Warehouse
 
 
 # ============================================================
@@ -323,4 +323,109 @@ async def delete_location(db: AsyncSession, location_id: UUID) -> None:
     # add check here: if location has movements, reject delete.
 
     location.is_active = False
+    await db.commit()
+
+
+# ============================================================
+# BIN CRUD (3rd level: Warehouse → Location → Bin)
+# ============================================================
+
+async def create_bin(
+    db: AsyncSession,
+    *,
+    location_id: UUID,
+    code: str,
+    name: str,
+    description: Optional[str] = None,
+    org_id: UUID,
+) -> Bin:
+    """Create a bin within a location. Code unique per location."""
+    # Verify location exists and belongs to org
+    await get_location(db, location_id, org_id=org_id)
+
+    # Code unique per location
+    existing = await db.execute(
+        select(Bin).where(Bin.location_id == location_id, Bin.code == code)
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Bin with code '{code}' already exists at this location",
+        )
+
+    bin_obj = Bin(
+        location_id=location_id,
+        code=code,
+        name=name,
+        description=description,
+        org_id=org_id,
+    )
+    db.add(bin_obj)
+    await db.commit()
+    await db.refresh(bin_obj)
+    return bin_obj
+
+
+async def get_bin(db: AsyncSession, bin_id: UUID, *, org_id: Optional[UUID] = None) -> Bin:
+    """Get a single bin by ID."""
+    query = select(Bin).where(Bin.id == bin_id, Bin.is_active == True)
+    if org_id:
+        query = query.where(Bin.org_id == org_id)
+    result = await db.execute(query)
+    bin_obj = result.scalar_one_or_none()
+    if not bin_obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bin not found")
+    return bin_obj
+
+
+async def list_bins(
+    db: AsyncSession,
+    *,
+    limit: int = 20,
+    offset: int = 0,
+    location_id: Optional[UUID] = None,
+    search: Optional[str] = None,
+    org_id: Optional[UUID] = None,
+) -> tuple[list[Bin], int]:
+    """List bins with pagination and filters."""
+    query = select(Bin).where(Bin.is_active == True)
+    if org_id:
+        query = query.where(Bin.org_id == org_id)
+    if location_id:
+        query = query.where(Bin.location_id == location_id)
+    if search:
+        pattern = f"%{search}%"
+        query = query.where((Bin.code.ilike(pattern)) | (Bin.name.ilike(pattern)))
+
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    query = query.order_by(Bin.created_at.desc()).limit(limit).offset(offset)
+    result = await db.execute(query)
+    items = list(result.scalars().all())
+    return items, total
+
+
+async def update_bin(
+    db: AsyncSession,
+    bin_id: UUID,
+    *,
+    update_data: dict,
+    org_id: Optional[UUID] = None,
+) -> Bin:
+    """Update a bin."""
+    bin_obj = await get_bin(db, bin_id, org_id=org_id)
+    for field, value in update_data.items():
+        if value is not None:
+            setattr(bin_obj, field, value)
+    await db.commit()
+    await db.refresh(bin_obj)
+    return bin_obj
+
+
+async def delete_bin(db: AsyncSession, bin_id: UUID, *, org_id: Optional[UUID] = None) -> None:
+    """Soft-delete a bin."""
+    bin_obj = await get_bin(db, bin_id, org_id=org_id)
+    bin_obj.is_active = False
     await db.commit()

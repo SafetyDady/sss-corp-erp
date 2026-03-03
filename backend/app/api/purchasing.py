@@ -487,6 +487,7 @@ def _pr_to_response(pr) -> dict:
         "total_estimated": total,
         "note": pr.note,
         "requested_approver_id": pr.requested_approver_id,
+        "sourcer_id": getattr(pr, "sourcer_id", None),
         "approved_by": pr.approved_by,
         "approved_at": pr.approved_at,
         "rejected_reason": pr.rejected_reason,

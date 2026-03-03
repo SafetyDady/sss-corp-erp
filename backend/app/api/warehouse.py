@@ -27,6 +27,10 @@ from app.core.database import get_db
 from app.core.permissions import require
 from app.core.security import get_token_payload
 from app.schemas.warehouse import (
+    BinCreate,
+    BinListResponse,
+    BinResponse,
+    BinUpdate,
     LocationCreate,
     LocationListResponse,
     LocationResponse,
@@ -37,14 +41,19 @@ from app.schemas.warehouse import (
     WarehouseUpdate,
 )
 from app.services.warehouse import (
+    create_bin,
     create_location,
     create_warehouse,
+    delete_bin,
     delete_location,
     delete_warehouse,
+    get_bin,
     get_location,
     get_warehouse,
+    list_bins,
     list_locations,
     list_warehouses,
+    update_bin,
     update_location,
     update_warehouse,
 )
@@ -233,3 +242,98 @@ async def api_delete_location(
 ):
     """Soft-delete a location."""
     await delete_location(db, location_id)
+
+
+# ============================================================
+# BIN ROUTES (3rd level: Warehouse → Location → Bin)
+# ============================================================
+
+@warehouse_router.get(
+    "/bins",
+    response_model=BinListResponse,
+    dependencies=[Depends(require("warehouse.location.read"))],
+)
+async def api_list_bins(
+    limit: int = Query(default=20, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    location_id: Optional[UUID] = Query(default=None),
+    search: Optional[str] = Query(default=None, max_length=100),
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """List bins with pagination and filters."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    items, total = await list_bins(
+        db, limit=limit, offset=offset, location_id=location_id, search=search, org_id=org_id
+    )
+    return BinListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+@warehouse_router.post(
+    "/bins",
+    response_model=BinResponse,
+    status_code=201,
+    dependencies=[Depends(require("warehouse.location.create"))],
+)
+async def api_create_bin(
+    body: BinCreate,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Create a new bin within a location."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await create_bin(
+        db,
+        location_id=body.location_id,
+        code=body.code,
+        name=body.name,
+        description=body.description,
+        org_id=org_id,
+    )
+
+
+@warehouse_router.get(
+    "/bins/{bin_id}",
+    response_model=BinResponse,
+    dependencies=[Depends(require("warehouse.location.read"))],
+)
+async def api_get_bin(
+    bin_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Get a single bin by ID."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await get_bin(db, bin_id, org_id=org_id)
+
+
+@warehouse_router.put(
+    "/bins/{bin_id}",
+    response_model=BinResponse,
+    dependencies=[Depends(require("warehouse.location.update"))],
+)
+async def api_update_bin(
+    bin_id: UUID,
+    body: BinUpdate,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Update an existing bin."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    update_data = body.model_dump(exclude_unset=True)
+    return await update_bin(db, bin_id, update_data=update_data, org_id=org_id)
+
+
+@warehouse_router.delete(
+    "/bins/{bin_id}",
+    status_code=204,
+    dependencies=[Depends(require("warehouse.location.delete"))],
+)
+async def api_delete_bin(
+    bin_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Soft-delete a bin."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    await delete_bin(db, bin_id, org_id=org_id)

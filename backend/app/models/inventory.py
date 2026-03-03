@@ -37,6 +37,8 @@ class ProductType(str, enum.Enum):
     MATERIAL = "MATERIAL"
     CONSUMABLE = "CONSUMABLE"
     SERVICE = "SERVICE"          # No stock tracking (on_hand=0 always)
+    SPAREPART = "SPAREPART"      # Spare parts (stock tracked, like MATERIAL)
+    FINISHED_GOODS = "FINISHED_GOODS"  # Output from WO via PRODUCE movement
 
 
 class MovementType(str, enum.Enum):
@@ -47,6 +49,7 @@ class MovementType(str, enum.Enum):
     CONSUME = "CONSUME"       # WO consumption
     RETURN = "RETURN"         # Return unused material to stock from WO
     REVERSAL = "REVERSAL"
+    PRODUCE = "PRODUCE"       # WO output — FINISHED_GOODS enters stock at actual cost
 
 
 class WithdrawalType(str, enum.Enum):
@@ -75,6 +78,7 @@ class Product(Base, TimestampMixin, OrgMixin):
         String(50), unique=True, nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    model: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     product_type: Mapped[ProductType] = mapped_column(
         Enum(ProductType, name="product_type_enum"),
@@ -165,6 +169,14 @@ class StockMovement(Base, TimestampMixin, OrgMixin):
     __table_args__ = (
         CheckConstraint("quantity != 0", name="ck_movement_qty_nonzero"),
         Index("ix_movements_product_type", "product_id", "movement_type"),
+    )
+
+    # Bin link (nullable — 3rd level warehouse hierarchy, backward compatible)
+    bin_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("bins.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
 
     # Location link (nullable — backward compatible with existing movements)

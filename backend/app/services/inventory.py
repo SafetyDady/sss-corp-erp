@@ -34,7 +34,7 @@ from app.models.inventory import (
     StockByLocation,
     StockMovement,
 )
-from app.models.warehouse import Location, Warehouse
+from app.models.warehouse import Bin, Location, StockByBin, Warehouse
 
 
 # ============================================================
@@ -52,6 +52,7 @@ async def create_product(
     cost: Decimal,
     min_stock: int,
     org_id: UUID,
+    model: Optional[str] = None,
 ) -> Product:
     """Create a new product. Business Rule #1 & #2."""
 
@@ -75,6 +76,7 @@ async def create_product(
     product = Product(
         sku=sku,
         name=name,
+        model=model,
         description=description,
         product_type=product_type,
         unit=unit,
@@ -232,13 +234,25 @@ async def create_movement(
     cost_element_id: Optional[UUID] = None,
     to_location_id: Optional[UUID] = None,
     adjust_type: Optional[str] = None,
+    bin_id: Optional[UUID] = None,
 ) -> StockMovement:
     """
     Create a stock movement and update on_hand.
     Business Rules #5, #6, #13, #65, #69-72.
     """
-    # Get product (must be active)
-    product = await get_product(db, product_id)
+    # Get product with row lock (must be active)
+    # SELECT FOR UPDATE prevents concurrent movements from causing lost updates on on_hand
+    result = await db.execute(
+        select(Product)
+        .where(Product.id == product_id, Product.is_active == True)
+        .with_for_update()
+    )
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found",
+        )
 
     # BR#65: SERVICE products cannot have stock movements
     if product.product_type == ProductType.SERVICE:
@@ -280,6 +294,15 @@ async def create_movement(
         await _validate_cost_center(db, cost_center_id, org_id)
         if cost_element_id:
             await _validate_cost_element(db, cost_element_id, org_id)
+
+    # PRODUCE validation (WO output — FINISHED_GOODS enters stock)
+    if mt == MovementType.PRODUCE:
+        await _validate_wo_for_consume(db, work_order_id, org_id)
+        if product.product_type != ProductType.FINISHED_GOODS:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="PRODUCE is only allowed for FINISHED_GOODS products",
+            )
 
     # TRANSFER validation
     if mt == MovementType.TRANSFER:
@@ -335,6 +358,7 @@ async def create_movement(
             work_order_id=work_order_id,
             cost_center_id=cost_center_id,
             cost_element_id=cost_element_id,
+            bin_id=bin_id,
         )
         db.add(movement)
         # product.on_hand unchanged for TRANSFER
@@ -364,6 +388,18 @@ async def create_movement(
             )
         sbl.on_hand = new_sbl_on_hand
 
+    # §8: If bin_id provided, validate + update stock_by_bin (3rd level tracking)
+    if bin_id and mt != MovementType.TRANSFER:
+        await _validate_bin(db, bin_id, org_id)
+        sbb = await _get_or_create_stock_by_bin(db, product_id, bin_id, org_id)
+        new_sbb_on_hand = sbb.on_hand + qty_delta
+        if new_sbb_on_hand < 0:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Insufficient stock at bin: on_hand={sbb.on_hand}, requested={quantity}",
+            )
+        sbb.on_hand = new_sbb_on_hand
+
     # Create movement record (immutable — BR#8)
     movement = StockMovement(
         product_id=product_id,
@@ -379,6 +415,7 @@ async def create_movement(
         cost_center_id=cost_center_id,
         cost_element_id=cost_element_id,
         to_location_id=to_location_id,
+        bin_id=bin_id,
     )
     db.add(movement)
 
@@ -417,8 +454,18 @@ async def reverse_movement(
             detail="Movement already reversed",
         )
 
-    # Get the product
-    product = await get_product(db, original.product_id)
+    # Get the product with row lock (prevent concurrent on_hand updates)
+    result = await db.execute(
+        select(Product)
+        .where(Product.id == original.product_id, Product.is_active == True)
+        .with_for_update()
+    )
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found",
+        )
 
     mt = MovementType(original.movement_type) if isinstance(original.movement_type, str) else original.movement_type
 
@@ -643,13 +690,13 @@ async def _validate_cost_element(db: AsyncSession, cost_element_id: UUID, org_id
 def _calculate_qty_delta(movement_type, quantity: int) -> int:
     """
     Calculate on_hand delta based on movement type.
-    RECEIVE/RETURN → +quantity (increase)
-    ISSUE/CONSUME  → -quantity (decrease)
-    TRANSFER       → 0 (handled separately)
-    ADJUST         → quantity (already signed)
-    REVERSAL       → handled separately (inverse of original)
+    RECEIVE/RETURN/PRODUCE → +quantity (increase)
+    ISSUE/CONSUME          → -quantity (decrease)
+    TRANSFER               → 0 (handled separately)
+    ADJUST                 → quantity (already signed)
+    REVERSAL               → handled separately (inverse of original)
     """
-    increase_types = {MovementType.RECEIVE, MovementType.RETURN}
+    increase_types = {MovementType.RECEIVE, MovementType.RETURN, MovementType.PRODUCE}
     decrease_types = {MovementType.ISSUE, MovementType.CONSUME}
 
     mt = MovementType(movement_type) if isinstance(movement_type, str) else movement_type
@@ -701,12 +748,15 @@ async def _validate_location(db: AsyncSession, location_id: UUID, org_id: UUID) 
 async def _get_or_create_stock_by_location(
     db: AsyncSession, product_id: UUID, location_id: UUID, org_id: UUID
 ) -> StockByLocation:
-    """Get existing stock_by_location record or create with on_hand=0."""
+    """Get existing stock_by_location record or create with on_hand=0.
+    Uses SELECT FOR UPDATE for concurrency safety (§4)."""
     result = await db.execute(
-        select(StockByLocation).where(
+        select(StockByLocation)
+        .where(
             StockByLocation.product_id == product_id,
             StockByLocation.location_id == location_id,
         )
+        .with_for_update()
     )
     sbl = result.scalar_one_or_none()
     if not sbl:
@@ -719,6 +769,50 @@ async def _get_or_create_stock_by_location(
         db.add(sbl)
         await db.flush()
     return sbl
+
+
+async def _get_or_create_stock_by_bin(
+    db: AsyncSession, product_id: UUID, bin_id: UUID, org_id: UUID
+) -> StockByBin:
+    """Get existing stock_by_bin record or create with on_hand=0.
+    Uses SELECT FOR UPDATE for concurrency safety (§4)."""
+    result = await db.execute(
+        select(StockByBin)
+        .where(
+            StockByBin.product_id == product_id,
+            StockByBin.bin_id == bin_id,
+        )
+        .with_for_update()
+    )
+    sbb = result.scalar_one_or_none()
+    if not sbb:
+        sbb = StockByBin(
+            product_id=product_id,
+            bin_id=bin_id,
+            on_hand=0,
+            org_id=org_id,
+        )
+        db.add(sbb)
+        await db.flush()
+    return sbb
+
+
+async def _validate_bin(db: AsyncSession, bin_id: UUID, org_id: UUID) -> Bin:
+    """Validate bin exists, is active, and belongs to org."""
+    result = await db.execute(
+        select(Bin).where(
+            Bin.id == bin_id,
+            Bin.is_active == True,
+            Bin.org_id == org_id,
+        )
+    )
+    bin_obj = result.scalar_one_or_none()
+    if not bin_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Bin not found or inactive",
+        )
+    return bin_obj
 
 
 async def list_stock_by_location(

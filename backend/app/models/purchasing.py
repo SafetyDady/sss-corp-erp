@@ -78,6 +78,11 @@ class POStatus(str, enum.Enum):
     CANCELLED = "CANCELLED"
 
 
+class GRMode(str, enum.Enum):
+    STOCK_GR = "STOCK_GR"       # Normal: creates RECEIVE movement → stock increases
+    DIRECT_GR = "DIRECT_GR"     # Direct: no stock movement → cost charges WO/CC directly
+
+
 # ============================================================
 # PURCHASE REQUISITION (PR)
 # ============================================================
@@ -125,6 +130,12 @@ class PurchaseRequisition(Base, TimestampMixin, OrgMixin):
     validity_start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     validity_end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Sourcer — procurement officer who sourced vendor/pricing (G4)
+    sourcer_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     # Approval flow (Phase 4.2 pattern)
     requested_approver_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
@@ -313,6 +324,23 @@ class PurchaseOrderLine(Base, TimestampMixin):
     cost_element_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("cost_elements.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    # GR Mode — Stock GR (creates RECEIVE movement) vs Direct GR (cost to WO/CC) (G5)
+    gr_mode: Mapped[GRMode] = mapped_column(
+        Enum(GRMode, name="gr_mode_enum"),
+        nullable=False,
+        default=GRMode.STOCK_GR,
+    )
+    # Direct GR cost allocation — which WO or CostCenter to charge (G3)
+    work_order_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("work_orders.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    direct_cost_center_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cost_centers.id", ondelete="SET NULL"),
         nullable=True,
     )
     received_qty: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

@@ -73,7 +73,7 @@ async def api_list_products(
     limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     search: Optional[str] = Query(default=None, max_length=100),
-    product_type: Optional[str] = Query(default=None, pattern=r"^(MATERIAL|CONSUMABLE|SERVICE)$"),
+    product_type: Optional[str] = Query(default=None, pattern=r"^(MATERIAL|CONSUMABLE|SERVICE|SPAREPART|FINISHED_GOODS)$"),
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -111,6 +111,7 @@ async def api_create_product(
         db,
         sku=body.sku,
         name=body.name,
+        model=body.model,
         description=body.description,
         product_type=body.product_type,
         unit=body.unit,
@@ -312,6 +313,7 @@ async def api_create_movement(
         cost_element_id=body.cost_element_id,
         to_location_id=body.to_location_id,
         adjust_type=body.adjust_type,
+        bin_id=body.bin_id,
     )
     return movement
 

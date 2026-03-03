@@ -29,6 +29,23 @@ from app.services.inventory import create_movement
 
 
 # ============================================================
+# TENANCY HELPERS
+# ============================================================
+
+async def _validate_sourcer_tenancy(db: AsyncSession, sourcer_id: UUID, org_id: UUID) -> None:
+    """§6: Validate sourcer_id belongs to same org."""
+    from app.models.user import User
+    result = await db.execute(
+        select(User).where(User.id == sourcer_id, User.org_id == org_id, User.is_active == True)
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Sourcer user not found or does not belong to this organization",
+        )
+
+
+# ============================================================
 # PR NUMBER GENERATOR
 # ============================================================
 
@@ -59,12 +76,18 @@ async def create_purchase_requisition(
 ) -> PurchaseRequisition:
     pr_number = await _next_pr_number(db, org_id)
 
+    # §6: Validate sourcer_id tenancy
+    sourcer_id = body.get("sourcer_id")
+    if sourcer_id:
+        await _validate_sourcer_tenancy(db, sourcer_id, org_id)
+
     pr = PurchaseRequisition(
         pr_number=pr_number,
         pr_type=body.get("pr_type", "STANDARD"),
         cost_center_id=body["cost_center_id"],
         department_id=body.get("department_id"),
         requester_id=requester_id,
+        sourcer_id=sourcer_id,
         priority=body.get("priority", "NORMAL"),
         required_date=body["required_date"],
         delivery_date=body.get("delivery_date"),
@@ -180,6 +203,10 @@ async def update_purchase_requisition(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Cannot edit PR in {pr.status.value} status",
         )
+
+    # §6: Validate sourcer_id tenancy on update
+    if update_data.get("sourcer_id"):
+        await _validate_sourcer_tenancy(db, update_data["sourcer_id"], org_id)
 
     # Handle line replacement
     new_lines = update_data.pop("lines", None)
@@ -353,6 +380,27 @@ async def convert_pr_to_po(
     # Create PO Lines from PR Lines
     for cl in convert_lines:
         pr_line = pr_lines_by_id[cl["pr_line_id"]]
+
+        # §5: Validate DIRECT_GR allocation at service layer
+        gr_mode = cl.get("gr_mode", "STOCK_GR")
+        wo_id = cl.get("work_order_id")
+        cc_id = cl.get("direct_cost_center_id")
+        if gr_mode == "DIRECT_GR":
+            if not wo_id and not cc_id:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"DIRECT_GR requires work_order_id or direct_cost_center_id (PR line {pr_line.line_number})",
+                )
+            if wo_id and cc_id:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"DIRECT_GR: provide work_order_id OR direct_cost_center_id, not both (PR line {pr_line.line_number})",
+                )
+        elif gr_mode == "STOCK_GR":
+            # STOCK_GR must not have allocation fields
+            wo_id = None
+            cc_id = None
+
         po_line = PurchaseOrderLine(
             po_id=po.id,
             pr_line_id=pr_line.id,
@@ -363,6 +411,9 @@ async def convert_pr_to_po(
             unit=pr_line.unit,
             unit_cost=cl["unit_cost"],
             cost_element_id=pr_line.cost_element_id,
+            gr_mode=gr_mode,
+            work_order_id=wo_id,
+            direct_cost_center_id=cc_id,
         )
         db.add(po_line)
 
@@ -607,19 +658,30 @@ async def receive_goods(
             item_type = PRItemType(item_type)
 
         if item_type == PRItemType.GOODS and line.product_id:
-            # GOODS → create RECEIVE stock movement (with optional location)
-            await create_movement(
-                db,
-                product_id=line.product_id,
-                movement_type="RECEIVE",
-                quantity=rl["received_qty"],
-                unit_cost=line.unit_cost,
-                reference=f"GR from {po.po_number}",
-                note=rl.get("note"),
-                created_by=received_by,
-                org_id=org_id,
-                location_id=rl.get("location_id"),
-            )
+            # Check GR mode — STOCK_GR vs DIRECT_GR (§5)
+            gr_mode = getattr(line, "gr_mode", None)
+            if gr_mode and hasattr(gr_mode, "value"):
+                gr_mode = gr_mode.value
+            gr_mode = gr_mode or "STOCK_GR"
+
+            if gr_mode == "STOCK_GR":
+                # STOCK_GR → create RECEIVE stock movement (normal flow)
+                await create_movement(
+                    db,
+                    product_id=line.product_id,
+                    movement_type="RECEIVE",
+                    quantity=rl["received_qty"],
+                    unit_cost=line.unit_cost,
+                    reference=f"GR from {po.po_number}",
+                    note=rl.get("note"),
+                    created_by=received_by,
+                    org_id=org_id,
+                    location_id=rl.get("location_id"),
+                )
+            else:
+                # DIRECT_GR → no stock movement, cost charges WO or CostCenter directly
+                # Log as reference on PO line (no inventory impact)
+                pass
         # SERVICE → no stock movement, just update received_qty
 
         line.received_qty += rl["received_qty"]
