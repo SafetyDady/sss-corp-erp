@@ -1,8 +1,8 @@
-# SSS Corp ERP — Product Requirements Document V4
+# SSS Corp ERP — Product Requirements Document V5
 
 > **เอกสารนี้คือ "ความจริงเดียว" (Single Source of Truth) ของ project**
 > ตรวจสอบกับ codebase จริง commit `bc1e092` เมื่อ 2026-03-02
-> V4 รวม feedback จาก Product Owner (P'Hot) ทั้งหมด — ไม่มีคำถามค้างแล้ว
+> V5 รวม feedback รอบ 2 จาก Product Owner
 
 ---
 
@@ -14,7 +14,7 @@
 |------|------|---------|
 | **A** | ระบบปัจจุบัน | สิ่งที่ทำเสร็จแล้ว + สถานะ UX + Owner Decisions |
 | **B** | แผนที่วางไว้ | Phase 8-14 ที่ยังไม่ได้เริ่ม |
-| **C** | ช่องว่างที่พบ | สิ่งที่ระบบยังขาด (C1-C11) |
+| **C** | ช่องว่างที่พบ | สิ่งที่ระบบยังขาด (C1-C13) |
 | **D** | ลำดับความสำคัญ | ลำดับการทำงานที่ปรับตาม feedback |
 
 **สัญลักษณ์ในเอกสาร:**
@@ -48,14 +48,26 @@
 - [B6. Audit & Security](#b6-audit--security-phase-13)
 - [B7. AI Performance Monitoring](#b7-ai-powered-performance-monitoring-phase-14)
 
-**ส่วน C — ช่องว่างที่พบ (C1-C11)**
+**ส่วน C — ช่องว่างที่พบ (C1-C13)**
 - [C1-C8: Invoice, DO, AP, Budget, Tax, Multi-currency, Gantt, Self-service](#ส่วน-c--ช่องว่างที่พบ)
 - [C9. Internal Recharge (Cost Allocation)](#c9-internal-recharge-cost-allocation-🆕)
 - [C10. Maintenance Module](#c10-maintenance-module-🆕)
 - [C11. Multi-Company](#c11-multi-company-🆕)
+- [C12. Quotation Module (ใบเสนอราคา)](#c12-quotation-module-ใบเสนอราคา-🆕) 🆕
+- [C13. Fixed Asset / Depreciation (สินทรัพย์ถาวร)](#c13-fixed-asset--depreciation-สินทรัพย์ถาวร-🆕) 🆕
 
 **ส่วน D — ลำดับความสำคัญ**
 - [ลำดับที่แนะนำ (ปรับตาม feedback)](#ส่วน-d--ลำดับความสำคัญที่แนะนำ)
+- [D1 Detail: Go-Live Gate](#d1-detail-go-live-gate-🆕) 🆕 — 7 features + scope freeze + GR spec + Sourcer + Direct PO Cost
+
+**ส่วน E — Engineering Risks & Pre-Deployment Checklist** 🆕
+- [E1. CRITICAL — ต้องแก้ก่อน Deploy](#e1-critical--ต้องแก้ก่อน-deploy)
+- [E2. HIGH — ควรแก้ก่อน Go-Live](#e2-high--ควรแก้ก่อน-go-live)
+- [E3. MEDIUM — แก้หลัง Go-Live ได้](#e3-medium--แก้หลัง-go-live-ได้)
+- [Pre-Deployment Checklist](#pre-deployment-checklist)
+
+**สรุป + คำศัพท์**
+- [สรุป Owner Decisions ทั้งหมด](#สรุป-owner-decisions-ทั้งหมด)
 - [คำศัพท์ (Glossary)](#คำศัพท์-glossary)
 
 ---
@@ -207,9 +219,14 @@ graph LR
 
 ### Module 1: Inventory (สินค้า + Stock) — ✅ Feature Complete
 
-ระบบจัดการสินค้าพร้อม stock tracking แบบ real-time ที่ระดับ product และ location รองรับ 6 ประเภท movement (CONSUME, RETURN, RECEIVE, ADJUST, REVERSAL, TRANSFER) โดย stock movement เป็น immutable — แก้ไขได้ผ่าน REVERSAL เท่านั้น มีการแจ้งเตือนเมื่อ stock ต่ำกว่า min_stock (แถวเหลือง + stat card)
+ระบบจัดการสินค้าพร้อม stock tracking แบบ real-time ที่ระดับ product และ location รองรับ 8 ประเภท movement (RECEIVE, ISSUE, CONSUME, RETURN, TRANSFER, ADJUST, REVERSAL, **PRODUCE** 🆕) โดย stock movement เป็น immutable — แก้ไขได้ผ่าน REVERSAL เท่านั้น มีการแจ้งเตือนเมื่อ stock ต่ำกว่า min_stock (แถวเหลือง + stat card)
 
-**Owner Decision:** สินค้ามี 4 ประเภท — MATERIAL, CONSUMABLE, **SPAREPART** (ใหม่ สำหรับอะไหล่สำคัญ), SERVICE โดย SPAREPART แยกจาก MATERIAL เพื่อให้จัดการ critical parts ได้ง่ายขึ้น
+**Owner Decision:** สินค้ามี 5 ประเภท — MATERIAL, CONSUMABLE, SPAREPART, **FINISHED_GOODS** (🆕 สินค้าสำเร็จรูป/ผลผลิตจาก WO), SERVICE โดย SPAREPART แยกจาก MATERIAL เพื่อให้จัดการ critical parts ได้ง่ายขึ้น และ FINISHED_GOODS คือผลผลิตที่ได้จากกระบวนการผลิต (Work Order)
+
+**Owner Decision: FINISHED_GOODS + PRODUCE Movement** 🆕
+- WO ปิดงาน → ระบบสร้าง **PRODUCE movement** → FINISHED_GOODS เข้า stock ที่ Actual Cost (Unit Cost = Total WO Cost / actual_qty)
+- **1 WO = 1 primary output product** (FINISHED_GOODS)
+- PRODUCE movement เพิ่ม stock เหมือน RECEIVE แต่ต้องระบุ WO ที่ CLOSED
 
 **Owner Decision:** สินค้าต้องบันทึก **Model** และ **Serial Number (SN)** ได้ โดยใช้โครงสร้าง Serial Number sub-table: 1 SKU สามารถมีหลาย SN (เช่น เครื่องปั๊มรุ่น A มี SN-001, SN-002, SN-003)
 
@@ -231,7 +248,7 @@ graph LR
 
 **Owner Decision:** ระบบต้องรองรับ **หลาย site** ทั้ง fixed site (คลังถาวร) และ temporary site (คลังชั่วคราวที่หน้างาน) UI ต้องช่วยให้คนเบิก **ไม่หลง site** — แสดง site/warehouse ให้ชัดเจนในทุกหน้าที่เกี่ยวข้อง
 
-**Owner Decision:** เรื่อง **ฝากของ (Consignment storage)** ต้องพิจารณาเพิ่ม — สินค้าที่ฝากไว้ในคลังแต่ไม่ใช่ของเรา ต้องแยกจาก stock ปกติ
+**Owner Decision:** **ฝากของ (Consignment storage)** — เก็บเข้า Stock ปกติ แต่ **ห้ามคนอื่นเบิกนอกจากเจ้าของ** 🆕 สินค้า consignment อยู่ในคลังเดียวกัน แต่ระบบต้องควบคุมสิทธิ์การเบิก (owner-only withdrawal)
 
 **UX ที่ดี:** โครงสร้าง hierarchical ชัดเจน, CRUD ครบ
 
@@ -246,6 +263,11 @@ graph LR
 
 ระบบใบสั่งงานพร้อม Job Costing สถานะ DRAFT → OPEN → CLOSED ไปข้างหน้าเท่านั้น เบิก/คืนวัสดุได้เฉพาะ WO ที่ OPEN
 
+**Owner Decision: WO Output Product (FINISHED_GOODS)** 🆕
+- WO สามารถกำหนด **output product** (ประเภท FINISHED_GOODS) พร้อม planned_qty และ actual_qty
+- เมื่อ WO ปิดงาน (CLOSED) → ระบบสร้าง **PRODUCE movement** → FINISHED_GOODS เข้า stock ที่ Actual Unit Cost (= Total WO Cost / actual_qty)
+- 1 WO = 1 primary output product
+
 **Owner Decision:** WO สามารถ **trigger PO สำหรับสั่งของพิเศษ** (direct purchase) โดยไม่ผ่านคลัง รวมถึง Service PO ด้วย เช่น WO ต้องการชิ้นส่วนพิเศษที่ไม่มีในสต็อก → สร้าง PR/PO อ้างอิง WO → ของส่งตรงไปที่ WO → charge cost เข้า WO โดยตรง
 
 **Owner Decision:** **Subcontractor manhour** บันทึกเป็น PO cost เข้า WO โดยตรง (ไม่ผ่าน timesheet) เนื่องจากผู้รับเหมาช่วงไม่อยู่ในองค์กร PO มี cost_element แยกอยู่แล้ว ต้องปรับปรุงการแสดงผลต้นทุนให้เห็นชัด
@@ -254,7 +276,7 @@ graph LR
 1. Material Cost = CONSUME - RETURN
 2. ManHour Cost = (Regular + OT x Factor) x Rate
 3. Tools Recharge = Hours x Tool Rate
-4. Admin Overhead = ManHour Cost x Overhead Rate %
+4. Admin Overhead = ManHour Cost x Overhead Rate % (ดูรายละเอียดเพิ่มที่ [C9. Internal Recharge](#c9-internal-recharge-cost-allocation-🆕) — P'Hot ยืนยันเข้าใจ 2-type recharge model แล้ว) 🆕
 5. **Direct PO Cost** (ใหม่) = PO ที่อ้างอิง WO โดยตรง (subcontractor + special purchase)
 
 **UX ที่ดี:** Popconfirm ก่อน action สำคัญ, summary cards แสดงต้นทุนรวม, status flow ชัดเจน
@@ -309,6 +331,7 @@ graph LR
 
 **Owner Decision: Procurement Flow ต้องมี Sourcer role** 🆕
 
+
 กระบวนการจัดซื้อที่ถูกต้อง:
 1. ผู้ขอ (Requester) สร้าง PR + อาจแนะนำ supplier
 2. **Sourcer (ผู้จัดหา)** ค้นหา vendor + pricing → นำข้อมูลที่เกือบ final มาประกอบ
@@ -347,6 +370,17 @@ flowchart LR
 
 ระบบขายมี SO (Sales Order) CRUD + approve เท่านั้น ยังไม่มี flow หลัง approve (ไม่มี Invoice, Delivery Order, Payment tracking)
 
+**Owner Decision: SO รองรับ Product + Service** 🆕
+- SO ต้องรองรับทั้ง **Product line items** และ **Service line items** (เหมือน PR ที่มี GOODS/SERVICE)
+
+**Owner Decision: Quotation (QT) Module** 🆕
+- ระบบใบเสนอราคา — **ไม่เร่งด่วนแต่ต้องมี** (ดูรายละเอียดที่ [C12. Quotation Module](#c12-quotation-module-ใบเสนอราคา-🆕))
+- QT อาจผูกหรือไม่ผูกกับ SO ก็ได้
+- QT เป็นข้อมูลลับ — เฉพาะผู้เกี่ยวข้อง + Owner เท่านั้นที่ดูได้
+- QT เก็บประวัติ win/loss + ราคาเสนอ vs ราคาขายจริง
+- QT มี cost estimation + margin breakdown
+- งานประมูล = ศิลปะการเสนอราคา ไว้คนรุ่นหลังศึกษา (โดยเฉพาะงาน Service/ก่อสร้าง)
+
 **UX ที่ต้องปรับปรุง:**
 - SO ที่ approved แล้วไม่มี next step — เป็น dead-end
 - ไม่มี Invoice generation จาก SO
@@ -368,12 +402,23 @@ flowchart LR
 
 **Owner Decision:** Timesheet objective คือ **track manhour เข้า WO** ดังนั้นใช้ **Daily Work Report เพื่อบันทึก timesheet ไปพร้อมกัน** (ลดขั้นตอนซ้ำซ้อน)
 
+**Owner Decision: Timesheet ไม่บังคับกรอก** 🆕
+- เป็น **department discipline policy** — แต่ละแผนกกำหนดเองได้ว่า mandatory หรือ optional
+- Config ต่อ department ว่า timesheet เป็น mandatory/optional
+
+**Owner Decision: Payroll loosely coupled กับ Timesheet** 🆕
+- Payroll คำนวณ **base salary โดยไม่ต้องพึ่ง timesheet** — ถ้ามี timesheet จะเสริม OT/deduction ถ้าไม่มี = base salary เท่านั้น
+- Config ต่อ department ว่า mandatory/optional
+
+**Owner Decision: HR Final Approve = Optional** 🆕
+- Config `hr_final_required` per org: true = ต้องผ่าน HR Final ก่อนเข้า Payroll, false = Supervisor approve แล้วเข้า Payroll ได้เลย
+
 **UX ที่ดี:** Comprehensive employee management, leave balance tracking, payroll calculation with OT/deductions
 
 **UX ที่ต้องปรับปรุง:**
 - Modal ซ้อน Modal — บาง flow มี form ลึกหลายชั้น
 - Timesheet stat card ใน MePage แสดง "—" แทนข้อมูลจริง
-- ยังไม่มีหน้า Employee self-service (payslip view, profile edit)
+- ยังไม่มีหน้า Employee self-service (payslip view, profile edit) — ทำ basic (payslip view, profile edit) ไม่ต้อง over-engineer แต่ควรเปิดช่องพัฒนาต่อ 🆕
 
 ---
 
@@ -382,6 +427,9 @@ flowchart LR
 ระบบจัดการเครื่องมือ/อุปกรณ์ พร้อม checkout/checkin tracking, recharge rate (ค่าเสื่อม), คำนวณ cost เข้า WO อัตโนมัติเมื่อคืน
 
 **Owner Decision:** Maintenance scheduling ควรมี แต่ **ไปอยู่กับ Maintenance Module แยกต่างหาก** (ดู C10)
+
+**Owner Decision: Fixed Asset / Depreciation** 🆕
+- Asset บางอย่างไม่ใช่ tool แต่มีค่าเสื่อมตามกฎหมาย — ต้องพิจารณา **Fixed Asset Management** (ดู [C13. Fixed Asset](#c13-fixed-asset--depreciation-สินทรัพย์ถาวร-🆕))
 
 **UX ที่ดี:** Checkout/return tracking ชัดเจน, status tracking (available/checked-out/maintenance)
 
@@ -393,7 +441,7 @@ flowchart LR
 
 **Owner Decision:** Daily Plan มีไว้เพื่อ **จัดการ resources ให้มีประสิทธิภาพ** ตาราง Daily Plan ควรดูภาพได้ **14 วันข้างหน้า** และทำให้ง่ายเหมือน Excel (ยอมรับว่าเป็นความท้าทายของการออกแบบ)
 
-**Owner Decision:** Gantt chart — **ยังนึกไม่ออก** เก็บไว้เป็น future option
+**Owner Decision:** Gantt chart — **ทำระดับง่ายก่อน** 🆕 แท่ง WO timeline (start → end) แสดงภาพรวม ยังไม่ต้อง drag & drop
 
 **Owner Decision:** ERP ต้อง support ทั้ง **ธุรกิจ Service และ Product Manufacturing** ทำอย่างไรก็ได้ที่สะท้อนภาพรวม คาดการณ์ล่วงหน้าได้ ลด conflict ภายในองค์กร
 
@@ -419,7 +467,13 @@ flowchart LR
 
 ### Module 11: Finance (การเงิน) — ⚠️ พื้นฐานมาก
 
-มีเพียง summary report + CSV export เท่านั้น ยังไม่มี financial reports จริง
+ระบบช่วยส่งข้อมูลให้บัญชีได้ แต่ **ไม่ใช่ Module ทางบัญชีตามกฎหมาย** มีเพียง summary report + CSV export เท่านั้น ยังไม่มี financial reports จริง 🆕
+
+**Owner Decision: Finance = Management Information** 🆕
+- Owner สามารถประเมินภาพรวมสถานะการเงินได้
+- ช่วยวางแผนทางภาษีได้
+- กำหนดคนทำและคนเห็นได้ (permission + data scope)
+- Export data สำหรับนักบัญชีภายนอก
 
 **UX ที่ต้องปรับปรุง:**
 - หน้าจอแทบว่างเปล่า — แค่ตัวเลขรวม
@@ -429,14 +483,18 @@ flowchart LR
 
 ---
 
-### Module 12: Admin (จัดการระบบ) — ✅ Feature Complete
+### Module 12: Admin (จัดการระบบ) — ✅ Feature Complete 🆕
+
+**Owner Decision: Owner / SysAdmin แยกได้** 🆕
+- Admin Module ปัจจุบัน = Owner role แต่สามารถ **แยก SysAdmin** ได้ โดย Owner assign admin.* permissions ให้คนอื่น
+- SysAdmin จัดการ Users/Roles/Config ได้ แต่ไม่เห็น Finance / ไม่อนุมัติเอกสาร / ไม่ลบข้อมูล
 
 ระบบจัดการ Users, Roles (view-only — roles hardcoded), Org Settings, Approval Bypass config, Setup Wizard
 
 **UX ที่ดี:** User management with role assignment, audit log, setup wizard
 
 **UX ที่ต้องปรับปรุง:**
-- Role management เป็น view-only — ไม่สามารถ customize permission per role
+- **Role management ใช้งานยากมาก** — เป็น view-only ไม่สามารถ customize permission per role ต้อง redesign ให้ customize ได้จากหน้าจอ 🆕
 - ไม่มี login history / session management
 - ไม่มี password policy configuration
 
@@ -492,6 +550,7 @@ flowchart LR
 | **Search ไม่สม่ำเสมอ** | บางหน้ามี search, บางหน้าไม่มี | กลาง |
 | **ไม่มี Print view** | มีแค่ Withdrawal Slip ที่ print ได้ | กลาง |
 | **ปุ่มเบิก/คืนวัสดุเล็ก** | สังเกตได้ยาก ต้อง redesign ให้ชัดเจน | กลาง |
+| **Role management ใช้งานยากมาก** 🆕 | view-only, ไม่ customize ได้ ต้อง redesign | สูง |
 | **Loading state ไม่สม่ำเสมอ** | บางหน้าแสดง Spin, บางหน้าไม่แสดง | ต่ำ |
 | **ไม่มี Keyboard shortcuts** | ทุกอย่างต้องใช้เมาส์ | ต่ำ |
 | **Login page แสดง test accounts** | ต้องเอาออกก่อน production | ต่ำ |
@@ -533,8 +592,9 @@ flowchart LR
 │ └───────────────────────────────┘       │
 └─────────────────────────────────────────┘
 ```
-
----
+**Owner Decision: แผนก Admin ส่วนกลาง** 🆕
+- ต้องมี Department Template สำหรับ **แผนก Admin ส่วนกลาง** ที่บริหารค่าใช้จ่ายส่วนกลางที่ใช้ร่วมกัน (ค่าน้ำ ค่าไฟ ค่าเช่าอาคาร)
+- ผู้รับผิดชอบทำ Internal Recharge = แผนก Admin/บัญชี (ดู [C9. Internal Recharge](#c9-internal-recharge-cost-allocation-🆕))
 
 ## A6. Business Flows หลัก
 
@@ -587,7 +647,7 @@ flowchart TB
     subgraph "2. ค่าแรง (ManHour Cost)"
         H1["พนักงานกรอก<br/>Daily Report"]
         H2["Supervisor อนุมัติ"]
-        H3["HR Final Approve"]
+        H3["HR Final Approve<br/>(Optional — config per org)"]
         HC["ManHour Cost<br/>= (ปกติ + OT x Factor) x อัตรา"]
         H1 --> H2 --> H3 --> HC
     end
@@ -633,7 +693,7 @@ flowchart LR
     A["พนักงาน<br/>กรอก Daily Report<br/>(= timesheet ไปด้วย)"] -->|"Submit"| B["Supervisor<br/>ตรวจ + อนุมัติ"]
     B -->|"Approve"| C["ระบบสร้าง<br/>WO Time Entry<br/>อัตโนมัติ"]
     C --> D["Timesheet<br/>รวมชั่วโมงต่อ WO"]
-    D -->|"HR Final"| E["HR ยืนยัน<br/>(Final Approve)"]
+    D -->|"HR Final<br/>(Optional)"| E["HR ยืนยัน<br/>(Final Approve)<br/>config per org"]
     E --> F["ระบบคำนวณ<br/>ManHour Cost<br/>เข้า WO"]
     E --> G["Payroll<br/>สรุปเงินเดือน"]
 
@@ -646,7 +706,7 @@ flowchart LR
 
 **สรุป:** พนักงานกรอก Daily Report (= timesheet) → หัวหน้าอนุมัติ → สร้าง Timesheet อัตโนมัติ → HR ตรวจ → คำนวณต้นทุนแรงงาน + Payroll
 
-**กฎสำคัญ:** 1 ชั่วโมง = 1 WO (ห้ามซ้อน), กรอกย้อนหลังได้ 7 วัน, OT Factor <= Max Ceiling
+**กฎสำคัญ:** 1 ชั่วโมง = 1 WO (ห้ามซ้อน), กรอกย้อนหลังได้ 7 วัน (เป็นเรื่อง discipline — configurable), OT Factor <= Max Ceiling 🆕
 
 ---
 
@@ -656,7 +716,7 @@ flowchart LR
 flowchart LR
     A["เจ้าหน้าที่ Store<br/>สร้างใบเบิก<br/>(หลายรายการ)"] -->|"บันทึก"| B["DRAFT<br/>(แก้ไขได้)"]
     B -->|"Submit"| C["PENDING<br/>(พร้อมจ่าย)"]
-    C -->|"Print"| D["พิมพ์ใบเบิก<br/>เตรียมของ"]
+    C -->|"Print"| D["พิมพ์ใบเบิก<br/>เตรียมของ<br/>(แสดง Site ชัดเจน)"]
     D --> E["คนเบิก<br/>มารับ + เซ็นรับ"]
     E --> F["เจ้าหน้าที่กลับ<br/>กด Issue<br/>ปรับจำนวนจ่ายจริง"]
     F -->|"Issue"| G["ISSUED<br/>ระบบตัด stock<br/>ต่อรายการ"]
@@ -671,11 +731,12 @@ flowchart LR
     style X fill:#6b7280,color:#fff
 ```
 
-Hardcopy ใบเบิก/ใบยืมต้องมี reference number ที่ย้อนกลับได้ในระบบ
+Hardcopy ใบเบิก/ใบยืมต้องมี reference number ที่ย้อนกลับได้ในระบบ ใบเบิก print ต้อง **แสดง Site/Warehouse ชัดเจน** เพื่อไม่ให้ print ผิด site 🆕
 
+**หมายเหตุ:** ต้องพิจารณาเรื่องเครื่อง print ที่ใช้ในแต่ละ site — ให้ระบบรองรับ print ผ่าน browser ได้ (@media print) 🆕
 ---
 
-### Flow 5: การเคลื่อนไหวสต็อก (6 ประเภท)
+### Flow 5: การเคลื่อนไหวสต็อก (8 ประเภท) 🆕
 
 ```mermaid
 flowchart TB
@@ -683,6 +744,7 @@ flowchart TB
         R["RECEIVE<br/>รับเข้า<br/>(จาก Stock GR)"]
         RT["RETURN<br/>คืนของจาก WO<br/>(stock เพิ่ม)"]
         AI["ADJUST (INCREASE)<br/>ปรับเพิ่ม<br/>(Owner เท่านั้น)"]
+        PR["PRODUCE 🆕<br/>ผลผลิตจาก WO<br/>(FINISHED_GOODS)"]
     end
 
     subgraph "Stock ลด (-)"
@@ -696,13 +758,14 @@ flowchart TB
     end
 
     STOCK["Product Stock<br/>(on_hand)"]
-    R & RT & AI -->|"+qty"| STOCK
+    R & RT & AI & PR -->|"+qty"| STOCK
     I & C & AD -->|"-qty"| STOCK
     T -->|"0"| STOCK
 
     style R fill:#10b981,color:#fff
     style RT fill:#10b981,color:#fff
     style AI fill:#10b981,color:#fff
+    style PR fill:#10b981,color:#fff
     style I fill:#ef4444,color:#fff
     style C fill:#ef4444,color:#fff
     style AD fill:#ef4444,color:#fff
@@ -713,28 +776,52 @@ flowchart TB
 |--------|--------|---------|---------|
 | RECEIVE | +stock | Product + จำนวน + ราคา | Staff+ |
 | RETURN | +stock | Work Order (OPEN) + Product (วัสดุ) | Staff+ |
+| **PRODUCE** 🆕 | +stock | Work Order (CLOSED) + FINISHED_GOODS product | ระบบสร้างอัตโนมัติเมื่อ WO ปิด |
 | ISSUE | -stock | Cost Center + Product + จำนวน | Staff+ |
 | CONSUME | -stock | Work Order (OPEN) + Product (วัสดุ) | Staff+ |
 | TRANSFER | 0 | ตำแหน่งต้นทาง + ปลายทาง (ต่างกัน) | Staff+ |
 | ADJUST | +/- | ทิศทาง (เพิ่ม/ลด) + Product + จำนวน | **Owner เท่านั้น** |
+| REVERSAL | +/- | อ้างอิง movement เดิม | Owner เท่านั้น |
+
+**Owner Decision: Stock ADJUST Request Flow** 🆕
+- ADJUST ปัจจุบัน Owner เท่านั้นทำได้ แต่ควรมี **request flow**: Staff/Supervisor ขอ request → Owner approve → execute
+- เป็น flow ใหญ่ที่ต้อง implement แยก
 
 หมายเหตุ: Direct GR ไม่สร้าง stock movement — charge WO/CC โดยตรง
 
 ---
 
-### Flow 6: Internal Recharge (Cost Allocation) 🆕
+### Flow 6: Internal Recharge (Cost Allocation — 2 ประเภท) 🆕
 
+**Owner Decision: Internal Recharge มี 2 ประเภท** 🆕
+
+**Type 1: Actual Cost Recharge (= Job Costing ที่มีอยู่แล้ว)**
 ```mermaid
 flowchart LR
     A["แผนกคลัง<br/>ซื้อวัสดุมาเก็บ"] -->|"RECEIVE"| B["Stock เพิ่ม<br/>(charge CC คลัง)"]
     B --> C["แผนกผลิต<br/>เบิกวัสดุ"]
     C -->|"ISSUE/CONSUME"| D["ระบบ charge cost<br/>ไปที่ CC แผนกผลิต"]
-    D --> E["Internal Recharge<br/>คลัง → ผลิต<br/>(ตัวเลขภายใน)"]
+    D --> E["Actual Recharge<br/>คลัง → ผลิต<br/>(ต้นทุนจริง)"]
 
     style A fill:#3b82f6,color:#fff
     style D fill:#ef4444,color:#fff
     style E fill:#8b5cf6,color:#fff
 ```
+
+**Type 2: Fixed Recharge (Budget-based Monthly Allocation) 🆕**
+```mermaid
+flowchart LR
+    A["Admin กำหนด<br/>Annual Budget<br/>per CC"] --> B["ระบบคำนวณ<br/>Allocation<br/>ตาม headcount"]
+    B --> C["Auto-generate<br/>Monthly Recharge<br/>Entry"]
+    C --> D["แต่ละแผนก<br/>รับ charge<br/>ตาม allocation"]
+
+    style A fill:#3b82f6,color:#fff
+    style B fill:#f59e0b,color:#fff
+    style C fill:#10b981,color:#fff
+    style D fill:#8b5cf6,color:#fff
+```
+
+**ตัวอย่าง Fixed Recharge:** Admin spending 1M/year / 100 employees = 10K/person → Production 50 people = 500K/year = 42K/month
 
 ดูรายละเอียดเพิ่มที่ [C9. Internal Recharge](#c9-internal-recharge-cost-allocation-🆕)
 
@@ -790,6 +877,8 @@ stateDiagram-v2
     PENDING --> CANCELLED : ยกเลิก
     note right of ISSUED : แก้ไขไม่ได้ — ต้อง Reverse movement
 ```
+
+**กฎสำคัญ:** กรณีจ่ายของไม่ครบตามที่ขอ — การตัด Stock ต้องตรงตาม **จำนวนที่จ่ายจริง (issued_qty)** ไม่ใช่จำนวนที่ขอ (requested_qty) รวมถึง Cost Recharge ต้องคิดจาก actual ที่จ่ายเท่านั้น
 
 **Timesheet:**
 ```mermaid
@@ -975,6 +1064,8 @@ graph TB
 | Stock ต่ำ | ถ้า on_hand <= min_stock → แจ้งเตือน (แถวเหลือง + นับบน stat card) |
 | ราคาวัสดุ | สินค้าประเภท MATERIAL ต้องมีราคา >= 1.00 บาท |
 | SPAREPART (ใหม่) | ประเภทสินค้าใหม่สำหรับอะไหล่สำคัญ — มี stock เหมือน MATERIAL |
+| **FINISHED_GOODS (ใหม่)** 🆕 | ประเภทสินค้าสำเร็จรูป — ผลผลิตจาก WO, PRODUCE movement เข้า stock |
+| **PRODUCE movement** 🆕 | WO ปิดงาน → ระบบสร้าง PRODUCE → FINISHED_GOODS เข้า stock ที่ Actual Cost |
 
 ### ใบสั่งงาน (Work Order)
 
@@ -988,8 +1079,11 @@ graph TB
 | ต้นทุนรวม 5 ส่วน (ใหม่) | Material + ManHour + Tools Recharge + Admin Overhead + Direct PO Cost |
 | ค่าวัสดุ = เบิก - คืน | Material Cost = CONSUME - RETURN (ต่ำสุด = 0) |
 | WO trigger PO (ใหม่) | WO สามารถ trigger PR/PO สำหรับ direct purchase |
+| **WO Output Product** 🆕 | WO กำหนด output product (FINISHED_GOODS) + planned_qty + actual_qty |
+| **PRODUCE movement** 🆕 | WO ปิดงาน → auto PRODUCE movement → FINISHED_GOODS เข้า stock |
+| **Actual Costing** 🆕 | Unit Cost = Total WO Cost / actual_qty |
 
-### เบิกของ (Stock Movement — 6 ประเภท)
+### เบิกของ (Stock Movement — 8 ประเภท) 🆕
 
 | กฎ | อธิบาย |
 |-----|--------|
@@ -999,6 +1093,8 @@ graph TB
 | TRANSFER ต้องคนละที่ | ต้องมีตำแหน่งต้นทาง + ปลายทาง และต้องต่างกัน |
 | TRANSFER stock คงที่ | ต้นทาง -qty, ปลายทาง +qty, จำนวนรวมไม่เปลี่ยน |
 | ADJUST Owner เท่านั้น | เฉพาะ Owner ปรับ stock ได้ (เพิ่ม/ลด) |
+| **PRODUCE ต้องมี WO (CLOSED)** 🆕 | ระบบสร้างอัตโนมัติเมื่อ WO ปิด, product ต้องเป็น FINISHED_GOODS |
+| **ADJUST Request Flow** 🆕 | Staff/Supervisor ขอ request → Owner approve → execute (flow ใหญ่) |
 
 ### ใบเบิกของ (Withdrawal Slip)
 
@@ -1016,12 +1112,15 @@ graph TB
 | กฎ | อธิบาย |
 |-----|--------|
 | 1 ชั่วโมง = 1 งาน | ชั่วโมงเดียวกันกรอกให้ WO ได้แค่ 1 ใบ (ห้ามซ้อน) |
-| กรอกย้อนหลังได้ 7 วัน | เกิน 7 วัน ต้องให้ HR ปลดล็อคก่อน |
+| กรอกย้อนหลังได้ถึงรอบที่ยังไม่ตัด 🆕 | ย้อนหลังไม่เกินเดือนที่ตัดรอบแล้ว (เช่น ตัดรอบสิ้นเดือน → เดือนก่อนแก้ไม่ได้) HR ปลดล็อคได้ |
 | ชั่วโมงไม่เกินวัน | ชั่วโมงรวมต่อวัน <= ชั่วโมงทำงานปกติของวันนั้น |
 | หัวหน้ากรอกแทนได้ | ถ้าพนักงานไม่กรอก Supervisor กรอกแทนได้ |
 | 3 ขั้นอนุมัติ | กรอก → Supervisor อนุมัติ → HR Final (ก่อนเข้า Payroll) |
 | OT Factor ห้ามเกิน Ceiling | OT Factor พิเศษต้อง <= ค่าสูงสุดที่ Admin กำหนด |
 | Daily Report = Timesheet (ใหม่) | ใช้ Daily Report บันทึก timesheet ไปพร้อมกัน |
+| **Timesheet ไม่บังคับ** 🆕 | เป็น department discipline policy — config ต่อ department (mandatory/optional) |
+| **Payroll loose coupling** 🆕 | Payroll คำนวณ base salary โดยไม่พึ่ง timesheet, ถ้ามี timesheet เสริม OT/deduction |
+| **HR Final = Optional** 🆕 | Config `hr_final_required` per org: true = ต้องผ่าน HR Final, false = Supervisor approve แล้วเข้า Payroll |
 
 ### ลางาน (Leave)
 
@@ -1040,6 +1139,14 @@ graph TB
 | คิดเงินตอน check-in | ค่าเครื่องมือคำนวณเมื่อคืน (ชั่วโมง x อัตรา) |
 | เครื่องมือเสีย → WO ซ่อม (ใหม่) | สร้าง WO เพื่อซ่อม, charge CC ตามตกลง |
 
+### Internal Recharge 🆕
+
+| กฎ | อธิบาย |
+|-----|--------|
+| **Recharge 2 ประเภท** 🆕 | Type 1: Actual Cost Recharge (Job Costing) + Type 2: Fixed Recharge (Budget-based monthly allocation) |
+| **Actual Recharge** 🆕 | track ต้นทุนจริงที่เกิดขึ้นใน WO (= Job Costing ที่มีอยู่) |
+| **Fixed Recharge** 🆕 | Budget Planning based — Auto-generate monthly recharge entries ตาม headcount/driver |
+
 ### จัดซื้อ (Purchasing)
 
 | กฎ | อธิบาย |
@@ -1050,9 +1157,10 @@ graph TB
 | PR line ต้องมี Cost Element | ทุกรายการใน PR ต้องระบุ Cost Element |
 | GOODS ต้องมีสินค้า/คำอธิบาย | รายการ GOODS เลือก SKU หรือ free text |
 | SERVICE ต้องมีคำอธิบาย | รายการ SERVICE ต้องกรอกคำอธิบาย |
-| GR 2 modes (ใหม่) | Stock GR (เข้าสต็อก) vs Direct GR (charge WO/CC ตรง) |
+| GR 2 modes 🆕 | **Mode 1:** Stock GR = สร้าง RECEIVE movement (เข้าสต็อก) / **Mode 2:** Direct GR = ไม่สร้าง movement (charge WO/CC ตรง) **Exit criteria:** ทุก movement immutable + REVERSAL เท่านั้น, Direct GR ไม่ทำให้ stock เพี้ยน (ไม่มี movement แต่ cost ต้องถูก) |
 | GR บุคคลที่ 3 (ใหม่) | GR operator ไม่ควรเป็นคนเดียวกับ PR/PO creator (configurable) |
 | Track Sourcer (ใหม่) | ระบบต้องบันทึกว่าใครเป็น Sourcer, ใครเป็น Converter |
+
 
 ### การวางแผน (Planning)
 
@@ -1096,7 +1204,9 @@ graph TB
 | 12 | Token: เก็บใน Zustand (memory) เท่านั้น — ห้าม localStorage |
 | 13 | Job Costing = 5 components (Material + ManHour + Tools + Overhead + Direct PO) |
 | 14 | Warehouse = 3 levels (Warehouse → Location → Bin) |
-| 15 | Product types = 4 (MATERIAL, CONSUMABLE, SPAREPART, SERVICE) |
+| 15 | Product types = 5 (MATERIAL, CONSUMABLE, SPAREPART, **FINISHED_GOODS**, SERVICE) 🆕 |
+| 16 | Internal Recharge = 2 types (Actual Job Costing + Fixed Budget Allocation) 🆕 |
+| 17 | Stock Movement = 8 types (RECEIVE, ISSUE, CONSUME, RETURN, TRANSFER, ADJUST, REVERSAL, PRODUCE) 🆕 |
 
 ---
 
@@ -1140,7 +1250,7 @@ graph TB
 | Manager Dashboard v2 | Department comparison, cost center breakdown, employee productivity |
 | Staff Dashboard v2 | Personal KPIs: WO assigned, hours logged, leave balance |
 | Finance Dashboard | P&L summary, cost analysis, budget vs actual |
-| Internal Recharge Dashboard (ใ���ม่) | แสดง cost allocation ระหว่างแผนก |
+| Internal Recharge Dashboard (ใหม่) | แสดง cost allocation ระหว่างแผนก |
 | Aggregation APIs | Backend endpoints สำหรับ aggregate data |
 
 ---
@@ -1185,7 +1295,7 @@ PDF generation + Excel export + Print-friendly layouts
 | **SPAREPART product type** | ประเภทสินค้าใหม่สำหรับอะไหล่สำคัญ |
 | **Bin level** | Warehouse → Location → Bin (rack position) |
 | **Multi-site** | Fixed site + Temporary site, ช่วยคนเบิกระบุ site |
-| **Consignment storage** | สินค้าฝากในคลัง — แยกจาก stock ปกติ |
+| **Consignment storage** | สินค้าฝากในคลัง — เก็บเข้า stock ปกติ, ห้ามผู้อื่นเบิก (owner-only) 🆕 |
 | Stock Aging Report | รายงานมูลค่าสินค้าตามอายุ (0-30, 31-60, 61-90, 90+ วัน) |
 | Batch/Lot Tracking | batch_number บน StockMovement, FIFO/LIFO costing |
 | Barcode/QR for SKU | Generate barcode สำหรับ SKU + print label |
@@ -1236,7 +1346,7 @@ PDF generation + Excel export + Print-friendly layouts
 
 # ส่วน C — ช่องว่างที่พบ
 
-จากการวิเคราะห์ codebase + feedback จาก Owner พบช่องว่าง 11 รายการ:
+จากการวิเคราะห์ codebase + feedback จาก Owner พบช่องว่าง 13 รายการ:
 
 | # | Feature | ปัญหาปัจจุบัน | ผลกระทบ |
 |---|---------|--------------|---------|
@@ -1246,11 +1356,13 @@ PDF generation + Excel export + Print-friendly layouts
 | C4 | **Budget Management** | ไม่มี budget allocation per CC | กลาง |
 | C5 | **Tax Calculation (VAT 7%)** | ไม่มีการคำนวณ VAT | สูง |
 | C6 | **Multi-currency** | รองรับเฉพาะ THB | ต่ำ |
-| C7 | **WO Gantt Chart** | ไม่มี visual timeline (Owner ยังไม่ตัดสินใจ) | กลาง |
+| C7 | **WO Gantt Chart** | ไม่มี visual timeline → **ทำระดับง่ายก่อน** 🆕 | กลาง |
 | C8 | **Employee Self-service** | พนักงานดู payslip/แก้ข้อมูลไม่ได้ | กลาง |
-| C9 | **Internal Recharge** 🆕 | ไม่มี cost allocation ข้ามแผนก | สูง |
+| C9 | **Internal Recharge** 🆕 | ไม่มี cost allocation ข้ามแผนก (2 ประเภท) | สูง |
 | C10 | **Maintenance Module** 🆕 | ไม่มีระบบ maintenance scheduling | กลาง |
 | C11 | **Multi-Company** 🆕 | ไม่รองรับหลายนิติบุคคล | ต่ำ (อนาคต) |
+| C12 | **Quotation Module** 🆕 | ไม่มีระบบใบเสนอราคา | กลาง |
+| C13 | **Fixed Asset / Depreciation** 🆕 | ไม่มีระบบสินทรัพย์ถาวร + ค่าเสื่อม | กลาง |
 
 ---
 
@@ -1323,13 +1435,13 @@ PDF generation + Excel export + Print-friendly layouts
 
 ## C7. WO Gantt Chart / Visual Timeline
 
-**Owner Decision:** ยังนึกไม่ออก — เก็บไว้เป็น future option
+**Owner Decision: Gantt ระดับง่ายก่อน** 🆕
 
-| Feature | รายละเอียด |
-|---------|-----------|
-| Gantt Chart | แสดง WO timeline แบบ visual |
-| Drag & Drop | ลาก WO เพื่อเปลี่ยนวันที่ |
-| Resource View | ดูว่าพนักงาน/เครื่องมือถูกจัดที่ไหน |
+| ระดับ | Feature | สถานะ |
+|-------|---------|-------|
+| **ง่าย (ทำก่อน)** | แท่ง WO timeline (planned_start → planned_end) + สีตาม status | 🆕 ยืนยัน |
+| กลาง (ทีหลัง) | + แสดงคนทำ + conflict highlight | อนาคต |
+| **ยาก (เป้าหมาย)** | + Drag & Drop + dependency → **MS Project-like** | อนาคต — ถ้า endpoint รองรับและไม่กระทบระบบ 🆕 |
 
 ---
 
@@ -1347,34 +1459,55 @@ PDF generation + Excel export + Print-friendly layouts
 
 ## C9. Internal Recharge (Cost Allocation) 🆕
 
-**แนวคิด:** แผนกต่างๆ charge cost ให้กันภายในองค์กร
+**Owner Decision: Internal Recharge มี 2 ประเภท** 🆕
+
+### Type 1: Actual Cost Recharge (= Job Costing ที่มีอยู่แล้ว)
+
+Track ต้นทุนจริงที่เกิดขึ้นใน WO — ระบบ Job Costing ปัจจุบันทำหน้าที่นี้อยู่แล้ว
 
 **ตัวอย่าง:**
 - แผนกคลังซื้อวัสดุมาเก็บ (charge CC คลัง)
-- แผนกผลิตเบิกวัสดุ → ระบบ charge cost ไปที่ CC แผนกผลิต
-- ผลลัพธ์: เห็นว่าแต่ละแผนกผลิต, ใช้จ่าย, เบิกใช้อะไรบ้าง
+- แผนกผลิตเบิกวัสดุ → ระบบ charge cost ไปที่ CC แผนกผลิต (CONSUME/ISSUE movement)
+- ผลลัพธ์: เห็นต้นทุนจริงที่แต่ละแผนกใช้
 
-**ลักษณะสำคัญ:**
-- เป็น **ตัวเลขภายใน** (internal numbers) ไม่ผูกพันทางกฎหมาย
-- แยกจาก Financial Accounting (เงินจริงเข้า-ออก)
-- ใช้ Cost Center เป็นหลัก — track ว่า CC ไหน produce/consume อะไร
+### Type 2: Fixed Recharge (Budget-based Monthly Allocation) 🆕
+
+ค่าใช้จ่ายส่วนกลางที่ไม่สามารถ track per-transaction ได้ → จัดสรรตาม budget
+
+**ตัวอย่าง:**
+- Admin spending 1,000,000 บาท/ปี (ค่าน้ำ ค่าไฟ ค่าเช่าอาคาร)
+- องค์กรมี 100 คน → 10,000 บาท/คน/ปี
+- แผนกผลิต 50 คน = 500,000 บาท/ปี = **41,667 บาท/เดือน**
+- ระบบ auto-generate monthly recharge entry ให้แต่ละแผนก
 
 | Feature | รายละเอียด |
 |---------|-----------|
-| Recharge Engine | คำนวณ cost allocation อัตโนมัติเมื่อมี movement |
-| Department Cost Report | แสดง cost per department: ผลิต, ใช้จ่าย, เบิกใช้ |
+| **Type 1: Actual Recharge** | = Job Costing ที่มีอยู่ — track ต้นทุนจริง per movement/WO |
+| **Type 2: Fixed Recharge** 🆕 | Budget Planning based — annual budget per CC → monthly allocation |
+| Budget Setup | Admin กำหนด annual budget per CC (Central Admin CC สำหรับค่าใช้จ่ายส่วนกลาง) |
+| Allocation Driver | คำนวณ allocation ตาม headcount (or other driver ในอนาคต) |
+| Auto-generate | ระบบสร้าง monthly recharge entries อัตโนมัติ |
+| Department Cost Report | แสดง cost per department: Actual + Fixed allocation |
 | Internal Invoice (optional) | สร้างเอกสาร recharge ภายใน (ไม่ใช่ tax invoice) |
 | Dashboard Integration | รวมใน Management Accounting dashboard |
+| **ผู้รับผิดชอบ** 🆕 | แผนก Admin/บัญชี เป็นผู้ดูแล Internal Recharge |
+
+**ลักษณะสำคัญ:**
+- ทั้ง 2 ประเภท **coexist** กัน — ใช้สำหรับวัตถุประสงค์ต่างกัน
+- เป็น **ตัวเลขภายใน** (internal numbers) ไม่ผูกพันทางกฎหมาย
+- แยกจาก Financial Accounting (เงินจริงเข้า-ออก)
+- ใช้ Cost Center เป็นหลัก — track ว่า CC ไหน produce/consume อะไร
+- **Central Admin CC** สำหรับค่าใช้จ่ายส่วนกลาง (ค่าน้ำ ค่าไฟ ค่าเช่า) 🆕
 
 **ความแตกต่าง: Management Accounting vs Financial Accounting**
 
 | ด้าน | Management Accounting | Financial Accounting |
 |------|----------------------|---------------------|
 | วัตถุประสงค์ | ดูต้นทุนภายใน, ประสิทธิภาพ | จ่ายเงินจริง, ภาษี, กฎหมาย |
-| ขอบเขต | Per CC, per dept, internal recharge | AP/AR, VAT, cash flow |
+| ขอบเขต | Per CC, per dept, internal recharge (Actual + Fixed) | AP/AR, VAT, cash flow |
 | ผูกพัน | ไม่ผูกพันทางกฎหมาย | ผูกพันทางกฎหมาย |
 | ใครดู | Manager, Owner | Owner, นักบัญชี |
-| ระบบปัจจุบัน | Job Costing (partial) | Finance Report (basic) |
+| ระบบปัจจุบัน | Job Costing (Actual Recharge) | Finance Report (basic) |
 
 ---
 
@@ -1402,35 +1535,217 @@ PDF generation + Excel export + Print-friendly layouts
 | Feature | รายละเอียด |
 |---------|-----------|
 | Company Entity | หลาย legal entity ใน site เดียว |
-| Inter-company Invoice | ออก invoice ข้ามบริษัท |
+| Inter-company Invoice | ออก invoice ข้ามบริษัท — ใช้ Fixed Internal Recharge เป็นฐาน 🆕 |
 | Transfer Pricing | กำหนดราคาโอนระหว่างบริษัท |
 | Shared Resources | ใช้คลัง/เครื่องมือ/พนักงานร่วมกัน |
 | Accounting Separation | แยกบัญชีตามนิติบุคคล |
+| **Monthly Reconciliation** 🆕 | CC คนละ Company → ดึงข้อมูลมาสรุปทุกเดือน → reconcile ระหว่างบริษัท |
+
+**Owner Decision: Cross-Company CC Reconciliation** 🆕 กรณี Cost Center อยู่คนละ Company — ต้องมีกระบวนการดึงข้อมูลต้นทุนข้าม company มาสรุปทุกเดือน แล้ว reconcile ให้ตรงกัน (เชื่อมกับ Fixed Internal Recharge ใน C9)
 
 **หมายเหตุ:** สถาปัตยกรรมปัจจุบัน (org_id, cost center) ไม่ปิดกั้นการขยายในอนาคต แต่ต้องวางแผนร่วมกับผู้เชี่ยวชาญบัญชี
 
 ---
 
+## C12. Quotation Module (ใบเสนอราคา) 🆕
+
+**Owner Decision:** ต้องมีระบบ QT — ไม่เร่งด่วนแต่ต้องมี
+
+| Feature | รายละเอียด |
+|---------|-----------|
+| QT CRUD | สร้าง/แก้ไข/ลบ ใบเสนอราคา |
+| QT → SO (optional) | แปลงเป็น SO ได้ แต่ไม่บังคับ |
+| Confidentiality | เฉพาะผู้เกี่ยวข้อง + Owner เท่านั้นดูได้ |
+| Win/Loss Tracking | เก็บประวัติ ได้งาน/ไม่ได้งาน + เหตุผล |
+| Price Comparison | ราคาเสนอ vs ราคาขายจริง — track ย้อนหลัง |
+| Cost Estimation | ประเมินต้นทุนต่อ item + breakdown + margin |
+| QT Template/Draft | แบบฟอร์มร่างใบเสนอราคา |
+| Bid Knowledge Base | งานประมูล = ศิลปะ ไว้คนรุ่นหลังศึกษา (โดยเฉพาะ Service/ก่อสร้าง) |
+
+**หมายเหตุ:** QT Form/perfect module ไม่เร่งด่วน — ออกแบบ basic ก่อน แล้วพัฒนาต่อ
+
+---
+
+## C13. Fixed Asset / Depreciation (สินทรัพย์ถาวร) 🆕
+
+**Owner Decision:** Asset บางอย่างไม่ใช่ tool แต่มีค่าเสื่อมตามกฎหมาย — ต้องพิจารณา
+
+| Feature | รายละเอียด |
+|---------|-----------|
+| Asset Register | ทะเบียนสินทรัพย์ถาวร (เครื่องจักร อาคาร ยานพาหนะ) |
+| Depreciation Calculation | คำนวณค่าเสื่อมตามกฎหมายบัญชี (สูตรเส้นตรง/ลดลง) |
+| Asset Lifecycle | ซื้อ → ใช้งาน → ซ่อม → จำหน่าย |
+| Link to Tools | เครื่องมือที่เป็น asset → คำนวณค่าเสื่อมด้วย |
+| Legal Compliance | รายงานสินทรัพย์ตามกฎหมายบัญชี |
+
+---
+
 # ส่วน D — ลำดับความสำคัญที่แนะนำ
 
-ปรับลำดับตาม feedback จาก Owner:
+ปรับลำดับตาม feedback รอบ 2 จาก Owner: 🆕
 
 | ลำดับ | Feature | เหตุผล |
 |-------|---------|--------|
-| 1 | **Owner Feedback Implementation** | SPAREPART, Bin, SN, GR 2 modes, Sourcer tracking, Direct PO Cost, Dept Menu, Employee Self-service — ต้องทำก่อนเพราะเป็น core business requirement |
+| 1 | **🔒 Go-Live Gate (D1)** | 7 features + Engineering fixes — **scope freeze จนกว่าจะเสร็จ** (ดู D1 detail ด้านล่าง) |
 | 2 | **Export & Print (B3)** | ผู้ใช้ต้องการ print PO/SO/Payslip ทุกวัน — เป็น daily need |
-| 3 | **Cross-cutting UX Fix (A5)** | แก้ Select limit:500, error handling, ปุ่มเบิก/คืนเล็ก, loading states |
-| 4 | **Internal Recharge (C9)** | Owner ให้ความสำคัญกับ cost visibility ระหว่างแผนก |
+| 3 | **Cross-cutting UX Fix (A5)** | แก้ Select limit:500, error handling, ปุ่มเบิก/คืนเล็ก, loading states, **Role Management redesign** 🆕 |
+| 4 | **Internal Recharge (C9)** | Owner ให้ความสำคัญกับ cost visibility ระหว่างแผนก — **2 ประเภท (Actual + Fixed)** 🆕 |
 | 5 | **Tax Calculation (C5)** | VAT 7% จำเป็นก่อน production |
 | 6 | **Dashboard & Analytics (B1)** | มีข้อมูลครบแล้ว ยังไม่มี visualization |
 | 7 | **Notification Center (B2)** | ลดการ "เข้าไปดู" ว่ามีอะไรรอ |
 | 8 | **Invoice/Billing (C1) + Delivery Order (C2)** | ปิด revenue cycle (SO → DO → Invoice → Payment) |
-| 9 | **Maintenance Module (C10)** | Owner ยืนยันว่าต้องมี |
-| 10 | **Inventory Enhancement (B4)** | SN sub-table, Bin, Multi-site, Consignment |
-| 11 | **Mobile Responsive (B5)** | Staff ต้องกรอก Daily Report จากหน้างาน |
-| 12 | **Security (B6)** | สำคัญก่อน production scale |
-| 13 | **Multi-Company (C11)** | อนาคต — ต้องมีผู้เชี่ยวชาญ |
-| 14 | **AI Performance (B7)** | Nice-to-have, ทำทีหลังได้ |
+| 9 | **Quotation Module (C12)** 🆕 | Owner ยืนยันต้องมี — ไม่เร่งด่วนแต่ต้องมี |
+| 10 | **Maintenance Module (C10)** | Owner ยืนยันว่าต้องมี |
+| 11 | **Inventory Enhancement (B4)** | SN sub-table, Bin, Multi-site, Consignment (stock ปกติ + owner-only) 🆕 |
+| 12 | **Fixed Asset / Depreciation (C13)** 🆕 | สินทรัพย์ถาวร + ค่าเสื่อมตามกฎหมาย |
+| 13 | **Mobile Responsive (B5)** | Staff ต้องกรอก Daily Report จากหน้างาน |
+| 14 | **Security (B6)** | สำคัญก่อน production scale |
+| 15 | **Multi-Company (C11)** | อนาคต — ต้องมีผู้เชี่ยวชาญ |
+| 16 | **AI Performance (B7)** | Nice-to-have, ทำทีหลังได้ |
+
+---
+
+## D1 Detail: Go-Live Gate 🆕
+
+> **Scope Freeze:** ห้ามเพิ่ม feature อื่นจนกว่า 7 features + engineering fixes ด้านล่างจะเสร็จ
+> **Owner Sign-off:** ห้าม deploy production จนกว่า P'Hot จะ approve ทุก gate item
+
+### 7 Go-Live Features
+
+| # | Feature | รายละเอียด | Exit Criteria |
+|---|---------|-----------|---------------|
+| G1 | **SPAREPART** | product_type enum เพิ่มค่า + min_stock logic | สร้าง/ค้นหา SPAREPART product ได้ + low stock alert ทำงาน |
+| G2 | **Bin (3-level warehouse)** | เพิ่ม `bins` table (Warehouse → Location → Bin) | RECEIVE/ISSUE/CONSUME ระบุ Bin ได้ + stock_by_bin ถูกต้อง |
+| G3 | **Direct PO Cost** | GR mode 2 (Direct GR) + cost เข้า WO/CC | PO charge WO ได้ + WO Cost Summary แสดง 5 components |
+| G4 | **Sourcer Tracking** | `PR.sourcer_id` FK → User | ดูได้ว่าใครจัดหา + report per sourcer |
+| G5 | **GR 2 Modes** | Stock GR vs Direct GR (ดู spec ด้านล่าง) | ทั้ง 2 mode ทำงาน + audit ครบ + reversal ได้ |
+| G6 | **Dept Menu Template** | Admin กำหนด menu template per department | แต่ละแผนกเห็น menu ต่างกัน + permission filter ยังทำงาน |
+| G7 | **Self-service MVP** | Payslip view + Profile edit | พนักงานดู payslip + แก้เบอร์โทร/ที่อยู่ได้ |
+
+### GR 2 Modes — Spec เปรียบเทียบ 🆕
+
+| | Stock GR (Mode 1) | Direct GR (Mode 2) |
+|---|-------------------|---------------------|
+| **ใช้เมื่อ** | ซื้อของเข้าคลัง (MATERIAL, CONSUMABLE, SPAREPART) | ซื้อ service หรือของส่งตรงหน้างาน |
+| **Stock Movement** | สร้าง RECEIVE → on_hand เพิ่ม | **ไม่สร้าง movement** → stock ไม่เปลี่ยน |
+| **Cost Allocation** | Cost เข้า product (weighted avg) | Cost เข้า WO หรือ CC โดยตรง (= Direct PO Cost) |
+| **Audit Trail** | movement record + GR timestamp + location | PO record + GR confirm timestamp + cost allocation record |
+| **Reversal** | REVERSAL movement (ลด stock + reverse cost) | Reverse cost allocation (stock ไม่กระทบเพราะไม่เคยเข้า) |
+| **UI** | เลือก Warehouse/Location/Bin + qty | ยืนยันรับงาน/ของ + ระบุ WO หรือ CC ปลายทาง |
+
+### Direct PO Cost — Job Costing Component ที่ 5 🆕
+
+```
+WO Total Cost (5 components)
+├── Material Cost       = Σ(CONSUME − RETURN) x unit_cost
+├── ManHour Cost        = Σ((Regular + OT x Factor) x Rate)
+├── Tools Recharge      = Σ(Hours x Tool Rate)
+├── Admin Overhead      = ManHour Cost x Overhead Rate %
+└── Direct PO Cost 🆕   = Σ(PO lines ที่ charge ตรงเข้า WO via Direct GR)
+```
+
+**Mapping:** PO ที่มี `work_order_id` + GR mode = Direct → aggregate cost เข้า WO
+**Reversal:** PO cancel/GR reverse → reverse cost ออกจาก WO automatically
+
+### Sourcer — Field Design 🆕
+
+ไม่ต้องสร้าง model ใหม่ — เพิ่ม field บน PR/PO:
+- `PR.sourcer_id` (FK → User) = คนค้นหา vendor + pricing
+- `PO.converted_by_id` (มีอยู่แล้ว) = คนที่ convert PR → PO
+- **Report:** query by sourcer_id → จำนวน PR, มูลค่ารวม, lead time เฉลี่ย, conversion rate
+
+### Post-Go-Live Backlog (D2-D16)
+
+> สิ่งต่อไปนี้ **ห้ามทำก่อน Go-Live Gate เสร็จ** — เก็บไว้ sprint ถัดไป:
+> Export & Print, UX Fix, Internal Recharge, Tax, Dashboard, Notification,
+> Invoice/DO, Quotation, Maintenance, Inventory Enhancement, Fixed Asset,
+> Mobile, Security, Multi-Company, AI Performance
+
+---
+
+# ส่วน E — Engineering Risks & Pre-Deployment Checklist 🆕
+
+> วิเคราะห์จาก codebase จริง — ปัญหาที่ต้องแก้ก่อน deploy + go-live
+
+## E1. CRITICAL — ต้องแก้ก่อน Deploy
+
+### E1.1 Stock Race Condition (inventory.py)
+**ปัญหา:** `create_movement()` อ่าน balance แล้วลด โดยไม่ lock row — ถ้า 2 คนเบิกของพร้อมกัน balance ผิด
+**ตัวอย่าง:** stock=100, คน A เบิก 50 + คน B เบิก 60 → ทั้งคู่สำเร็จ → stock ติดลบ
+**แก้ไข:** เพิ่ม `select(...).with_for_update()` (row-level lock) ใน `create_movement()` + `reverse_movement()`
+**ไฟล์:** `backend/app/services/inventory.py` (~5 บรรทัด)
+
+### E1.2 Database Backup Strategy
+**ปัญหา:** ไม่มี backup อัตโนมัติ — ถ้า DB พัง ข้อมูลหายทั้งหมด
+**แก้ไข:** เปิด Railway PostgreSQL daily backup + weekly pg_dump ไป S3 + เขียน restore procedure
+**ไฟล์:** Railway dashboard config + documentation
+
+### E1.3 Rate Limiting ไม่ทำงาน (auth.py)
+**ปัญหา:** `@limiter.limit()` decorator ไม่ได้ใส่บน endpoint ใดเลย — brute force login ได้ไม่จำกัด
+**แก้ไข:** ใส่ `@limiter.limit("5/minute")` บน login, `@limiter.limit("10/minute")` บน refresh, `@limiter.limit("3/hour")` บน register
+**ไฟล์:** `backend/app/api/auth.py` (~3 บรรทัด)
+
+## E2. HIGH — ควรแก้ก่อน Go-Live
+
+### E2.1 DB Connection Pool Config (database.py)
+**ปัญหา:** ไม่มี `pool_recycle` + `pool_pre_ping` → connection ค้าง → random error ช่วงพีค
+**แก้ไข:** เพิ่ม `pool_recycle=600, pool_pre_ping=True, pool_size=30, max_overflow=20`
+**ไฟล์:** `backend/app/core/database.py` (~2 บรรทัด)
+
+### E2.2 Migration Timeout (railway.toml)
+**ปัญหา:** `healthcheckTimeout=30s` แต่ migration อาจนานกว่า → service ไม่ขึ้น
+**แก้ไข:** เพิ่มเป็น `healthcheckTimeout=120`
+**ไฟล์:** `backend/railway.toml`
+
+### E2.3 CORS Production Config
+**ปัญหา:** default `CORS_ORIGINS=http://localhost:5173` → Frontend Vercel เรียก API ไม่ได้
+**แก้ไข:** ตั้ง Railway env var `CORS_ORIGINS=https://sss-corp-erp.vercel.app` + tighten `allow_methods`
+**ไฟล์:** Railway env + `backend/app/main.py`
+
+### E2.4 Missing Database Indexes
+**ปัญหา:** ไม่มี composite index `(org_id, status)` บน 7 ตาราง → list/approval pages ช้าเมื่อข้อมูลเยอะ
+**แก้ไข:** สร้าง Alembic migration เพิ่ม 7 indexes (stock_movements, timesheets, leaves, PRs, POs, SOs, WOs)
+**ไฟล์:** สร้าง migration file ใหม่ 1 ไฟล์
+
+### E2.5 API Timeout (api.js)
+**ปัญหา:** axios ไม่มี timeout → backend ช้า/ค้าง = หน้าจอ loading ไม่หยุด
+**แก้ไข:** เพิ่ม `timeout: 30000` ใน axios config
+**ไฟล์:** `frontend/src/services/api.js` (~1 บรรทัด)
+
+## E3. MEDIUM — แก้หลัง Go-Live ได้
+
+### E3.1 N+1 Queries (planning.py)
+**ปัญหา:** planning service โหลด plan + lines แยก 2 query → WO Detail ช้าเมื่อ plan มีหลาย lines
+**แก้ไข:** ใช้ `selectinload()` eager loading
+
+### E3.2 Withdrawal Issue Loop (withdrawal.py)
+**ปัญหา:** issue slip 10 บรรทัด = 10 movement queries แยก → ช้า ~2-3 วินาที
+**แก้ไข:** batch movement creation หรือ optimize transaction
+
+### E3.3 CSP Header Missing (vercel.json)
+**ปัญหา:** ไม่มี Content-Security-Policy → XSS attack มีโอกาสสำเร็จมากขึ้น
+**แก้ไข:** เพิ่ม CSP header ใน `vercel.json`
+
+### E3.4 Redis ไม่ได้ใช้จริง
+**ปัญหา:** config แล้วแต่ไม่มี code เรียกใช้ → เสียค่า Railway ~$5/เดือน
+**แก้ไข:** ตัดออก หรือเก็บไว้ทำ cache ทีหลัง
+
+---
+
+## Pre-Deployment Checklist
+
+- [ ] E1.1 — Row-level lock ใน create_movement() + reverse_movement()
+- [ ] E1.2 — เปิด Railway backup + เขียน restore procedure
+- [ ] E1.3 — Rate limiting บน auth endpoints
+- [ ] E2.1 — DB pool config (pool_recycle, pool_pre_ping)
+- [ ] E2.2 — Migration timeout 30→120s
+- [ ] E2.3 — CORS_ORIGINS = production domain
+- [ ] E2.4 — Missing indexes migration
+- [ ] E2.5 — Axios timeout 30s
+- [ ] E3.1 — N+1 fix (post-launch OK)
+- [ ] E3.2 — Withdrawal batch (post-launch OK)
+- [ ] E3.3 — CSP header (post-launch OK)
+- [ ] E3.4 — Redis decision (post-launch OK)
 
 ---
 
@@ -1438,7 +1753,7 @@ PDF generation + Excel export + Print-friendly layouts
 
 | # | หัวข้อ | การตัดสินใจ |
 |---|--------|-----------|
-| 1 | Product Types | 4 ประเภท: MATERIAL, CONSUMABLE, **SPAREPART** (ใหม่), SERVICE |
+| 1 | Product Types | 5 ประเภท: MATERIAL, CONSUMABLE, SPAREPART, **FINISHED_GOODS** 🆕, SERVICE |
 | 2 | Serial Number | SN sub-table: 1 SKU = many SN |
 | 3 | Product Model | เพิ่ม Model field สำหรับค้นหา |
 | 4 | Warehouse Levels | 3 ระดับ: Warehouse → Location → **Bin** |
@@ -1461,14 +1776,33 @@ PDF generation + Excel export + Print-friendly layouts
 | 21 | Timesheet = Daily Report | ใช้ Daily Report บันทึก timesheet ไปด้วย |
 | 22 | Maintenance | แยกเป็น Maintenance Module ต่างหาก |
 | 23 | Menu UI | Hybrid: Permission (filter) + Dept Template (ordering) |
-| 24 | Gantt Chart | ยังนึกไม่ออก — future option |
+| 24 | Gantt Chart | **ระดับง่ายก่อน** — แท่ง WO timeline + สีตาม status 🆕 |
 | 25 | Daily Plan 14-day | ดูภาพ 14 วัน, ง่ายเหมือน Excel |
 | 26 | ERP Scope | รองรับทั้ง Service business + Product manufacturing |
 | 27 | Internal Recharge | ต้องมี cost allocation ข้ามแผนก (management accounting) |
-| 28 | Multi-Company | อนาคต — ต้องมีผู้เชี่ยวชาญบัญชี |
-| 29 | Consignment | ต้องพิจารณา — สินค้าฝากในคลังที่ไม่ใช่ของเรา |
-| 30 | Barcode Scanner | เลื่อนคุยรอบถัดไป |
+| 28 | Multi-Company | อนาคต — ต้องมีผู้เชี่ยวชาญบัญชี + **CC ข้าม company ต้อง reconcile ทุกเดือน** 🆕 |
+| 29 | Consignment | เก็บเข้า stock ปกติ, **ห้ามผู้อื่นเบิก** (owner-only withdrawal) 🆕 |
+| 30 | Barcode Scanner | **2 แบบ: Bluetooth (keyboard input) + Camera (กล้องมือถือ)** + Print Label 🆕 |
 | 31 | Search | SKU + Model + SN ค้นหาได้ + Filter/Sort available items |
+| 32 | **FINISHED_GOODS** 🆕 | ประเภทที่ 5 — Actual Costing, PRODUCE movement, 1 WO = 1 output |
+| 33 | **Internal Recharge 2 แบบ** 🆕 | Actual (Job Costing) + Fixed (Budget-based monthly allocation) |
+| 34 | **Owner / SysAdmin** 🆕 | แยกได้ผ่าน permission assignment — SysAdmin ไม่เห็น finance |
+| 35 | **HR Final Optional** 🆕 | Config `hr_final_required` per org |
+| 36 | **Stock Adjust Request** 🆕 | Flow ใหญ่: request → Owner approve → execute |
+| 37 | **Timesheet + Payroll** 🆕 | Loose coupling — Payroll = base salary, timesheet เสริม OT |
+| 38 | **SO = Product + Service** 🆕 | SO line items รองรับทั้ง GOODS และ SERVICE |
+| 39 | **Quotation Module** 🆕 | ต้องมี QT — ไม่เร่งด่วน ดู C12 |
+| 40 | **Fixed Asset** 🆕 | สินทรัพย์ + ค่าเสื่อมตามกฎหมาย ดู C13 |
+| 41 | **Finance = Management Info** 🆕 | ช่วยบัญชี แต่ไม่ใช่ Accounting Module ตามกฎหมาย |
+| 42 | **Role Management Redesign** 🆕 | UX ใช้งานยากมาก ต้อง redesign |
+| 43 | **Print Site Display** 🆕 | ใบเบิก print ต้องแสดง Site/Warehouse ชัดเจน |
+| 44 | **Timesheet Lockback = Period Cutoff** 🆕 | ย้อนหลังได้ถึงรอบที่ยังไม่ตัด (เช่น สิ้นเดือน) ไม่ใช่ 7 วัน |
+| 45 | **GR Exit Criteria** 🆕 | ทุก movement immutable + REVERSAL, Direct GR ไม่กระทบ stock |
+| 46 | **Inter-company = Fixed Recharge** 🆕 | Invoice ข้ามบริษัทใช้ Fixed Internal Recharge เป็นฐาน |
+| 47 | **Consignment = Stock ปกติ** 🆕 | เก็บเข้า stock ปกติ, ห้ามผู้อื่นเบิก (owner-only withdrawal) |
+| 48 | **Barcode Scanner 2 แบบ** 🆕 | Bluetooth (keyboard input) + Camera (กล้องมือถือ) + Print Label |
+| 49 | **Multi-Company Reconciliation** 🆕 | CC คนละ company → ดึงข้อมูลสรุปทุกเดือน → reconcile (เชื่อม Fixed Recharge) |
+| 50 | **Gantt = ง่ายก่อน** 🆕 | แท่ง WO timeline (start→end) + สีตาม status, ยังไม่ต้อง drag & drop |
 
 ---
 
@@ -1505,12 +1839,19 @@ PDF generation + Excel export + Print-friendly layouts
 | Sourcer | ผู้จัดหา — ค้นหา vendor + pricing ก่อนอนุมัติ PR |
 | Management Accounting | บัญชีบริหาร — ดูต้นทุนภายใน ไม่ผูกพันทางกฎหมาย |
 | Financial Accounting | บัญชีการเงิน — เงินจริงเข้า-ออก ผูกพันทางกฎหมาย |
-| Consignment | การฝากของไว้ในคลัง — สินค้าที่ไม่ใช่ของเราแต่เก็บไว้ในคลัง |
+| Consignment | การฝากของไว้ในคลัง — เก็บเข้า stock ปกติ แต่ห้ามผู้อื่นเบิก (owner-only) 🆕 |
 | SPAREPART | ประเภทสินค้าใหม่สำหรับอะไหล่สำคัญ (critical parts) |
 | Direct PO Cost | ต้นทุน PO ที่ charge เข้า WO โดยตรง (subcontractor, special purchase) |
 | Dept Template | เทมเพลตเมนูตามแผนก — Admin กำหนดลำดับ/pinned items |
-
+| FINISHED_GOODS 🆕 | สินค้าสำเร็จรูป — ผลผลิตจาก Work Order |
+| PRODUCE 🆕 | ประเภท movement ใหม่ — สินค้าสำเร็จรูปเข้า stock เมื่อ WO ปิด |
+| Actual Recharge 🆕 | การ charge ต้นทุนจริงที่เกิดขึ้นใน WO (= Job Costing) |
+| Fixed Recharge 🆕 | การ charge ต้นทุนคงที่ต่อเดือนจาก Budget Planning |
+| QT 🆕 | Quotation — ใบเสนอราคา |
+| Fixed Asset 🆕 | สินทรัพย์ถาวร — เครื่องจักร อาคาร มีค่าเสื่อมตามกฎหมาย |
+| SysAdmin 🆕 | System Administrator — จัดการระบบแต่ไม่เห็นข้อมูลการเงิน |
+| DN 🆕 | Delivery Note — ใบนำส่งของ |
 ---
 
-*SSS Corp ERP — PRD V4 | Integrated Owner Feedback from P'Hot | 2026-03-02*
+*SSS Corp ERP — PRD V5 | Integrated Round 2 Owner Feedback | 2026-03-03*
 *เอกสารนี้เป็น living document — จะ update เมื่อมีการเปลี่ยนแปลง*
