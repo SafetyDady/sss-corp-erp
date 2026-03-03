@@ -28,6 +28,8 @@ from app.core.database import get_db
 from app.core.permissions import ALL_PERMISSIONS, PERMISSION_DESCRIPTIONS, ROLE_PERMISSIONS, require
 from app.core.security import get_token_payload
 from app.models.user import User
+from app.models.hr import Employee
+from app.models.organization import Department
 from app.schemas.organization import (
     DeptMenuConfigItem,
     DeptMenuConfigResponse,
@@ -86,9 +88,16 @@ class UserResponse(BaseModel):
     full_name: str
     role: str
     is_active: bool
+    employee_id: UUID | None = None
+    department_id: UUID | None = None
+    department_name: str | None = None
 
     class Config:
         from_attributes = True
+
+
+class UserDepartmentUpdate(BaseModel):
+    department_id: UUID | None = Field(default=None, description="Department ID (null = unassign)")
 
 
 class UserListResponse(BaseModel):
@@ -171,16 +180,42 @@ async def api_list_users(
     token: dict = Depends(get_token_payload),
 ):
     from sqlalchemy import func
+    from sqlalchemy.orm import aliased
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
 
-    base_query = select(User).where(User.org_id == org_id)
-    count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
+    # Count
+    count_q = select(func.count()).select_from(User).where(User.org_id == org_id)
+    count_result = await db.execute(count_q)
     total = count_result.scalar() or 0
 
-    result = await db.execute(
-        base_query.order_by(User.created_at.desc()).limit(limit).offset(offset)
+    # LEFT JOIN Employee + Department to get department info
+    Emp = aliased(Employee)
+    Dept = aliased(Department)
+    query = (
+        select(User, Emp.id.label("emp_id"), Emp.department_id, Dept.name.label("dept_name"))
+        .outerjoin(Emp, (Emp.user_id == User.id) & (Emp.is_active == True))
+        .outerjoin(Dept, Dept.id == Emp.department_id)
+        .where(User.org_id == org_id)
+        .order_by(User.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
-    items = list(result.scalars().all())
+    result = await db.execute(query)
+    rows = result.all()
+
+    items = [
+        UserResponse(
+            id=row.User.id,
+            email=row.User.email,
+            full_name=row.User.full_name,
+            role=row.User.role,
+            is_active=row.User.is_active,
+            employee_id=row.emp_id,
+            department_id=row.department_id,
+            department_name=row.dept_name,
+        )
+        for row in rows
+    ]
     return UserListResponse(items=items, total=total)
 
 
@@ -219,6 +254,66 @@ async def api_update_user_role(
     await db.commit()
     await db.refresh(user)
     return user
+
+
+@admin_router.patch(
+    "/users/{user_id}/department",
+    response_model=UserResponse,
+    dependencies=[Depends(require("admin.user.update"))],
+)
+async def api_update_user_department(
+    user_id: UUID,
+    body: UserDepartmentUpdate,
+    token: dict = Depends(get_token_payload),
+    db: AsyncSession = Depends(get_db),
+):
+    """Assign or unassign a department for a user's linked employee."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+
+    # Find user
+    user_result = await db.execute(select(User).where(User.id == user_id, User.org_id == org_id))
+    user = user_result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Find linked employee
+    emp_result = await db.execute(
+        select(Employee).where(Employee.user_id == user_id, Employee.is_active == True)
+    )
+    employee = emp_result.scalar_one_or_none()
+    if not employee:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="User has no linked employee record. Create an employee first in HR module.",
+        )
+
+    # Validate department if provided
+    dept_name = None
+    if body.department_id:
+        dept_result = await db.execute(
+            select(Department).where(
+                Department.id == body.department_id,
+                Department.org_id == org_id,
+            )
+        )
+        dept = dept_result.scalar_one_or_none()
+        if not dept:
+            raise HTTPException(status_code=404, detail="Department not found")
+        dept_name = dept.name
+
+    employee.department_id = body.department_id
+    await db.commit()
+
+    return UserResponse(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        role=user.role,
+        is_active=user.is_active,
+        employee_id=employee.id,
+        department_id=body.department_id,
+        department_name=dept_name,
+    )
 
 
 @admin_router.get(

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Table, Button, App, Tag, Select, Tooltip } from 'antd';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Building2 } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
 import StatusBadge from '../../components/StatusBadge';
@@ -26,7 +26,16 @@ export default function UserTab() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [changingRole, setChangingRole] = useState(null);
+  const [changingDept, setChangingDept] = useState(null);
+  const [departments, setDepartments] = useState([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
+
+  // Fetch department list for dropdown
+  useEffect(() => {
+    api.get('/api/master/departments', { params: { limit: 500 } })
+      .then(({ data }) => setDepartments(data.items || []))
+      .catch(() => {});
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -66,6 +75,29 @@ export default function UserTab() {
     }
   };
 
+  const handleDeptChange = async (userId, newDeptId, userName) => {
+    setChangingDept(userId);
+    try {
+      await api.patch(`/api/admin/users/${userId}/department`, {
+        department_id: newDeptId || null,
+      });
+      const deptLabel = newDeptId
+        ? departments.find((d) => d.id === newDeptId)?.name || 'แผนกใหม่'
+        : 'ไม่ระบุแผนก';
+      message.success(`เปลี่ยนแผนกของ "${userName}" เป็น ${deptLabel} สำเร็จ`);
+      fetchData();
+    } catch (err) {
+      message.error(err.response?.data?.detail || 'ไม่สามารถเปลี่ยนแผนกได้');
+    } finally {
+      setChangingDept(null);
+    }
+  };
+
+  const deptOptions = departments.map((d) => ({
+    value: d.id,
+    label: `${d.code} — ${d.name}`,
+  }));
+
   const columns = [
     {
       title: 'Email', dataIndex: 'email', key: 'email',
@@ -76,7 +108,7 @@ export default function UserTab() {
       render: (v) => <span style={{ fontWeight: 500 }}>{v}</span>,
     },
     {
-      title: 'บทบาท', dataIndex: 'role', key: 'role', width: 180,
+      title: 'บทบาท', dataIndex: 'role', key: 'role', width: 160,
       render: (role, record) => {
         if (!can('admin.user.update') || role === 'owner') {
           const cfg = ROLE_CONFIG[role] || { color: 'default', label: role };
@@ -90,6 +122,41 @@ export default function UserTab() {
             loading={changingRole === record.id}
             onChange={(newRole) => handleRoleChange(record.id, newRole, record.full_name)}
             options={ROLE_OPTIONS}
+          />
+        );
+      },
+    },
+    {
+      title: (
+        <span>
+          <Building2 size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+          แผนก
+        </span>
+      ),
+      dataIndex: 'department_name',
+      key: 'department',
+      width: 200,
+      render: (deptName, record) => {
+        // No employee linked — show hint
+        if (!record.employee_id) {
+          return <span style={{ color: COLORS.textMuted, fontSize: 12 }}>ไม่มี Employee</span>;
+        }
+        // No edit permission — show text only
+        if (!can('admin.user.update')) {
+          return deptName || <span style={{ color: COLORS.textMuted }}>ไม่ระบุ</span>;
+        }
+        return (
+          <Select
+            value={record.department_id || undefined}
+            size="small"
+            style={{ width: 180 }}
+            allowClear
+            placeholder="เลือกแผนก"
+            loading={changingDept === record.id}
+            onChange={(val) => handleDeptChange(record.id, val, record.full_name)}
+            options={deptOptions}
+            showSearch
+            optionFilterProp="label"
           />
         );
       },
