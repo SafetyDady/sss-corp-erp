@@ -4,6 +4,7 @@ Rate limited: 5 req/min on /login
 """
 
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
@@ -211,8 +212,11 @@ async def get_me(
 async def register(
     body: UserCreate,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Register a new user (admin only)."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+
     # Check duplicate email
     existing = await db.execute(select(User).where(User.email == body.email))
     if existing.scalar_one_or_none():
@@ -223,6 +227,7 @@ async def register(
         hashed_password=hash_password(body.password),
         full_name=body.full_name,
         role=body.role,
+        org_id=org_id,
     )
     db.add(user)
     await db.commit()

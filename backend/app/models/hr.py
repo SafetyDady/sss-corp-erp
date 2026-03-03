@@ -163,6 +163,7 @@ class Employee(Base, TimestampMixin, OrgMixin):
 
     __table_args__ = (
         UniqueConstraint("org_id", "employee_code", name="uq_employee_org_code"),
+        UniqueConstraint("user_id", name="uq_employee_user_id"),
         CheckConstraint("hourly_rate >= 0", name="ck_employee_hourly_rate_positive"),
         CheckConstraint(
             "daily_working_hours > 0 AND daily_working_hours <= 24",

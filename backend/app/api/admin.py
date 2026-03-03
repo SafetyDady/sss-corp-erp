@@ -256,6 +256,39 @@ async def api_update_user_role(
     return user
 
 
+@admin_router.get(
+    "/users/unlinked",
+    dependencies=[Depends(require("hr.employee.create"))],
+)
+async def api_list_unlinked_users(
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """List active users NOT linked to any active employee. Used in Employee form dropdown."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+
+    # Subquery: user_ids that already have an active employee
+    linked_subq = (
+        select(Employee.user_id)
+        .where(Employee.user_id.isnot(None), Employee.is_active == True)
+        .scalar_subquery()
+    )
+    result = await db.execute(
+        select(User.id, User.email, User.full_name, User.role)
+        .where(
+            User.org_id == org_id,
+            User.is_active == True,
+            User.id.notin_(linked_subq),
+        )
+        .order_by(User.full_name)
+    )
+    rows = result.all()
+    return [
+        {"id": str(r.id), "email": r.email, "full_name": r.full_name, "role": r.role}
+        for r in rows
+    ]
+
+
 @admin_router.patch(
     "/users/{user_id}/department",
     response_model=UserResponse,

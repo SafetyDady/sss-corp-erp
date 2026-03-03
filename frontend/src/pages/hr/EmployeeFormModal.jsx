@@ -19,6 +19,7 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
   const [departments, setDepartments] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [workSchedules, setWorkSchedules] = useState([]);
+  const [unlinkedUsers, setUnlinkedUsers] = useState([]);
   const payType = Form.useWatch('pay_type', form);
   const hireDateVal = Form.useWatch('hire_date', form);
 
@@ -45,11 +46,13 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
         api.get('/api/master/departments', { params: { limit: 500, offset: 0 } }),
         api.get('/api/hr/employees', { params: { limit: 500, offset: 0 } }),
         api.get('/api/master/work-schedules', { params: { limit: 100, offset: 0 } }).catch(() => ({ data: { items: [] } })),
-      ]).then(([ccRes, deptRes, empRes, wsRes]) => {
+        api.get('/api/admin/users/unlinked').catch(() => ({ data: [] })),
+      ]).then(([ccRes, deptRes, empRes, wsRes, ulRes]) => {
         setCostCenters((ccRes.data.items || []).filter((c) => c.is_active));
         setDepartments((deptRes.data.items || []).filter((d) => d.is_active));
         setEmployees((empRes.data.items || []).filter((e) => e.is_active));
         setWorkSchedules((wsRes.data.items || []).filter((w) => w.is_active));
+        setUnlinkedUsers(Array.isArray(ulRes.data) ? ulRes.data : []);
       }).catch(() => {});
 
       if (editItem) {
@@ -60,6 +63,7 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
           hourly_rate: parseFloat(editItem.hourly_rate) || 0,
           daily_working_hours: parseFloat(editItem.daily_working_hours) || 8,
           cost_center_id: editItem.cost_center_id || undefined,
+          user_id: editItem.user_id || undefined,
           department_id: editItem.department_id || undefined,
           supervisor_id: editItem.supervisor_id || undefined,
           work_schedule_id: editItem.work_schedule_id || undefined,
@@ -149,6 +153,24 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
         </Form.Item>
 
         <Divider style={{ margin: '12px 0', borderColor: COLORS.border }}>สังกัด</Divider>
+
+        <Form.Item name="user_id" label="เชื่อมกับ User (Login)"
+          extra={<Text type="secondary" style={{ fontSize: 12 }}>เลือก User ที่ยังไม่ได้เชื่อมกับพนักงานคนอื่น — ถ้าว่าง พนักงานคนนี้จะ login ไม่ได้</Text>}
+        >
+          <Select allowClear placeholder="เลือก User" showSearch optionFilterProp="label"
+            options={[
+              // If editing and already has user_id, include current user as option
+              ...(editItem?.user_id ? [{
+                value: editItem.user_id,
+                label: `${editItem.user_email || editItem.full_name} (ปัจจุบัน)`,
+              }] : []),
+              ...unlinkedUsers.map((u) => ({
+                value: u.id,
+                label: `${u.email} — ${u.full_name} (${u.role})`,
+              })),
+            ]}
+          />
+        </Form.Item>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <Form.Item name="department_id" label="แผนก">

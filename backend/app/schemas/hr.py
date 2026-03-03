@@ -101,6 +101,7 @@ class EmployeeResponse(BaseModel):
     daily_working_hours: Decimal
     cost_center_id: Optional[UUID] = None
     user_id: Optional[UUID] = None
+    user_email: Optional[str] = None
     department_id: Optional[UUID] = None
     supervisor_id: Optional[UUID] = None
     pay_type: PayType

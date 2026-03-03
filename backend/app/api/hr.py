@@ -33,6 +33,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import DEFAULT_ORG_ID
@@ -142,7 +143,24 @@ async def api_list_employees(
         db, limit=limit, offset=offset, search=search,
         org_id=org_id, department_id=department_id,
     )
-    return EmployeeListResponse(items=items, total=total, limit=limit, offset=offset)
+
+    # Enrich with user_email for Employee form dropdown
+    from app.models.user import User as UserModel
+    user_ids = [e.user_id for e in items if e.user_id]
+    user_email_map = {}
+    if user_ids:
+        user_result = await db.execute(
+            select(UserModel.id, UserModel.email).where(UserModel.id.in_(user_ids))
+        )
+        user_email_map = {r.id: r.email for r in user_result.all()}
+
+    enriched = []
+    for emp in items:
+        resp = EmployeeResponse.model_validate(emp)
+        resp.user_email = user_email_map.get(emp.user_id)
+        enriched.append(resp)
+
+    return EmployeeListResponse(items=enriched, total=total, limit=limit, offset=offset)
 
 
 @hr_router.post(
@@ -210,7 +228,15 @@ async def api_get_employee(
     token: dict = Depends(get_token_payload),
 ):
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
-    return await get_employee(db, emp_id, org_id=org_id)
+    emp = await get_employee(db, emp_id, org_id=org_id)
+    resp = EmployeeResponse.model_validate(emp)
+    if emp.user_id:
+        from app.models.user import User as UserModel
+        u_result = await db.execute(select(UserModel.email).where(UserModel.id == emp.user_id))
+        row = u_result.first()
+        if row:
+            resp.user_email = row.email
+    return resp
 
 
 @hr_router.put(

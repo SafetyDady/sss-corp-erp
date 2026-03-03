@@ -74,6 +74,20 @@ async def create_employee(
             detail=f"Employee code '{employee_code}' already exists",
         )
 
+    # Validate user_id uniqueness — 1 User : 1 Employee only
+    if user_id:
+        dup_user = await db.execute(
+            select(Employee).where(
+                Employee.user_id == user_id,
+                Employee.is_active == True,
+            )
+        )
+        if dup_user.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="User นี้ถูกเชื่อมกับพนักงานคนอื่นแล้ว (1 User : 1 Employee)",
+            )
+
     emp = Employee(
         employee_code=employee_code,
         full_name=full_name,
@@ -150,6 +164,23 @@ async def update_employee(
     org_id: Optional[UUID] = None,
 ) -> Employee:
     emp = await get_employee(db, emp_id, org_id=org_id)
+
+    # Validate user_id uniqueness on update — 1 User : 1 Employee
+    new_user_id = update_data.get("user_id")
+    if new_user_id is not None and new_user_id != emp.user_id:
+        dup_user = await db.execute(
+            select(Employee).where(
+                Employee.user_id == new_user_id,
+                Employee.is_active == True,
+                Employee.id != emp_id,
+            )
+        )
+        if dup_user.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="User นี้ถูกเชื่อมกับพนักงานคนอื่นแล้ว (1 User : 1 Employee)",
+            )
+
     for field, value in update_data.items():
         if value is not None:
             setattr(emp, field, value)

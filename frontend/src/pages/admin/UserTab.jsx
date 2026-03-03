@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Table, Button, App, Tag, Select, Tooltip } from 'antd';
-import { RefreshCw, Building2 } from 'lucide-react';
+import { RefreshCw, Building2, UserPlus } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
 import StatusBadge from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
+import UserFormModal from './UserFormModal';
 import { COLORS } from '../../utils/constants';
 
 const ROLE_CONFIG = {
@@ -29,6 +30,7 @@ export default function UserTab() {
   const [changingDept, setChangingDept] = useState(null);
   const [departments, setDepartments] = useState([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
+  const [modalOpen, setModalOpen] = useState(false);
 
   // Fetch department list for dropdown
   useEffect(() => {
@@ -169,12 +171,17 @@ export default function UserTab() {
 
   return (
     <div>
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
         <Tooltip title="รีเฟรชข้อมูล">
           <Button icon={<RefreshCw size={14} />} onClick={fetchData} loading={loading}>
             รีเฟรช
           </Button>
         </Tooltip>
+        {can('admin.user.create') && (
+          <Button type="primary" icon={<UserPlus size={14} />} onClick={() => setModalOpen(true)}>
+            เพิ่มผู้ใช้
+          </Button>
+        )}
       </div>
       <Table
         loading={loading}
@@ -191,6 +198,11 @@ export default function UserTab() {
           showTotal: (t) => `ทั้งหมด ${t} คน`,
         }}
         size="middle"
+      />
+      <UserFormModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSuccess={() => { setModalOpen(false); fetchData(); }}
       />
     </div>
   );
