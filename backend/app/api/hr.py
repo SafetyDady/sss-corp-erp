@@ -55,6 +55,9 @@ from app.schemas.hr import (
     PayrollRunCreate,
     PayrollRunListResponse,
     PayrollRunResponse,
+    PayrollSlipListResponse,
+    PayrollSlipResponse,
+    ProfileSelfUpdate,
     RosterGenerateRequest,
     RosterGenerateResponse,
     ShiftRosterListResponse,
@@ -82,6 +85,8 @@ from app.services.hr import (
     generate_shift_roster,
     generate_standard_timesheets,
     get_employee,
+    get_my_payslips,
+    get_payslips_for_run,
     get_timesheet,
     list_employees,
     list_leave_balances,
@@ -90,9 +95,11 @@ from app.services.hr import (
     list_shift_rosters,
     list_standard_timesheets,
     list_timesheets,
+    release_payslips,
     unlock_timesheet,
     update_employee,
     update_leave_balance,
+    update_profile_self,
     update_shift_roster,
     update_timesheet,
 )
@@ -167,6 +174,29 @@ async def api_create_employee(
         monthly_salary=body.monthly_salary,
         hire_date=body.hire_date,
     )
+
+
+# ── Profile Self-Edit (Go-Live G7) — MUST be before /employees/{emp_id} ──
+
+@hr_router.put(
+    "/employees/me",
+    response_model=EmployeeResponse,
+)
+async def api_update_profile_self(
+    body: ProfileSelfUpdate,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Update own employee profile (full_name + position only). JWT auth, no extra permission."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    user_id = UUID(token["sub"])
+    update_data = body.model_dump(exclude_unset=True)
+    emp = await update_profile_self(
+        db, user_id, org_id,
+        full_name=update_data.get("full_name"),
+        position=update_data.get("position"),
+    )
+    return emp
 
 
 @hr_router.get(
@@ -884,3 +914,67 @@ async def api_update_roster(
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
     return await update_shift_roster(db, roster_id, update_data=update_data, org_id=org_id)
+
+
+# ============================================================
+# PAYROLL SLIP ROUTES  (Go-Live G7)
+# ============================================================
+
+@hr_router.get(
+    "/payslips/me",
+    response_model=PayrollSlipListResponse,
+    dependencies=[Depends(require("hr.payroll.read"))],
+)
+async def api_get_my_payslips(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Get my payslips (staff: RELEASED only)."""
+    from app.api._helpers import resolve_employee_id
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    user_id = UUID(token["sub"])
+    employee_id = await resolve_employee_id(db, user_id)
+    if not employee_id:
+        return PayrollSlipListResponse(items=[], total=0, limit=limit, offset=offset)
+
+    items, total = await get_my_payslips(
+        db, employee_id=employee_id, org_id=org_id, limit=limit, offset=offset
+    )
+    return PayrollSlipListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+@hr_router.get(
+    "/payroll/{payroll_id}/payslips",
+    response_model=PayrollSlipListResponse,
+    dependencies=[Depends(require("hr.payroll.read"))],
+)
+async def api_get_payslips_for_run(
+    payroll_id: UUID,
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Get all payslips for a payroll run (manager/owner)."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    items, total = await get_payslips_for_run(
+        db, payroll_id, org_id=org_id, limit=limit, offset=offset
+    )
+    return PayrollSlipListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+@hr_router.post(
+    "/payroll/{payroll_id}/release",
+    dependencies=[Depends(require("hr.payroll.execute"))],
+)
+async def api_release_payslips(
+    payroll_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Release all DRAFT payslips for a payroll run → visible to staff."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    count = await release_payslips(db, payroll_id, org_id=org_id)
+    return {"released_count": count}

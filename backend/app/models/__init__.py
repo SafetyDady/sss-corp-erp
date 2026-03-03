@@ -6,7 +6,7 @@ from app.models.inventory import (
 from app.models.warehouse import Warehouse, Location, Bin, StockByBin
 from app.models.workorder import WorkOrder, WOStatus
 from app.models.master import CostCenter, CostElement, OTType, ShiftType, WorkSchedule, ScheduleType, Supplier
-from app.models.hr import Employee, Timesheet, TimesheetStatus, Leave, LeaveStatus, PayrollRun, PayrollStatus, PayType, ShiftRoster
+from app.models.hr import Employee, Timesheet, TimesheetStatus, Leave, LeaveStatus, PayrollRun, PayrollStatus, PayType, ShiftRoster, PayrollSlip, PayrollSlipStatus
 from app.models.tools import Tool, ToolStatus, ToolCheckout
 from app.models.customer import Customer
 from app.models.purchasing import (
@@ -15,7 +15,7 @@ from app.models.purchasing import (
     PurchaseOrder, PurchaseOrderLine, POStatus, GRMode,
 )
 from app.models.sales import SalesOrder, SalesOrderLine, SOStatus
-from app.models.organization import Organization, Department, OrgWorkConfig, OrgApprovalConfig
+from app.models.organization import Organization, Department, OrgWorkConfig, OrgApprovalConfig, DeptMenuConfig
 from app.models.planning import (
     WOMasterPlan, WOMasterPlanLine, PlanLineType,
     DailyPlan, DailyPlanWorker, DailyPlanTool, DailyPlanMaterial,
@@ -94,4 +94,7 @@ __all__ = [
     "StockWithdrawalSlipLine",
     "WithdrawalType",
     "WithdrawalStatus",
+    "DeptMenuConfig",
+    "PayrollSlip",
+    "PayrollSlipStatus",
 ]

@@ -26,6 +26,7 @@ const useAuthStore = create(
       workScheduleId: null,
       workingDays: null, // OrgWorkConfig: ISO weekdays [1-7], e.g. [1,2,3,4,5,6]
       hoursPerDay: null,
+      deptMenu: null, // Go-Live G6: per-dept menu visibility
 
       // Actions
       setTokens: (accessToken, refreshToken) => {
@@ -69,6 +70,7 @@ const useAuthStore = create(
             workScheduleId: data.work_schedule_id || null,
             workingDays: data.working_days || null,
             hoursPerDay: data.hours_per_day || null,
+            deptMenu: data.dept_menu || null,
           });
         } catch {
           get().logout();
@@ -95,6 +97,7 @@ const useAuthStore = create(
           workScheduleId: null,
           workingDays: null,
           hoursPerDay: null,
+          deptMenu: null,
         });
       },
 
@@ -139,6 +142,7 @@ const useAuthStore = create(
         workScheduleId: state.workScheduleId,
         workingDays: state.workingDays,
         hoursPerDay: state.hoursPerDay,
+        deptMenu: state.deptMenu,
       }),
       merge: (persisted, current) => ({
         ...current,

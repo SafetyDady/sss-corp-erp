@@ -1,6 +1,7 @@
 """
 SSS Corp ERP — Organization Models
 Phase 4.1: Organization, Department, OrgWorkConfig, OrgApprovalConfig
+Go-Live G6: DeptMenuConfig — per-department sidebar menu visibility
 
 Department ↔ CostCenter = 1:1
 Employee → Department (many-to-one)
@@ -157,3 +158,45 @@ class OrgApprovalConfig(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<OrgApprovalConfig {self.module_key} require={self.require_approval}>"
+
+
+# ============================================================
+# DEPT MENU CONFIG  (Go-Live G6 — per dept sidebar visibility)
+# ============================================================
+
+# Valid menu keys matching frontend sidebar routes
+VALID_MENU_KEYS = [
+    "dashboard", "supply-chain", "work-orders", "purchasing",
+    "sales", "hr", "customers", "planning", "master", "finance", "admin",
+]
+
+
+class DeptMenuConfig(Base, TimestampMixin):
+    """
+    Per-department sidebar menu visibility.
+    - department_id NULL → org-wide default template
+    - is_visible=False → menu item hidden for this department
+    - When no config exists → all menus visible (default behavior)
+    """
+    __tablename__ = "dept_menu_configs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    department_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("departments.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    menu_key: Mapped[str] = mapped_column(String(50), nullable=False)
+    is_visible: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("org_id", "department_id", "menu_key", name="uq_dept_menu_org_dept_key"),
+        Index("ix_dept_menu_org_dept", "org_id", "department_id"),
+    )

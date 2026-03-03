@@ -363,6 +363,55 @@ class PayrollRunListResponse(BaseModel):
 
 
 # ============================================================
+# PAYROLL SLIP SCHEMAS  (Go-Live G7)
+# ============================================================
+
+class PayslipStatus(str, Enum):
+    DRAFT = "DRAFT"
+    RELEASED = "RELEASED"
+
+
+class PayrollSlipResponse(BaseModel):
+    id: UUID
+    payroll_run_id: UUID
+    employee_id: UUID
+    employee_name: Optional[str] = None  # joined from Employee
+    employee_code: Optional[str] = None  # joined from Employee
+    period_start: Optional[date] = None  # joined from PayrollRun
+    period_end: Optional[date] = None  # joined from PayrollRun
+    base_salary: Decimal
+    regular_hours: Decimal
+    ot_hours: Decimal
+    ot_amount: Decimal
+    gross_amount: Decimal
+    deductions: Decimal
+    net_amount: Decimal
+    status: PayslipStatus
+    released_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PayrollSlipListResponse(BaseModel):
+    items: list[PayrollSlipResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+# ============================================================
+# PROFILE SELF-EDIT SCHEMA  (Go-Live G7)
+# ============================================================
+
+class ProfileSelfUpdate(BaseModel):
+    full_name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    position: Optional[str] = Field(default=None, max_length=100)
+
+
+# ============================================================
 # SHIFT ROSTER SCHEMAS  (Phase 4.9 — Shift Management)
 # ============================================================
 

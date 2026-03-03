@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Tabs, Card, Typography, Avatar, Row, Col } from 'antd';
-import { User, CalendarCheck, Clock, FileText, ClipboardList, Briefcase, Calendar, Building2 } from 'lucide-react';
+import { Tabs, Card, Typography, Avatar, Row, Col, Button } from 'antd';
+import { User, CalendarCheck, Clock, FileText, ClipboardList, Briefcase, Calendar, Building2, Pencil, Receipt } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
 import { usePermission } from '../../hooks/usePermission';
 import { COLORS } from '../../utils/constants';
@@ -13,6 +13,8 @@ import MyTasksPage from './MyTasksPage';
 import MyTimesheetPage from './MyTimesheetPage';
 import MyLeavePage from './MyLeavePage';
 import MyDailyReportPage from './MyDailyReportPage';
+import MyPayslipTab from './MyPayslipTab';
+import ProfileEditModal from './ProfileEditModal';
 
 const { Title, Text } = Typography;
 
@@ -26,6 +28,7 @@ export default function MePage() {
   const { can } = usePermission();
 
   const [stats, setStats] = useState({ tasks: 0, pendingLeave: 0, todayHours: 0, reports: 0 });
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   useEffect(() => {
     if (!employeeId) return;
@@ -89,6 +92,11 @@ export default function MePage() {
       label: (<span><ClipboardList size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />รายงานประจำวัน</span>),
       children: <MyDailyReportPage embedded />,
     },
+    employeeId && {
+      key: 'payslip',
+      label: (<span><Receipt size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Payslip</span>),
+      children: <MyPayslipTab />,
+    },
   ].filter(Boolean);
 
   return (
@@ -109,9 +117,22 @@ export default function MePage() {
             style={{ background: `${COLORS.accent}30`, color: COLORS.accent, flexShrink: 0 }}
           />
           <div style={{ flex: 1 }}>
-            <Title level={4} style={{ color: COLORS.text, margin: 0 }}>
-              {employeeName || user?.full_name || 'User'}
-            </Title>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <Title level={4} style={{ color: COLORS.text, margin: 0 }}>
+                {employeeName || user?.full_name || 'User'}
+              </Title>
+              {employeeId && (
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<Pencil size={13} />}
+                  onClick={() => setProfileModalOpen(true)}
+                  style={{ color: COLORS.textSecondary }}
+                >
+                  แก้ไข
+                </Button>
+              )}
+            </div>
             <Text style={{ color: COLORS.textSecondary, fontSize: 13 }}>
               {employeeCode && <span style={{ marginRight: 12 }}>{employeeCode}</span>}
               {user?.role && (
@@ -195,6 +216,13 @@ export default function MePage() {
       ) : (
         <Tabs defaultActiveKey={tabItems[0].key} type="card" items={tabItems} />
       )}
+
+      {/* Profile Edit Modal (G7) */}
+      <ProfileEditModal
+        open={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+        onSuccess={() => setProfileModalOpen(false)}
+      />
     </div>
   );
 }

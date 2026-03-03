@@ -17,6 +17,7 @@ const STATUS_CONFIG = {
   SERVICE: { color: '#10b981' },
   EXECUTED: { color: '#8b5cf6' },
   EXPORTED: { color: '#06b6d4' },
+  RELEASED: { color: '#10b981' },
   INVOICED: { color: '#10b981' },
   MAINTENANCE: { color: '#f59e0b' },
   RETIRED: { color: '#718096' },

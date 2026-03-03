@@ -4,6 +4,7 @@ Phase 2: Employee, Timesheet, Leave, PayrollRun
 Phase 4.1: Employee + department_id, supervisor_id, pay_type, daily_rate, monthly_salary
 Phase 4.3: LeaveBalance + Leave upgrade (leave_type_id, days_count)
 Phase 4.9: ShiftRoster + Employee.work_schedule_id (Shift Management)
+Go-Live G7: PayrollSlip — individual payslips per employee per payroll run
 
 Business Rules:
   BR#15 — ManHour Cost = Σ((Regular + OT × Factor) × Rate)
@@ -65,6 +66,11 @@ class PayrollStatus(str, enum.Enum):
     DRAFT = "DRAFT"
     EXECUTED = "EXECUTED"
     EXPORTED = "EXPORTED"
+
+
+class PayrollSlipStatus(str, enum.Enum):
+    DRAFT = "DRAFT"
+    RELEASED = "RELEASED"
 
 
 class PayType(str, enum.Enum):
@@ -464,3 +470,73 @@ class ShiftRoster(Base, TimestampMixin, OrgMixin):
         UniqueConstraint("employee_id", "roster_date", name="uq_shift_roster_emp_date"),
         Index("ix_shift_roster_emp_date", "employee_id", "roster_date"),
     )
+
+
+# ============================================================
+# PAYROLL SLIP  (Go-Live G7 — individual payslips)
+# ============================================================
+
+class PayrollSlip(Base, TimestampMixin, OrgMixin):
+    """
+    Individual payslip per employee per payroll run.
+    Auto-generated when payroll is executed (DRAFT).
+    Released by HR/manager for staff viewing (RELEASED).
+    """
+    __tablename__ = "payroll_slips"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    payroll_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("payroll_runs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    employee_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("employees.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    base_salary: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False
+    )
+    regular_hours: Mapped[Decimal] = mapped_column(
+        Numeric(8, 2), nullable=False, default=Decimal("0.00")
+    )
+    ot_hours: Mapped[Decimal] = mapped_column(
+        Numeric(8, 2), nullable=False, default=Decimal("0.00")
+    )
+    ot_amount: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=Decimal("0.00")
+    )
+    gross_amount: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False
+    )
+    deductions: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=Decimal("0.00")
+    )
+    net_amount: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False
+    )
+    status: Mapped[PayrollSlipStatus] = mapped_column(
+        Enum(PayrollSlipStatus, name="payslip_status_enum"),
+        nullable=False,
+        default=PayrollSlipStatus.DRAFT,
+    )
+    released_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    __table_args__ = (
+        UniqueConstraint("payroll_run_id", "employee_id", name="uq_payroll_slip_run_emp"),
+        CheckConstraint("base_salary >= 0", name="ck_payroll_slip_base_salary"),
+        CheckConstraint("gross_amount >= 0", name="ck_payroll_slip_gross"),
+        CheckConstraint("deductions >= 0", name="ck_payroll_slip_deductions"),
+        CheckConstraint("net_amount >= 0", name="ck_payroll_slip_net"),
+        Index("ix_payroll_slips_run", "payroll_run_id"),
+        Index("ix_payroll_slips_employee", "employee_id"),
+        Index("ix_payroll_slips_org_employee", "org_id", "employee_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<PayrollSlip emp={self.employee_id} run={self.payroll_run_id} {self.status.value}>"

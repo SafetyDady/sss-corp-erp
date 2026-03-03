@@ -26,6 +26,8 @@ from app.models.hr import (
     Leave,
     LeaveStatus,
     PayrollRun,
+    PayrollSlip,
+    PayrollSlipStatus,
     PayrollStatus,
     Timesheet,
     TimesheetStatus,
@@ -1088,7 +1090,8 @@ async def execute_payroll(
     *,
     executed_by: UUID,
 ) -> PayrollRun:
-    """Execute payroll — aggregate FINAL timesheets for the period (BR#26)."""
+    """Execute payroll — aggregate FINAL timesheets for the period (BR#26).
+    Also generates PayrollSlip per employee (Go-Live G7)."""
     result = await db.execute(
         select(PayrollRun).where(PayrollRun.id == payroll_id)
     )
@@ -1102,27 +1105,92 @@ async def execute_payroll(
             detail="Only DRAFT payroll runs can be executed",
         )
 
-    # Sum hours from FINAL timesheets in period
+    # Get all active employees in org
+    emp_result = await db.execute(
+        select(Employee).where(
+            Employee.org_id == pr.org_id,
+            Employee.is_active == True,
+        )
+    )
+    employees = {e.id: e for e in emp_result.scalars().all()}
+
+    # Get per-employee FINAL timesheet aggregates for the period
     ts_query = select(
-        func.count(func.distinct(Timesheet.employee_id)),
-        func.coalesce(func.sum(Timesheet.regular_hours), 0),
-        func.coalesce(func.sum(Timesheet.ot_hours), 0),
+        Timesheet.employee_id,
+        func.coalesce(func.sum(Timesheet.regular_hours), 0).label("regular_hours"),
+        func.coalesce(func.sum(Timesheet.ot_hours), 0).label("ot_hours"),
     ).where(
         Timesheet.status == TimesheetStatus.FINAL,
         Timesheet.work_date >= pr.period_start,
         Timesheet.work_date <= pr.period_end,
         Timesheet.org_id == pr.org_id,
-    )
-    ts_result = await db.execute(ts_query)
-    row = ts_result.one()
-    emp_count = row[0] or 0
-    total_regular = row[1] or Decimal("0")
-    total_ot = row[2] or Decimal("0")
+    ).group_by(Timesheet.employee_id)
 
-    # Simple total: just sum hours × average rate (actual would join employee rates)
-    # For now, store aggregated totals
-    pr.employee_count = emp_count
-    pr.total_amount = total_regular + total_ot  # Placeholder — real calc needs employee rates
+    ts_result = await db.execute(ts_query)
+    ts_rows = ts_result.all()
+    ts_map = {row.employee_id: row for row in ts_rows}
+
+    # Calculate working days in period for base salary
+    from app.models.organization import OrgWorkConfig
+    wc_result = await db.execute(
+        select(OrgWorkConfig).where(OrgWorkConfig.org_id == pr.org_id)
+    )
+    work_config = wc_result.scalar_one_or_none()
+    working_day_nums = work_config.working_days if work_config else [1, 2, 3, 4, 5, 6]
+    hours_per_day = float(work_config.hours_per_day) if work_config else 8.0
+
+    # Count working days in period
+    working_days_count = 0
+    d = pr.period_start
+    while d <= pr.period_end:
+        if d.isoweekday() in working_day_nums:
+            working_days_count += 1
+        d += timedelta(days=1)
+
+    # Generate PayrollSlip per employee + aggregate totals
+    total_amount = Decimal("0")
+    slip_count = 0
+
+    for emp_id, emp in employees.items():
+        ts_data = ts_map.get(emp_id)
+        regular_hours = Decimal(str(ts_data.regular_hours)) if ts_data else Decimal("0")
+        ot_hours = Decimal(str(ts_data.ot_hours)) if ts_data else Decimal("0")
+
+        # Calculate base salary based on pay type
+        if emp.pay_type.value == "MONTHLY" and emp.monthly_salary:
+            base_salary = emp.monthly_salary
+        elif emp.pay_type.value == "DAILY" and emp.daily_rate:
+            base_salary = emp.daily_rate * working_days_count
+        else:
+            # Fallback: hourly_rate × hours_per_day × working_days
+            base_salary = emp.hourly_rate * Decimal(str(hours_per_day)) * working_days_count
+
+        # OT amount = ot_hours × hourly_rate × 1.5 (simplified — actual uses OT types)
+        ot_amount = ot_hours * emp.hourly_rate * Decimal("1.5")
+        gross_amount = base_salary + ot_amount
+        deductions = Decimal("0")  # Placeholder
+        net_amount = gross_amount - deductions
+
+        slip = PayrollSlip(
+            org_id=pr.org_id,
+            payroll_run_id=pr.id,
+            employee_id=emp_id,
+            base_salary=base_salary,
+            regular_hours=regular_hours,
+            ot_hours=ot_hours,
+            ot_amount=ot_amount,
+            gross_amount=gross_amount,
+            deductions=deductions,
+            net_amount=net_amount,
+            status=PayrollSlipStatus.DRAFT,
+        )
+        db.add(slip)
+        total_amount += net_amount
+        slip_count += 1
+
+    # Update payroll run
+    pr.employee_count = slip_count
+    pr.total_amount = total_amount
     pr.status = PayrollStatus.EXECUTED
     pr.executed_by = executed_by
     pr.executed_at = datetime.now(timezone.utc)
@@ -1130,6 +1198,181 @@ async def execute_payroll(
     await db.commit()
     await db.refresh(pr)
     return pr
+
+
+# ============================================================
+# PAYROLL SLIP  (Go-Live G7)
+# ============================================================
+
+async def release_payslips(
+    db: AsyncSession,
+    payroll_run_id: UUID,
+    *,
+    org_id: UUID,
+) -> int:
+    """Release all DRAFT payslips for a payroll run → RELEASED (visible to staff)."""
+    from sqlalchemy import update as sql_update
+    result = await db.execute(
+        select(PayrollRun).where(
+            PayrollRun.id == payroll_run_id,
+            PayrollRun.org_id == org_id,
+        )
+    )
+    pr = result.scalar_one_or_none()
+    if not pr:
+        raise HTTPException(status_code=404, detail="Payroll run not found")
+    if pr.status != PayrollStatus.EXECUTED:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Only EXECUTED payroll runs can have slips released",
+        )
+
+    stmt = (
+        sql_update(PayrollSlip)
+        .where(
+            PayrollSlip.payroll_run_id == payroll_run_id,
+            PayrollSlip.status == PayrollSlipStatus.DRAFT,
+        )
+        .values(
+            status=PayrollSlipStatus.RELEASED,
+            released_at=datetime.now(timezone.utc),
+        )
+    )
+    result = await db.execute(stmt)
+    await db.commit()
+    return result.rowcount
+
+
+async def get_my_payslips(
+    db: AsyncSession,
+    *,
+    employee_id: UUID,
+    org_id: UUID,
+    limit: int = 20,
+    offset: int = 0,
+) -> tuple[list[dict], int]:
+    """Get payslips for a specific employee (staff sees only RELEASED)."""
+    base = (
+        select(PayrollSlip, PayrollRun.period_start, PayrollRun.period_end)
+        .join(PayrollRun, PayrollSlip.payroll_run_id == PayrollRun.id)
+        .where(
+            PayrollSlip.employee_id == employee_id,
+            PayrollSlip.org_id == org_id,
+            PayrollSlip.status == PayrollSlipStatus.RELEASED,
+        )
+    )
+
+    count_q = select(func.count()).select_from(base.subquery())
+    total = (await db.execute(count_q)).scalar() or 0
+
+    rows = await db.execute(
+        base.order_by(PayrollRun.period_end.desc()).limit(limit).offset(offset)
+    )
+    items = []
+    for slip, p_start, p_end in rows.all():
+        items.append({
+            "id": slip.id,
+            "payroll_run_id": slip.payroll_run_id,
+            "employee_id": slip.employee_id,
+            "period_start": p_start,
+            "period_end": p_end,
+            "base_salary": slip.base_salary,
+            "regular_hours": slip.regular_hours,
+            "ot_hours": slip.ot_hours,
+            "ot_amount": slip.ot_amount,
+            "gross_amount": slip.gross_amount,
+            "deductions": slip.deductions,
+            "net_amount": slip.net_amount,
+            "status": slip.status.value,
+            "released_at": slip.released_at,
+            "created_at": slip.created_at,
+            "updated_at": slip.updated_at,
+        })
+    return items, total
+
+
+async def get_payslips_for_run(
+    db: AsyncSession,
+    payroll_run_id: UUID,
+    *,
+    org_id: UUID,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[dict], int]:
+    """Get all payslips for a payroll run (manager/owner view)."""
+    base = (
+        select(PayrollSlip, Employee.full_name, Employee.employee_code)
+        .join(Employee, PayrollSlip.employee_id == Employee.id)
+        .where(
+            PayrollSlip.payroll_run_id == payroll_run_id,
+            PayrollSlip.org_id == org_id,
+        )
+    )
+
+    count_q = select(func.count()).select_from(base.subquery())
+    total = (await db.execute(count_q)).scalar() or 0
+
+    rows = await db.execute(
+        base.order_by(Employee.employee_code).limit(limit).offset(offset)
+    )
+    items = []
+    for slip, emp_name, emp_code in rows.all():
+        items.append({
+            "id": slip.id,
+            "payroll_run_id": slip.payroll_run_id,
+            "employee_id": slip.employee_id,
+            "employee_name": emp_name,
+            "employee_code": emp_code,
+            "base_salary": slip.base_salary,
+            "regular_hours": slip.regular_hours,
+            "ot_hours": slip.ot_hours,
+            "ot_amount": slip.ot_amount,
+            "gross_amount": slip.gross_amount,
+            "deductions": slip.deductions,
+            "net_amount": slip.net_amount,
+            "status": slip.status.value,
+            "released_at": slip.released_at,
+            "created_at": slip.created_at,
+            "updated_at": slip.updated_at,
+        })
+    return items, total
+
+
+# ============================================================
+# PROFILE SELF-EDIT  (Go-Live G7)
+# ============================================================
+
+async def update_profile_self(
+    db: AsyncSession,
+    user_id: UUID,
+    org_id: UUID,
+    *,
+    full_name: Optional[str] = None,
+    position: Optional[str] = None,
+) -> Employee:
+    """Update own employee profile (full_name + position only)."""
+    result = await db.execute(
+        select(Employee).where(
+            Employee.user_id == user_id,
+            Employee.org_id == org_id,
+            Employee.is_active == True,
+        )
+    )
+    emp = result.scalar_one_or_none()
+    if not emp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Employee profile not found",
+        )
+
+    if full_name is not None:
+        emp.full_name = full_name
+    if position is not None:
+        emp.position = position
+
+    await db.commit()
+    await db.refresh(emp)
+    return emp
 
 
 # ============================================================

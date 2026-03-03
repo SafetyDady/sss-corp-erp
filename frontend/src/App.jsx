@@ -111,11 +111,21 @@ function AppLayout() {
     label: item.label,
   }));
 
+  const deptMenu = useAuthStore((s) => s.deptMenu);
+
   const systemItems = SYSTEM_MENU_ITEMS.filter((item) => {
+    // 1) Permission check first
     if (item.permission === '_purchasing_check') {
-      return can('purchasing.pr.read') || can('purchasing.po.read');
+      if (!can('purchasing.pr.read') && !can('purchasing.po.read')) return false;
+    } else if (item.permission && !can(item.permission)) {
+      return false;
     }
-    return !item.permission || can(item.permission);
+    // 2) Dept menu visibility filter (G6) — skip if no config or dashboard
+    if (deptMenu && Object.keys(deptMenu).length > 0) {
+      const menuKey = item.key.replace(/^\//, '') || 'dashboard'; // "/" → "dashboard"
+      if (deptMenu[menuKey] === false) return false;
+    }
+    return true;
   }).map((item) => ({
     key: item.key,
     icon: item.icon,

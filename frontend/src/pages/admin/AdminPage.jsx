@@ -1,11 +1,12 @@
 import { Tabs } from 'antd';
-import { Users, Shield, FileText, Settings } from 'lucide-react';
+import { Users, Shield, FileText, Settings, LayoutGrid } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import { usePermission } from '../../hooks/usePermission';
 import UserTab from './UserTab';
 import RoleTab from './RoleTab';
 import AuditLogTab from './AuditLogTab';
 import OrgSettingsTab from './OrgSettingsTab';
+import DeptMenuConfigTab from './DeptMenuConfigTab';
 import { COLORS } from '../../utils/constants';
 
 const tabLabel = (Icon, text) => (
@@ -32,6 +33,11 @@ export default function AdminPage() {
       key: 'org-settings',
       label: tabLabel(Settings, 'ตั้งค่าองค์กร'),
       children: <OrgSettingsTab />,
+    },
+    can('admin.config.read') && {
+      key: 'dept-menu',
+      label: tabLabel(LayoutGrid, 'เมนูแผนก'),
+      children: <DeptMenuConfigTab />,
     },
     can('admin.role.read') && {
       key: 'audit',

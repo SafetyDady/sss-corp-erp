@@ -29,18 +29,25 @@ from app.core.permissions import ALL_PERMISSIONS, PERMISSION_DESCRIPTIONS, ROLE_
 from app.core.security import get_token_payload
 from app.models.user import User
 from app.schemas.organization import (
+    DeptMenuConfigItem,
+    DeptMenuConfigResponse,
+    DeptMenuConfigUpdate,
     OrgApprovalConfigListResponse,
     OrgApprovalConfigUpdate,
     OrganizationResponse,
     OrganizationUpdate,
     OrgWorkConfigResponse,
     OrgWorkConfigUpdate,
+    VALID_MENU_KEYS,
 )
 from app.services.organization import (
     get_approval_configs,
+    get_dept_menu,
+    get_dept_menu_configs,
     get_or_create_work_config,
     get_organization,
     update_approval_configs,
+    update_dept_menu,
     update_organization,
     update_work_config,
 )
@@ -416,3 +423,102 @@ async def api_list_approvers(
     )
     users = list(result.scalars().all())
     return users
+
+
+# ============================================================
+# DEPT MENU CONFIG ROUTES  (Go-Live G6)
+# ============================================================
+
+@admin_router.get(
+    "/dept-menu",
+    response_model=DeptMenuConfigResponse,
+    dependencies=[Depends(require("admin.config.read"))],
+)
+async def api_get_dept_menu(
+    department_id: UUID = Query(default=None, description="Department ID (null = org-wide default)"),
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Get dept menu config — returns merged menu visibility for admin editing."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+
+    # Get department name if specific dept
+    dept_name = None
+    if department_id:
+        from app.models.organization import Department
+        dept_result = await db.execute(
+            select(Department).where(
+                Department.id == department_id,
+                Department.org_id == org_id,
+            )
+        )
+        dept = dept_result.scalar_one_or_none()
+        if dept:
+            dept_name = dept.name
+
+    # Get configs for this dept (or org default)
+    configs = await get_dept_menu_configs(db, org_id, department_id)
+    config_map = {c.menu_key: c.is_visible for c in configs}
+
+    # Build full items list (all menu keys, with stored values or default True)
+    items = [
+        DeptMenuConfigItem(
+            menu_key=key,
+            is_visible=config_map.get(key, True),
+        )
+        for key in VALID_MENU_KEYS
+    ]
+
+    return DeptMenuConfigResponse(
+        department_id=department_id,
+        department_name=dept_name,
+        items=items,
+    )
+
+
+@admin_router.put(
+    "/dept-menu",
+    response_model=DeptMenuConfigResponse,
+    dependencies=[Depends(require("admin.config.update"))],
+)
+async def api_update_dept_menu(
+    body: DeptMenuConfigUpdate,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Update dept menu config — upserts visibility per menu key."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+
+    items_data = [item.model_dump() for item in body.items]
+    await update_dept_menu(db, org_id, body.department_id, items_data)
+
+    # Get department name
+    dept_name = None
+    if body.department_id:
+        from app.models.organization import Department
+        dept_result = await db.execute(
+            select(Department).where(
+                Department.id == body.department_id,
+                Department.org_id == org_id,
+            )
+        )
+        dept = dept_result.scalar_one_or_none()
+        if dept:
+            dept_name = dept.name
+
+    # Re-fetch merged config
+    configs = await get_dept_menu_configs(db, org_id, body.department_id)
+    config_map = {c.menu_key: c.is_visible for c in configs}
+    result_items = [
+        DeptMenuConfigItem(
+            menu_key=key,
+            is_visible=config_map.get(key, True),
+        )
+        for key in VALID_MENU_KEYS
+    ]
+
+    return DeptMenuConfigResponse(
+        department_id=body.department_id,
+        department_name=dept_name,
+        items=result_items,
+    )

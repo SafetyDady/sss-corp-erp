@@ -161,3 +161,36 @@ class OrgApprovalConfigResponse(BaseModel):
 
 class OrgApprovalConfigListResponse(BaseModel):
     items: list[OrgApprovalConfigResponse]
+
+
+# ============================================================
+# DEPT MENU CONFIG SCHEMAS  (Go-Live G6)
+# ============================================================
+
+VALID_MENU_KEYS = [
+    "dashboard", "supply-chain", "work-orders", "purchasing",
+    "sales", "hr", "customers", "planning", "master", "finance", "admin",
+]
+
+
+class DeptMenuConfigItem(BaseModel):
+    menu_key: str
+    is_visible: bool = True
+
+    @field_validator("menu_key")
+    @classmethod
+    def validate_menu_key(cls, v):
+        if v not in VALID_MENU_KEYS:
+            raise ValueError(f"menu_key must be one of: {VALID_MENU_KEYS}")
+        return v
+
+
+class DeptMenuConfigUpdate(BaseModel):
+    department_id: Optional[UUID] = None  # None = org-wide default
+    items: list[DeptMenuConfigItem]
+
+
+class DeptMenuConfigResponse(BaseModel):
+    department_id: Optional[UUID] = None
+    department_name: Optional[str] = None
+    items: list[DeptMenuConfigItem]

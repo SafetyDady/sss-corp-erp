@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Table, Button, App, Space, Popconfirm, Tooltip, Card, Statistic, Row, Col } from 'antd';
-import { Plus, Play, Download, Banknote, Users, CalendarCheck } from 'lucide-react';
+import { Table, Button, App, Space, Popconfirm, Tooltip, Card, Statistic, Row, Col, Modal, Descriptions, Tag } from 'antd';
+import { Plus, Play, Download, Banknote, Users, CalendarCheck, Send, Eye } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
 import StatusBadge from '../../components/StatusBadge';
@@ -52,7 +52,37 @@ export default function PayrollTab() {
     }
   };
 
+  const [releaseLoading, setReleaseLoading] = useState(null);
+  const [payslipModalOpen, setPayslipModalOpen] = useState(null); // payroll_id
+  const [payslips, setPayslips] = useState([]);
+  const [payslipLoading, setPayslipLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
+
+  const handleRelease = async (id) => {
+    setReleaseLoading(id);
+    try {
+      const { data } = await api.post(`/api/hr/payroll/${id}/release`);
+      message.success(`เผยแพร่ Payslip สำเร็จ (${data.released_count} รายการ)`);
+      fetchData();
+    } catch (err) {
+      message.error(err.response?.data?.detail || 'ไม่สามารถเผยแพร่ได้');
+    } finally {
+      setReleaseLoading(null);
+    }
+  };
+
+  const handleViewPayslips = async (payrollId) => {
+    setPayslipModalOpen(payrollId);
+    setPayslipLoading(true);
+    try {
+      const { data } = await api.get(`/api/hr/payroll/${payrollId}/payslips`);
+      setPayslips(data.items || []);
+    } catch (err) {
+      message.error(err.response?.data?.detail || 'ไม่สามารถโหลด Payslip ได้');
+    } finally {
+      setPayslipLoading(false);
+    }
+  };
 
   const handleExport = async () => {
     setExportLoading(true);
@@ -115,7 +145,7 @@ export default function PayrollTab() {
       render: (v) => v || <span style={{ color: COLORS.textMuted }}>-</span>,
     },
     {
-      title: '', key: 'actions', width: 100, align: 'right',
+      title: '', key: 'actions', width: 180, align: 'right',
       render: (_, record) => (
         <Space size={4}>
           {record.status === 'DRAFT' && can('hr.payroll.execute') && (
@@ -130,6 +160,28 @@ export default function PayrollTab() {
                   icon={<Play size={14} />} style={{ color: COLORS.success }} />
               </Tooltip>
             </Popconfirm>
+          )}
+          {(record.status === 'EXECUTED' || record.status === 'EXPORTED') && can('hr.payroll.execute') && (
+            <Popconfirm
+              title="เผยแพร่ Payslip?"
+              description="พนักงานจะสามารถดู Payslip ได้หลังเผยแพร่"
+              onConfirm={() => handleRelease(record.id)}
+              okText="เผยแพร่" cancelText="ยกเลิก"
+            >
+              <Tooltip title="เผยแพร่ Payslip ให้พนักงาน">
+                <Button type="text" size="small" loading={releaseLoading === record.id}
+                  icon={<Send size={14} />} style={{ color: COLORS.accent }} />
+              </Tooltip>
+            </Popconfirm>
+          )}
+          {(record.status === 'EXECUTED' || record.status === 'EXPORTED') && can('hr.payroll.read') && (
+            <Tooltip title="ดู Payslip">
+              <Button type="text" size="small"
+                icon={<Eye size={14} />}
+                onClick={() => handleViewPayslips(record.id)}
+                style={{ color: COLORS.textSecondary }}
+              />
+            </Tooltip>
           )}
         </Space>
       ),
@@ -200,6 +252,60 @@ export default function PayrollTab() {
         onClose={() => setModalOpen(false)}
         onSuccess={() => { setModalOpen(false); fetchData(); }}
       />
+
+      {/* Payslip Viewer Modal (G7) */}
+      <Modal
+        title="รายการ Payslip"
+        open={!!payslipModalOpen}
+        onCancel={() => { setPayslipModalOpen(null); setPayslips([]); }}
+        footer={null}
+        width={900}
+        destroyOnHidden
+      >
+        <Table
+          loading={payslipLoading}
+          dataSource={payslips}
+          rowKey="id"
+          size="small"
+          pagination={false}
+          locale={{ emptyText: <EmptyState message="ยังไม่มี Payslip" hint="ระบบจะสร้าง Payslip อัตโนมัติเมื่อประมวลผล Payroll" /> }}
+          columns={[
+            {
+              title: 'พนักงาน', key: 'employee', width: 200,
+              render: (_, r) => (
+                <div>
+                  <div style={{ fontWeight: 500 }}>{r.employee_name || '-'}</div>
+                  <div style={{ fontSize: 11, color: COLORS.textMuted }}>{r.employee_code || ''}</div>
+                </div>
+              ),
+            },
+            {
+              title: 'เงินเดือน', dataIndex: 'base_salary', width: 120, align: 'right',
+              render: (v) => <span style={{ fontFamily: 'monospace' }}>{formatCurrency(v)}</span>,
+            },
+            {
+              title: 'OT', dataIndex: 'ot_amount', width: 100, align: 'right',
+              render: (v) => <span style={{ fontFamily: 'monospace', color: (parseFloat(v) || 0) > 0 ? COLORS.success : COLORS.textMuted }}>{formatCurrency(v)}</span>,
+            },
+            {
+              title: 'Gross', dataIndex: 'gross_amount', width: 120, align: 'right',
+              render: (v) => <span style={{ fontFamily: 'monospace', fontWeight: 500 }}>{formatCurrency(v)}</span>,
+            },
+            {
+              title: 'หัก', dataIndex: 'deductions', width: 100, align: 'right',
+              render: (v) => <span style={{ fontFamily: 'monospace', color: (parseFloat(v) || 0) > 0 ? COLORS.error : COLORS.textMuted }}>{formatCurrency(v)}</span>,
+            },
+            {
+              title: 'สุทธิ', dataIndex: 'net_amount', width: 120, align: 'right',
+              render: (v) => <span style={{ fontFamily: 'monospace', fontWeight: 600, color: COLORS.accent }}>{formatCurrency(v)}</span>,
+            },
+            {
+              title: 'สถานะ', dataIndex: 'status', width: 100,
+              render: (v) => <StatusBadge status={v} />,
+            },
+          ]}
+        />
+      </Modal>
     </div>
   );
 }

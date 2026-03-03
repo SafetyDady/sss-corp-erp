@@ -794,9 +794,13 @@ GET    /api/hr/employees                    hr.employee.read
 POST   /api/hr/employees                    hr.employee.create
 PUT    /api/hr/employees/{id}              hr.employee.update
 DELETE /api/hr/employees/{id}              hr.employee.delete
+PUT    /api/hr/employees/me                 — (JWT, self only)     (body: ProfileSelfUpdate)
 GET    /api/hr/payroll                      hr.payroll.read
 POST   /api/hr/payroll/run                  hr.payroll.execute
 GET    /api/hr/payroll/export               hr.payroll.export
+GET    /api/hr/payslips/me                  hr.payroll.read      (staff: own RELEASED only)
+GET    /api/hr/payroll/{id}/payslips        hr.payroll.read      (manager/owner: all)
+POST   /api/hr/payroll/{id}/release         hr.payroll.execute   (DRAFT→RELEASED)
 GET    /api/hr/leave                        hr.leave.read        (?status=PENDING|APPROVED|REJECTED)
 POST   /api/hr/leave                        hr.leave.create
 POST   /api/hr/leave/{id}/approve           hr.leave.approve     (body: {action: "approve"|"reject"})
@@ -851,6 +855,8 @@ GET    /api/admin/config/work               admin.config.read
 PUT    /api/admin/config/work               admin.config.update
 GET    /api/admin/config/approval           admin.config.read
 PUT    /api/admin/config/approval           admin.config.update
+GET    /api/admin/dept-menu                 admin.config.read    (?department_id=)
+PUT    /api/admin/dept-menu                 admin.config.update  (body: DeptMenuConfigUpdate)
 ```
 
 ### Department (Phase 4.1)
@@ -1316,6 +1322,9 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/admin/PerformancePage.jsx` | AI Performance Dashboard (Phase 14) |
 | `frontend/src/components/PerformanceAIChat.jsx` | AI Chat panel for performance Q&A (Phase 14) |
 | `frontend/src/utils/performance.js` | Web Vitals + API timing collection (Phase 14) |
+| `frontend/src/pages/admin/DeptMenuConfigTab.jsx` | G6: Dept menu template config per department (Go-Live) |
+| `frontend/src/pages/my/MyPayslipTab.jsx` | G7: Staff payslip viewer — RELEASED only (Go-Live) |
+| `frontend/src/pages/my/ProfileEditModal.jsx` | G7: Self-edit full_name + position modal (Go-Live) |
 | `SYSTEM_OVERVIEW_V3.md` | PRD ฉบับสมบูรณ์ — 4 ส่วน (A:ระบบปัจจุบัน, B:แผน, C:ช่องว่าง, D:ลำดับ) + UX assessment ต่อ module |
 | `SYSTEM_OVERVIEW_V3.docx` | Word export สำหรับ Owner review ด้วย Track Changes |
 | `convert_to_docx.py` | Python script แปลง MD → Word (.docx) ด้วย python-docx |
@@ -1341,4 +1350,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v15 (Phase 0-7.9 complete + Phase 11 partial: Stock-Location + Low Stock + QR Code + Delivery Note + Supplier + Stock Withdrawal + Withdrawal Slip, Phase 8-14 planned)*
+*End of CLAUDE.md — SSS Corp ERP v16 (Phase 0-7.9 complete + Phase 11 partial + Go-Live Gate G1-G7 complete: SPAREPART, Bin, Direct PO Cost, Sourcer, GR 2 Modes, Dept Menu Template, Self-service MVP, Phase 8-14 planned)*

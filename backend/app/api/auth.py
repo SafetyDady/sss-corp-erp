@@ -174,6 +174,13 @@ async def get_me(
     working_days = work_config.working_days if work_config else [1, 2, 3, 4, 5]
     hours_per_day = float(work_config.hours_per_day) if work_config and work_config.hours_per_day else 8.0
 
+    # Go-Live G6: Dept menu visibility
+    from app.services.organization import get_dept_menu
+    dept_menu = await get_dept_menu(
+        db, org_id,
+        department_id=employee.department_id if employee else None,
+    )
+
     return UserMe(
         id=user.id,
         email=user.email,
@@ -191,6 +198,7 @@ async def get_me(
         work_schedule_id=employee.work_schedule_id if employee else None,
         working_days=working_days,
         hours_per_day=hours_per_day,
+        dept_menu=dept_menu,
     )
 
 

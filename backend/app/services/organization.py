@@ -13,9 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.organization import (
     Department,
+    DeptMenuConfig,
     OrgApprovalConfig,
     OrgWorkConfig,
     Organization,
+    VALID_MENU_KEYS,
 )
 from app.schemas.organization import VALID_APPROVAL_MODULES
 
@@ -310,3 +312,121 @@ async def check_approval_bypass(
     if config is None:
         return False  # Default: approval required
     return not config.require_approval
+
+
+# ============================================================
+# DEPT MENU CONFIG  (Go-Live G6)
+# ============================================================
+
+async def get_dept_menu(
+    db: AsyncSession,
+    org_id: UUID,
+    department_id: Optional[UUID] = None,
+) -> dict[str, bool]:
+    """
+    Get menu visibility for a department.
+    Priority: department-specific → org-wide default → all visible.
+    Returns dict like {"supply-chain": true, "hr": false, ...}
+    """
+    # Start with all menus visible
+    menu = {key: True for key in VALID_MENU_KEYS}
+
+    # Try org-wide default first (department_id IS NULL)
+    result = await db.execute(
+        select(DeptMenuConfig).where(
+            DeptMenuConfig.org_id == org_id,
+            DeptMenuConfig.department_id.is_(None),
+        )
+    )
+    org_defaults = list(result.scalars().all())
+    for cfg in org_defaults:
+        if cfg.menu_key in menu:
+            menu[cfg.menu_key] = cfg.is_visible
+
+    # Then overlay department-specific config (if any)
+    if department_id:
+        result = await db.execute(
+            select(DeptMenuConfig).where(
+                DeptMenuConfig.org_id == org_id,
+                DeptMenuConfig.department_id == department_id,
+            )
+        )
+        dept_configs = list(result.scalars().all())
+        for cfg in dept_configs:
+            if cfg.menu_key in menu:
+                menu[cfg.menu_key] = cfg.is_visible
+
+    return menu
+
+
+async def get_dept_menu_configs(
+    db: AsyncSession,
+    org_id: UUID,
+    department_id: Optional[UUID] = None,
+) -> list[DeptMenuConfig]:
+    """Get raw DeptMenuConfig rows for admin view."""
+    query = select(DeptMenuConfig).where(DeptMenuConfig.org_id == org_id)
+    if department_id is not None:
+        query = query.where(DeptMenuConfig.department_id == department_id)
+    else:
+        query = query.where(DeptMenuConfig.department_id.is_(None))
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
+async def update_dept_menu(
+    db: AsyncSession,
+    org_id: UUID,
+    department_id: Optional[UUID],
+    items: list[dict],
+) -> list[DeptMenuConfig]:
+    """Upsert menu config for a department (or org-wide default)."""
+    # Get existing configs for this dept
+    if department_id is not None:
+        existing_result = await db.execute(
+            select(DeptMenuConfig).where(
+                DeptMenuConfig.org_id == org_id,
+                DeptMenuConfig.department_id == department_id,
+            )
+        )
+    else:
+        existing_result = await db.execute(
+            select(DeptMenuConfig).where(
+                DeptMenuConfig.org_id == org_id,
+                DeptMenuConfig.department_id.is_(None),
+            )
+        )
+    existing = {c.menu_key: c for c in existing_result.scalars().all()}
+
+    for item in items:
+        key = item["menu_key"]
+        visible = item["is_visible"]
+        if key in existing:
+            existing[key].is_visible = visible
+        else:
+            new_cfg = DeptMenuConfig(
+                org_id=org_id,
+                department_id=department_id,
+                menu_key=key,
+                is_visible=visible,
+            )
+            db.add(new_cfg)
+
+    await db.commit()
+
+    # Re-fetch all
+    if department_id is not None:
+        result = await db.execute(
+            select(DeptMenuConfig).where(
+                DeptMenuConfig.org_id == org_id,
+                DeptMenuConfig.department_id == department_id,
+            )
+        )
+    else:
+        result = await db.execute(
+            select(DeptMenuConfig).where(
+                DeptMenuConfig.org_id == org_id,
+                DeptMenuConfig.department_id.is_(None),
+            )
+        )
+    return list(result.scalars().all())
