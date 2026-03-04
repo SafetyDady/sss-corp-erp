@@ -4,6 +4,7 @@ Phase 1: CostCenter, CostElement, OTType
 Phase 4.3: LeaveType
 Phase 4.9: ShiftType, WorkSchedule (Shift Management)
 Phase 11: Supplier (Supplier Master Data)
+Phase C5.2: WHTType (Withholding Tax Type)
 
 Business Rules:
   BR#9  — cost_center_id must be integer/UUID (not string)
@@ -12,6 +13,7 @@ Business Rules:
   BR#25 — OT defaults: weekday 1.5×, weekend 2.0×, holiday 3.0×
   BR#29 — Admin adjusts Factor + Max Ceiling in Master Data
   BR#30 — Overhead Rate per Cost Center (not one rate for all)
+  BR#107-112 — WHT rates, PO-only, base=subtotal (ก่อน VAT)
 """
 
 import enum
@@ -284,6 +286,48 @@ class WorkSchedule(Base, TimestampMixin, OrgMixin):
 
 
 # ============================================================
+# WHT TYPE  (Phase C5.2 — Withholding Tax Type)
+# ============================================================
+
+class WHTType(Base, TimestampMixin, OrgMixin):
+    """
+    Withholding Tax (WHT) type master data — ประเภทภาษีหัก ณ ที่จ่าย.
+    Common Thai rates: 1% transport, 2% advertising, 3% services, 5% rental.
+    BR#107: WHT rates managed via master data.
+    BR#110: wht_rate >= 0 AND <= 100.
+    """
+    __tablename__ = "wht_types"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    code: Mapped[str] = mapped_column(
+        String(50), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    section: Mapped[str | None] = mapped_column(
+        String(100), nullable=True,
+        comment="Legal section reference e.g. มาตรา 3 เตรส"
+    )
+    rate: Mapped[float] = mapped_column(
+        Numeric(5, 2), nullable=False, default=0
+    )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("org_id", "code", name="uq_wht_type_org_code"),
+        CheckConstraint(
+            "rate >= 0 AND rate <= 100",
+            name="ck_wht_type_rate_range",
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return f"<WHTType {self.code} rate={self.rate}%>"
+
+
+# ============================================================
 # SUPPLIER  (Phase 11 — Supplier Master Data)
 # ============================================================
 
@@ -291,6 +335,7 @@ class Supplier(Base, TimestampMixin, OrgMixin):
     """
     Supplier master data — vendor/supplier directory for purchasing.
     Each supplier has a unique code per org.
+    C5.2: default_wht_type_id for auto-fill on PO creation.
     """
     __tablename__ = "suppliers"
 
@@ -306,6 +351,12 @@ class Supplier(Base, TimestampMixin, OrgMixin):
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     address: Mapped[str | None] = mapped_column(Text, nullable=True)
     tax_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # C5.2: Default WHT type for auto-fill when creating PO
+    default_wht_type_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("wht_types.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     __table_args__ = (

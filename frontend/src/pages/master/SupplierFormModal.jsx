@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Modal, Form, Input, Switch, App, Typography } from 'antd';
+import { Modal, Form, Input, Switch, Select, App, Typography } from 'antd';
 import api from '../../services/api';
 
 const { Text } = Typography;
@@ -8,9 +8,15 @@ export default function SupplierFormModal({ open, editItem, onClose, onSuccess }
   const [form] = Form.useForm();
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
+  const [whtTypes, setWhtTypes] = useState([]);
 
   useEffect(() => {
     if (open) {
+      // Fetch WHT types for dropdown
+      api.get('/api/master/wht-types', { params: { limit: 500, offset: 0 } })
+        .then((res) => setWhtTypes((res.data.items || []).filter((w) => w.is_active)))
+        .catch(() => setWhtTypes([]));
+
       if (editItem) {
         form.setFieldsValue({
           code: editItem.code,
@@ -20,6 +26,7 @@ export default function SupplierFormModal({ open, editItem, onClose, onSuccess }
           phone: editItem.phone || '',
           address: editItem.address || '',
           tax_id: editItem.tax_id || '',
+          default_wht_type_id: editItem.default_wht_type_id || null,
           is_active: editItem.is_active,
         });
       } else {
@@ -39,6 +46,8 @@ export default function SupplierFormModal({ open, editItem, onClose, onSuccess }
         ['contact_name', 'email', 'phone', 'address', 'tax_id'].forEach((k) => {
           if (payload[k] === '') payload[k] = null;
         });
+        // Ensure default_wht_type_id is null if not selected
+        if (!payload.default_wht_type_id) payload.default_wht_type_id = null;
         await api.put(`/api/master/suppliers/${editItem.id}`, payload);
         message.success(`แก้ไขซัพพลายเออร์ "${values.name}" สำเร็จ`);
       } else {
@@ -46,6 +55,7 @@ export default function SupplierFormModal({ open, editItem, onClose, onSuccess }
         ['contact_name', 'email', 'phone', 'address', 'tax_id'].forEach((k) => {
           if (payload[k] === '') delete payload[k];
         });
+        if (!payload.default_wht_type_id) payload.default_wht_type_id = null;
         await api.post('/api/master/suppliers', payload);
         message.success(`เพิ่มซัพพลายเออร์ "${values.name}" สำเร็จ`);
       }
@@ -109,6 +119,17 @@ export default function SupplierFormModal({ open, editItem, onClose, onSuccess }
 
         <Form.Item name="tax_id" label="เลขประจำตัวผู้เสียภาษี">
           <Input placeholder="เช่น 0105536123456" maxLength={20} style={{ fontFamily: 'monospace' }} />
+        </Form.Item>
+
+        <Form.Item name="default_wht_type_id" label="ประเภทหัก ณ ที่จ่ายเริ่มต้น">
+          <Select
+            allowClear
+            placeholder="ไม่หัก ณ ที่จ่าย"
+            options={whtTypes.map((w) => ({
+              value: w.id,
+              label: `${w.code} — ${w.name} (${parseFloat(w.rate).toFixed(2)}%)`,
+            }))}
+          />
         </Form.Item>
 
         {editItem && (

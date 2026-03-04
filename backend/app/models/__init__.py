@@ -5,7 +5,7 @@ from app.models.inventory import (
 )
 from app.models.warehouse import Warehouse, Location, Bin, StockByBin
 from app.models.workorder import WorkOrder, WOStatus
-from app.models.master import CostCenter, CostElement, OTType, ShiftType, WorkSchedule, ScheduleType, Supplier
+from app.models.master import CostCenter, CostElement, OTType, ShiftType, WorkSchedule, ScheduleType, Supplier, WHTType
 from app.models.hr import Employee, Timesheet, TimesheetStatus, Leave, LeaveStatus, PayrollRun, PayrollStatus, PayType, ShiftRoster, PayrollSlip, PayrollSlipStatus
 from app.models.tools import Tool, ToolStatus, ToolCheckout
 from app.models.customer import Customer
@@ -91,6 +91,7 @@ __all__ = [
     "ReportStatus",
     "LineType",
     "Supplier",
+    "WHTType",
     "StockWithdrawalSlip",
     "StockWithdrawalSlipLine",
     "WithdrawalType",

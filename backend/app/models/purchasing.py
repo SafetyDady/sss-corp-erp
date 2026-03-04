@@ -255,6 +255,21 @@ class PurchaseOrder(Base, TimestampMixin, OrgMixin):
     total_amount: Mapped[Decimal] = mapped_column(
         Numeric(12, 2), nullable=False, default=Decimal("0.00")
     )
+    # --- WHT fields (C5.2 Withholding Tax) ---
+    wht_type_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("wht_types.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    wht_rate: Mapped[Decimal] = mapped_column(
+        Numeric(5, 2), nullable=False, default=Decimal("0.00")
+    )
+    wht_amount: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=Decimal("0.00")
+    )
+    net_payment: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=Decimal("0.00")
+    )
     # Cost tracking (inherited from PR)
     cost_center_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
@@ -288,6 +303,7 @@ class PurchaseOrder(Base, TimestampMixin, OrgMixin):
     supplier: Mapped["Supplier | None"] = relationship(
         "Supplier", foreign_keys=[supplier_id], lazy="joined"
     )
+    wht_type = relationship("WHTType", foreign_keys=[wht_type_id], lazy="joined")
 
     __table_args__ = (
         UniqueConstraint("org_id", "po_number", name="uq_po_org_number"),
@@ -295,6 +311,10 @@ class PurchaseOrder(Base, TimestampMixin, OrgMixin):
         CheckConstraint("subtotal_amount >= 0", name="ck_po_subtotal_positive"),
         CheckConstraint("vat_amount >= 0", name="ck_po_vat_amount_positive"),
         CheckConstraint("vat_rate >= 0 AND vat_rate <= 100", name="ck_po_vat_rate_range"),
+        # C5.2 WHT constraints
+        CheckConstraint("wht_rate >= 0 AND wht_rate <= 100", name="ck_po_wht_rate_range"),
+        CheckConstraint("wht_amount >= 0", name="ck_po_wht_amount_positive"),
+        CheckConstraint("net_payment >= 0", name="ck_po_net_payment_positive"),
     )
 
     def __repr__(self) -> str:

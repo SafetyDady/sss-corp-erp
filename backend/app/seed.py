@@ -16,6 +16,8 @@ Creates:
   - 1 Warehouse (WH-MAIN) + 3 Locations (RECEIVING, STORAGE, SHIPPING)
   - 5 Products (3 MATERIAL + 1 CONSUMABLE + 1 SERVICE)
   - 3 Tools (สว่าน, เครื่องเชื่อม, เครื่องตัดเลเซอร์)
+  - 4 WHT Types (ค่าขนส่ง 1%, ค่าโฆษณา 2%, ค่าบริการ 3%, ค่าเช่า 5%)
+  - 5 Suppliers (with default WHT types)
 """
 
 import asyncio
@@ -28,7 +30,7 @@ from app.core.database import AsyncSessionLocal, engine, Base
 from app.core.config import DEFAULT_ORG_ID
 from app.core.security import hash_password
 from app.models import User, Organization
-from app.models.master import CostCenter, OTType, LeaveType, ShiftType, WorkSchedule, ScheduleType, Supplier
+from app.models.master import CostCenter, OTType, LeaveType, ShiftType, WorkSchedule, ScheduleType, Supplier, WHTType
 from app.models.organization import Department, OrgTaxConfig
 from app.models.hr import Employee, LeaveBalance, PayType
 from app.models.warehouse import Warehouse, Location
@@ -110,6 +112,12 @@ SUP_ELEC_ID     = UUID("00000000-0000-0000-000c-000000000002")
 SUP_BOLT_ID     = UUID("00000000-0000-0000-000c-000000000003")
 SUP_CHEM_ID     = UUID("00000000-0000-0000-000c-000000000004")
 SUP_PROTECH_ID  = UUID("00000000-0000-0000-000c-000000000005")
+
+# WHT Types (C5.2)
+WHT_TRANSPORT_ID = UUID("00000000-0000-0000-000e-000000000001")
+WHT_ADVERTISE_ID = UUID("00000000-0000-0000-000e-000000000002")
+WHT_SERVICE_ID   = UUID("00000000-0000-0000-000e-000000000003")
+WHT_RENTAL_ID    = UUID("00000000-0000-0000-000e-000000000004")
 
 # Recharge Budgets
 RB_ADMIN_ID = UUID("00000000-0000-0000-000d-000000000001")
@@ -273,6 +281,21 @@ TOOLS = [
      "rate_per_hour": Decimal("500.00"), "description": "เครื่องตัดเลเซอร์ไฟเบอร์ 3kW"},
 ]
 
+WHT_TYPES = [
+    {"id": WHT_TRANSPORT_ID, "code": "WHT1", "name": "ค่าขนส่ง 1%",
+     "section": "มาตรา 3 เตรส (1)", "rate": Decimal("1.00"),
+     "description": "ภาษีหัก ณ ที่จ่าย ค่าขนส่ง"},
+    {"id": WHT_ADVERTISE_ID, "code": "WHT2", "name": "ค่าโฆษณา 2%",
+     "section": "มาตรา 3 เตรส (2)", "rate": Decimal("2.00"),
+     "description": "ภาษีหัก ณ ที่จ่าย ค่าโฆษณา"},
+    {"id": WHT_SERVICE_ID, "code": "WHT3", "name": "ค่าบริการ 3%",
+     "section": "มาตรา 3 เตรส (3)", "rate": Decimal("3.00"),
+     "description": "ภาษีหัก ณ ที่จ่าย ค่าจ้างทำของ/ค่าบริการ"},
+    {"id": WHT_RENTAL_ID, "code": "WHT5", "name": "ค่าเช่า 5%",
+     "section": "มาตรา 3 เตรส (5)", "rate": Decimal("5.00"),
+     "description": "ภาษีหัก ณ ที่จ่าย ค่าเช่าทรัพย์สิน"},
+]
+
 SUPPLIERS = [
     {
         "id": SUP_STEEL_ID, "code": "SUP-001",
@@ -282,6 +305,7 @@ SUPPLIERS = [
         "phone": "02-123-4567",
         "address": "123 ถ.พระราม 3 แขวงบางโพงพาง เขตยานนาวา กรุงเทพฯ 10120",
         "tax_id": "0105548012345",
+        "default_wht_type_id": WHT_TRANSPORT_ID,  # ค่าขนส่ง 1%
     },
     {
         "id": SUP_ELEC_ID, "code": "SUP-002",
@@ -291,6 +315,7 @@ SUPPLIERS = [
         "phone": "02-234-5678",
         "address": "456 ซ.สุขุมวิท 71 แขวงพระโขนง เขตวัฒนา กรุงเทพฯ 10110",
         "tax_id": "0105551023456",
+        "default_wht_type_id": WHT_SERVICE_ID,  # ค่าบริการ 3%
     },
     {
         "id": SUP_BOLT_ID, "code": "SUP-003",
@@ -300,6 +325,7 @@ SUPPLIERS = [
         "phone": "02-345-6789",
         "address": "789 ถ.เพชรเกษม แขวงบางแค เขตบางแค กรุงเทพฯ 10160",
         "tax_id": "0105553034567",
+        "default_wht_type_id": None,  # ไม่หัก WHT
     },
     {
         "id": SUP_CHEM_ID, "code": "SUP-004",
@@ -309,6 +335,7 @@ SUPPLIERS = [
         "phone": "02-456-7890",
         "address": "321 นิคมอุตสาหกรรมบางปู ถ.สุขุมวิท สมุทรปราการ 10280",
         "tax_id": "0105555045678",
+        "default_wht_type_id": WHT_SERVICE_ID,  # ค่าบริการ 3%
     },
     {
         "id": SUP_PROTECH_ID, "code": "SUP-005",
@@ -318,6 +345,7 @@ SUPPLIERS = [
         "phone": "02-567-8901",
         "address": "654 ถ.ศรีนครินทร์ แขวงหนองบอน เขตประเวศ กรุงเทพฯ 10250",
         "tax_id": "0105557056789",
+        "default_wht_type_id": WHT_SERVICE_ID,  # ค่าบริการ 3%
     },
 ]
 
@@ -658,7 +686,22 @@ async def seed():
             else:
                 print(f"  [Tool] {tool_data['code']} (exists)")
 
-        # ── 16. Suppliers ───────────────────────────────
+        # ── 16. WHT Types (C5.2) ─────────────────────────
+        print()
+        wht_count = 0
+        for wht_data in WHT_TYPES:
+            existing = await _check_exists(db, WHTType, id=wht_data["id"])
+            if not existing:
+                wht = WHTType(org_id=DEFAULT_ORG_ID, **wht_data)
+                db.add(wht)
+                print(f"  [WHT]  {wht_data['code']} — {wht_data['name']} ({wht_data['rate']}%)")
+                wht_count += 1
+            else:
+                print(f"  [WHT]  {wht_data['code']} (exists)")
+        if wht_count > 0:
+            await db.flush()  # WHT IDs needed for Suppliers.default_wht_type_id
+
+        # ── 17. Suppliers ───────────────────────────────
         print()
         for sup_data in SUPPLIERS:
             existing = await _check_exists(db, Supplier, id=sup_data["id"])
@@ -669,7 +712,7 @@ async def seed():
             else:
                 print(f"  [Sup]  {sup_data['code']} (exists)")
 
-        # ── 17. Fixed Recharge Budget (Phase C9) ──────────
+        # ── 18. Fixed Recharge Budget (Phase C9) ──────────
         print()
         existing_rb = await _check_exists(db, FixedRechargeBudget, id=RB_ADMIN_ID)
         if not existing_rb:
@@ -688,7 +731,7 @@ async def seed():
         else:
             print(f"  [RB]   CC-ADMIN budget (exists)")
 
-        # ── 18. OrgTaxConfig (Phase C5) ───────────────────
+        # ── 19. OrgTaxConfig (Phase C5) ───────────────────
         print()
         existing_tax = await _check_exists(db, OrgTaxConfig, org_id=DEFAULT_ORG_ID)
         if not existing_tax:
@@ -696,12 +739,17 @@ async def seed():
                 org_id=DEFAULT_ORG_ID,
                 vat_enabled=True,
                 default_vat_rate=Decimal("7.00"),
-                wht_enabled=False,
+                wht_enabled=True,
             )
             db.add(tax_cfg)
-            print(f"  [Tax]  OrgTaxConfig — VAT 7% enabled")
+            print(f"  [Tax]  OrgTaxConfig — VAT 7% + WHT enabled")
         else:
-            print(f"  [Tax]  OrgTaxConfig (exists)")
+            # C5.2: ensure wht_enabled is True for dev
+            if not existing_tax.wht_enabled:
+                existing_tax.wht_enabled = True
+                print(f"  [Tax]  OrgTaxConfig — WHT enabled (updated)")
+            else:
+                print(f"  [Tax]  OrgTaxConfig (exists)")
 
         # ----- COMMIT -----
         await db.commit()

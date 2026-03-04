@@ -1,11 +1,12 @@
 """
 SSS Corp ERP — Master Data Schemas (Pydantic v2)
-CostCenter, CostElement, OTType, LeaveType, ShiftType, WorkSchedule, Supplier
+CostCenter, CostElement, OTType, LeaveType, ShiftType, WorkSchedule, Supplier, WHTType
 
 Business Rules:
   BR#24 — Special OT Factor ≤ Maximum Ceiling
   BR#29 — Admin adjusts Factor + Max Ceiling in Master Data
   BR#30 — Overhead Rate per Cost Center (not one rate for all)
+  BR#107-112 — WHT rates, PO-only, base=subtotal (ก่อน VAT)
 """
 
 from datetime import date, datetime, time
@@ -347,6 +348,56 @@ class WorkScheduleListResponse(BaseModel):
 
 
 # ============================================================
+# WHT TYPE SCHEMAS  (Phase C5.2 — Withholding Tax)
+# ============================================================
+
+class WHTTypeCreate(BaseModel):
+    code: str = Field(min_length=1, max_length=50, description="Unique code per org e.g. WHT3")
+    name: str = Field(min_length=1, max_length=255, description="e.g. ค่าบริการ 3%")
+    section: Optional[str] = Field(default=None, max_length=100, description="Legal section e.g. มาตรา 3 เตรส")
+    rate: Decimal = Field(
+        default=Decimal("0.00"), ge=0, le=100, decimal_places=2,
+        description="WHT rate % (BR#110)"
+    )
+    description: Optional[str] = None
+
+    @field_validator("code")
+    @classmethod
+    def normalize_code(cls, v):
+        return v.strip().upper()
+
+
+class WHTTypeUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    section: Optional[str] = Field(default=None, max_length=100)
+    rate: Optional[Decimal] = Field(default=None, ge=0, le=100, decimal_places=2)
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class WHTTypeResponse(BaseModel):
+    id: UUID
+    code: str
+    name: str
+    section: Optional[str] = None
+    rate: Decimal
+    description: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class WHTTypeListResponse(BaseModel):
+    items: list[WHTTypeResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+# ============================================================
 # SUPPLIER SCHEMAS  (Phase 11 — Supplier Master Data)
 # ============================================================
 
@@ -358,6 +409,7 @@ class SupplierCreate(BaseModel):
     phone: Optional[str] = Field(default=None, max_length=50)
     address: Optional[str] = None
     tax_id: Optional[str] = Field(default=None, max_length=20)
+    default_wht_type_id: Optional[UUID] = Field(default=None, description="C5.2: Default WHT type for auto-fill on PO")
 
     @field_validator("code")
     @classmethod
@@ -372,6 +424,7 @@ class SupplierUpdate(BaseModel):
     phone: Optional[str] = Field(default=None, max_length=50)
     address: Optional[str] = None
     tax_id: Optional[str] = Field(default=None, max_length=20)
+    default_wht_type_id: Optional[UUID] = None
     is_active: Optional[bool] = None
 
 
@@ -384,6 +437,9 @@ class SupplierResponse(BaseModel):
     phone: Optional[str] = None
     address: Optional[str] = None
     tax_id: Optional[str] = None
+    default_wht_type_id: Optional[UUID] = None
+    default_wht_type_code: Optional[str] = None
+    default_wht_type_name: Optional[str] = None
     is_active: bool
     created_at: datetime
     updated_at: datetime

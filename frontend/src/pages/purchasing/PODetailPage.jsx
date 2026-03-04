@@ -171,6 +171,16 @@ export default function PODetailPage() {
           ) : (
             <Descriptions.Item label="ยอดรวม">{formatCurrency(po.total_amount)}</Descriptions.Item>
           )}
+          {Number(po.wht_rate) > 0 && (
+            <>
+              <Descriptions.Item label={`หัก ณ ที่จ่าย ${po.wht_type_name || ''} ${po.wht_rate}%`}>
+                <span style={{ color: COLORS.warning, fontWeight: 500 }}>-{formatCurrency(po.wht_amount)}</span>
+              </Descriptions.Item>
+              <Descriptions.Item label="ยอดชำระสุทธิ">
+                <span style={{ color: COLORS.success, fontWeight: 600 }}>{formatCurrency(po.net_payment)}</span>
+              </Descriptions.Item>
+            </>
+          )}
           <Descriptions.Item label="วันที่สั่ง">{formatDate(po.order_date)}</Descriptions.Item>
           <Descriptions.Item label="วันที่คาดรับ">{formatDate(po.expected_date)}</Descriptions.Item>
           {po.pr_number && (

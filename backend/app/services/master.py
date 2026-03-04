@@ -1,11 +1,12 @@
 """
 SSS Corp ERP — Master Data Service (Business Logic)
-CostCenter, CostElement, OTType, LeaveType, ShiftType, WorkSchedule
+CostCenter, CostElement, OTType, LeaveType, ShiftType, WorkSchedule, WHTType
 
 Business Rules enforced:
   BR#24 — Special OT Factor ≤ Maximum Ceiling
   BR#29 — Admin adjusts Factor + Max Ceiling in Master Data
   BR#30 — Overhead Rate per Cost Center (not one rate for all)
+  BR#107-112 — WHT rates, PO-only, base=subtotal (ก่อน VAT)
 """
 
 from datetime import date, time
@@ -17,7 +18,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.master import CostCenter, CostElement, LeaveType, OTType, ShiftType, WorkSchedule, ScheduleType, Supplier
+from app.models.master import CostCenter, CostElement, LeaveType, OTType, ShiftType, WorkSchedule, ScheduleType, Supplier, WHTType
 
 
 # ============================================================
@@ -709,6 +710,112 @@ async def delete_work_schedule(db: AsyncSession, ws_id: UUID, *, org_id: Optiona
 
 
 # ============================================================
+# WHT TYPE CRUD  (Phase C5.2 — Withholding Tax)
+# ============================================================
+
+async def create_wht_type(
+    db: AsyncSession,
+    *,
+    code: str,
+    name: str,
+    section: Optional[str] = None,
+    rate: Decimal = Decimal("0.00"),
+    description: Optional[str] = None,
+    org_id: UUID,
+) -> WHTType:
+    existing = await db.execute(
+        select(WHTType).where(
+            WHTType.org_id == org_id,
+            WHTType.code == code,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"WHT type with code '{code}' already exists",
+        )
+
+    wht = WHTType(
+        code=code,
+        name=name,
+        section=section,
+        rate=rate,
+        description=description,
+        org_id=org_id,
+    )
+    db.add(wht)
+    await db.commit()
+    await db.refresh(wht)
+    return wht
+
+
+async def get_wht_type(db: AsyncSession, wht_id: UUID, *, org_id: Optional[UUID] = None) -> WHTType:
+    query = select(WHTType).where(WHTType.id == wht_id, WHTType.is_active == True)
+    if org_id:
+        query = query.where(WHTType.org_id == org_id)
+    result = await db.execute(query)
+    wht = result.scalar_one_or_none()
+    if not wht:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="WHT type not found",
+        )
+    return wht
+
+
+async def list_wht_types(
+    db: AsyncSession,
+    *,
+    limit: int = 20,
+    offset: int = 0,
+    search: Optional[str] = None,
+    org_id: Optional[UUID] = None,
+) -> tuple[list[WHTType], int]:
+    query = select(WHTType).where(WHTType.is_active == True)
+    if org_id:
+        query = query.where(WHTType.org_id == org_id)
+
+    if search:
+        pattern = f"%{search}%"
+        query = query.where(
+            (WHTType.code.ilike(pattern)) | (WHTType.name.ilike(pattern))
+        )
+
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    query = query.order_by(WHTType.created_at.desc()).limit(limit).offset(offset)
+    result = await db.execute(query)
+    items = list(result.scalars().all())
+    return items, total
+
+
+async def update_wht_type(
+    db: AsyncSession,
+    wht_id: UUID,
+    *,
+    update_data: dict,
+    org_id: Optional[UUID] = None,
+) -> WHTType:
+    wht = await get_wht_type(db, wht_id, org_id=org_id)
+
+    for field, value in update_data.items():
+        if value is not None:
+            setattr(wht, field, value)
+
+    await db.commit()
+    await db.refresh(wht)
+    return wht
+
+
+async def delete_wht_type(db: AsyncSession, wht_id: UUID, *, org_id: Optional[UUID] = None) -> None:
+    wht = await get_wht_type(db, wht_id, org_id=org_id)
+    wht.is_active = False
+    await db.commit()
+
+
+# ============================================================
 # SUPPLIER CRUD  (Phase 11 — Supplier Master Data)
 # ============================================================
 
@@ -722,6 +829,7 @@ async def create_supplier(
     phone: Optional[str] = None,
     address: Optional[str] = None,
     tax_id: Optional[str] = None,
+    default_wht_type_id: Optional[UUID] = None,
     org_id: UUID,
 ) -> Supplier:
     existing = await db.execute(
@@ -744,6 +852,7 @@ async def create_supplier(
         phone=phone,
         address=address,
         tax_id=tax_id,
+        default_wht_type_id=default_wht_type_id,
         org_id=org_id,
     )
     db.add(supplier)

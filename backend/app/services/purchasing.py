@@ -361,9 +361,9 @@ async def convert_pr_to_po(
         subtotal += Decimal(str(pr_line.quantity)) * Decimal(str(cl["unit_cost"]))
 
     # C5 Tax: resolve VAT rate → calculate vat_amount → grand total
+    tax_config = await get_or_create_tax_config(db, org_id)
     vat_rate = body.get("vat_rate")
     if vat_rate is None:
-        tax_config = await get_or_create_tax_config(db, org_id)
         if tax_config.vat_enabled:
             vat_rate = tax_config.default_vat_rate
         else:
@@ -373,6 +373,47 @@ async def convert_pr_to_po(
 
     vat_amount = (subtotal * vat_rate / Decimal("100")).quantize(Decimal("0.01"))
     total_amount = subtotal + vat_amount
+
+    # C5.2 WHT: resolve WHT type → calc wht_amount → net_payment
+    # BR#111: WHT base = subtotal (ก่อน VAT) ตามกฎหมายไทย
+    wht_type_id = body.get("wht_type_id")
+    wht_rate = Decimal("0.00")
+
+    # Check org wht_enabled
+    if tax_config.wht_enabled:
+        if wht_type_id:
+            # User explicitly chose a WHT type
+            from app.models.master import WHTType
+            wht_result = await db.execute(
+                select(WHTType).where(WHTType.id == wht_type_id, WHTType.org_id == org_id, WHTType.is_active == True)
+            )
+            wht_type = wht_result.scalar_one_or_none()
+            if wht_type:
+                wht_rate = Decimal(str(wht_type.rate))
+            else:
+                wht_type_id = None  # Invalid WHT type → skip
+        elif body.get("supplier_id"):
+            # BR#112: Auto-fill from supplier default
+            from app.models.master import Supplier, WHTType
+            sup_result = await db.execute(
+                select(Supplier).where(Supplier.id == body["supplier_id"], Supplier.org_id == org_id)
+            )
+            supplier_obj = sup_result.scalar_one_or_none()
+            if supplier_obj and supplier_obj.default_wht_type_id:
+                wht_result = await db.execute(
+                    select(WHTType).where(WHTType.id == supplier_obj.default_wht_type_id, WHTType.is_active == True)
+                )
+                wht_type = wht_result.scalar_one_or_none()
+                if wht_type:
+                    wht_type_id = wht_type.id
+                    wht_rate = Decimal(str(wht_type.rate))
+    else:
+        # WHT disabled at org level
+        wht_type_id = None
+        wht_rate = Decimal("0.00")
+
+    wht_amount = (subtotal * wht_rate / Decimal("100")).quantize(Decimal("0.01"))
+    net_payment = total_amount - wht_amount
 
     po = PurchaseOrder(
         po_number=po_number,
@@ -386,6 +427,10 @@ async def convert_pr_to_po(
         vat_rate=vat_rate,
         vat_amount=vat_amount,
         total_amount=total_amount,
+        wht_type_id=wht_type_id,
+        wht_rate=wht_rate,
+        wht_amount=wht_amount,
+        net_payment=net_payment,
         cost_center_id=pr.cost_center_id,
         note=body.get("note"),
         created_by=created_by,

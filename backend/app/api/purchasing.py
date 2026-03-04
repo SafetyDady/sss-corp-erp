@@ -533,6 +533,18 @@ def _po_to_response(po) -> dict:
         supplier_contact = supplier.contact_name
         supplier_phone = supplier.phone
 
+    # C5.2 WHT enrichment
+    wht_type_id = getattr(po, "wht_type_id", None)
+    wht_type_code = None
+    wht_type_name = None
+    wht_type_obj = getattr(po, "wht_type", None)
+    if wht_type_obj:
+        wht_type_code = wht_type_obj.code
+        wht_type_name = wht_type_obj.name
+    wht_rate = getattr(po, "wht_rate", 0)
+    wht_amount = getattr(po, "wht_amount", 0)
+    net_payment = getattr(po, "net_payment", 0)
+
     return {
         "id": po.id,
         "po_number": po.po_number,
@@ -550,6 +562,12 @@ def _po_to_response(po) -> dict:
         "vat_rate": getattr(po, "vat_rate", 0),
         "vat_amount": getattr(po, "vat_amount", 0),
         "total_amount": po.total_amount,
+        "wht_type_id": wht_type_id,
+        "wht_type_code": wht_type_code,
+        "wht_type_name": wht_type_name,
+        "wht_rate": wht_rate,
+        "wht_amount": wht_amount,
+        "net_payment": net_payment,
         "cost_center_id": po.cost_center_id,
         "note": po.note,
         "delivery_note_number": getattr(po, "delivery_note_number", None),

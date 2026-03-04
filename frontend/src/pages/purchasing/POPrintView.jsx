@@ -9,6 +9,9 @@ const POPrintView = forwardRef(function POPrintView({ po, products, orgName, org
   const vatRate = Number(po.vat_rate) || 0;
   const vatAmount = po.vat_amount != null ? Number(po.vat_amount) : 0;
   const totalAmount = po.total_amount != null ? Number(po.total_amount) : subtotal;
+  const whtRate = Number(po.wht_rate) || 0;
+  const whtAmount = Number(po.wht_amount) || 0;
+  const netPayment = Number(po.net_payment) || totalAmount;
 
   return (
     <div className="erp-print-content" ref={ref} style={PS.container}>
@@ -114,16 +117,31 @@ const POPrintView = forwardRef(function POPrintView({ po, products, orgName, org
                 <td colSpan={6} style={{ ...PS.td, textAlign: 'right' }}>VAT {vatRate}%</td>
                 <td style={PS.tdRight}>{formatCurrencyPrint(vatAmount)}</td>
               </tr>
-              <tr className="summary-row">
-                <td colSpan={6} style={{ ...PS.summaryRow, textAlign: 'right' }}>{'ยอดรวมทั้งสิ้น'}</td>
-                <td style={PS.summaryRow}>{formatCurrencyPrint(totalAmount)}</td>
+              <tr className={whtRate > 0 ? '' : 'summary-row'}>
+                <td colSpan={6} style={{ ...(whtRate > 0 ? { ...PS.td, textAlign: 'right', fontWeight: 500 } : { ...PS.summaryRow, textAlign: 'right' }) }}>{'ยอดรวมทั้งสิ้น'}</td>
+                <td style={whtRate > 0 ? { ...PS.tdRight, fontWeight: 500 } : PS.summaryRow}>{formatCurrencyPrint(totalAmount)}</td>
               </tr>
             </>
           ) : (
-            <tr className="summary-row">
-              <td colSpan={6} style={{ ...PS.summaryRow, textAlign: 'right' }}>{'ยอดรวม'}</td>
-              <td style={PS.summaryRow}>{formatCurrencyPrint(totalAmount)}</td>
+            <tr className={whtRate > 0 ? '' : 'summary-row'}>
+              <td colSpan={6} style={{ ...(whtRate > 0 ? { ...PS.td, textAlign: 'right', fontWeight: 500 } : { ...PS.summaryRow, textAlign: 'right' }) }}>{'ยอดรวม'}</td>
+              <td style={whtRate > 0 ? { ...PS.tdRight, fontWeight: 500 } : PS.summaryRow}>{formatCurrencyPrint(totalAmount)}</td>
             </tr>
+          )}
+          {/* WHT + Net Payment rows */}
+          {whtRate > 0 && (
+            <>
+              <tr>
+                <td colSpan={6} style={{ ...PS.td, textAlign: 'right' }}>
+                  {'หัก ณ ที่จ่าย'} {po.wht_type_name || ''} {whtRate}%
+                </td>
+                <td style={PS.tdRight}>-{formatCurrencyPrint(whtAmount)}</td>
+              </tr>
+              <tr className="summary-row">
+                <td colSpan={6} style={{ ...PS.summaryRow, textAlign: 'right' }}>{'ยอดชำระสุทธิ'}</td>
+                <td style={PS.summaryRow}>{formatCurrencyPrint(netPayment)}</td>
+              </tr>
+            </>
           )}
         </tbody>
       </table>

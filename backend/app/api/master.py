@@ -54,6 +54,10 @@ from app.schemas.master import (
     SupplierListResponse,
     SupplierResponse,
     SupplierUpdate,
+    WHTTypeCreate,
+    WHTTypeListResponse,
+    WHTTypeResponse,
+    WHTTypeUpdate,
     WorkScheduleCreate,
     WorkScheduleListResponse,
     WorkScheduleResponse,
@@ -72,6 +76,7 @@ from app.services.master import (
     create_ot_type,
     create_shift_type,
     create_supplier,
+    create_wht_type,
     create_work_schedule,
     delete_cost_center,
     delete_cost_element,
@@ -79,6 +84,7 @@ from app.services.master import (
     delete_ot_type,
     delete_shift_type,
     delete_supplier,
+    delete_wht_type,
     delete_work_schedule,
     get_cost_center,
     get_cost_element,
@@ -86,6 +92,7 @@ from app.services.master import (
     get_ot_type,
     get_shift_type,
     get_supplier,
+    get_wht_type,
     get_work_schedule,
     list_cost_centers,
     list_cost_elements,
@@ -93,6 +100,7 @@ from app.services.master import (
     list_ot_types,
     list_shift_types,
     list_suppliers,
+    list_wht_types,
     list_work_schedules,
     update_cost_center,
     update_cost_element,
@@ -100,6 +108,7 @@ from app.services.master import (
     update_ot_type,
     update_shift_type,
     update_supplier,
+    update_wht_type,
     update_work_schedule,
 )
 from app.services.organization import (
@@ -744,6 +753,99 @@ async def api_delete_work_schedule(
 
 
 # ============================================================
+# WHT TYPE ROUTES  (Phase C5.2 — Withholding Tax)
+# ============================================================
+
+@master_router.get(
+    "/wht-types",
+    response_model=WHTTypeListResponse,
+    dependencies=[Depends(require("master.whttype.read"))],
+)
+async def api_list_wht_types(
+    limit: int = Query(default=20, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    search: Optional[str] = Query(default=None, max_length=100),
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """List WHT types with pagination and search."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    items, total = await list_wht_types(db, limit=limit, offset=offset, search=search, org_id=org_id)
+    return WHTTypeListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+@master_router.post(
+    "/wht-types",
+    response_model=WHTTypeResponse,
+    status_code=201,
+    dependencies=[Depends(require("master.whttype.create"))],
+)
+async def api_create_wht_type(
+    body: WHTTypeCreate,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Create a new WHT type (BR#107: WHT rates managed via master data)."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await create_wht_type(
+        db,
+        code=body.code,
+        name=body.name,
+        section=body.section,
+        rate=body.rate,
+        description=body.description,
+        org_id=org_id,
+    )
+
+
+@master_router.get(
+    "/wht-types/{wht_id}",
+    response_model=WHTTypeResponse,
+    dependencies=[Depends(require("master.whttype.read"))],
+)
+async def api_get_wht_type(
+    wht_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Get a single WHT type by ID."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await get_wht_type(db, wht_id, org_id=org_id)
+
+
+@master_router.put(
+    "/wht-types/{wht_id}",
+    response_model=WHTTypeResponse,
+    dependencies=[Depends(require("master.whttype.update"))],
+)
+async def api_update_wht_type(
+    wht_id: UUID,
+    body: WHTTypeUpdate,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Update a WHT type."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    update_data = body.model_dump(exclude_unset=True)
+    return await update_wht_type(db, wht_id, update_data=update_data, org_id=org_id)
+
+
+@master_router.delete(
+    "/wht-types/{wht_id}",
+    status_code=204,
+    dependencies=[Depends(require("master.whttype.delete"))],
+)
+async def api_delete_wht_type(
+    wht_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Soft-delete a WHT type."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    await delete_wht_type(db, wht_id, org_id=org_id)
+
+
+# ============================================================
 # SUPPLIER ROUTES  (Phase 11 — Supplier Master Data)
 # ============================================================
 
@@ -762,7 +864,8 @@ async def api_list_suppliers(
     """List suppliers with pagination and search."""
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     items, total = await list_suppliers(db, limit=limit, offset=offset, search=search, org_id=org_id)
-    return SupplierListResponse(items=items, total=total, limit=limit, offset=offset)
+    response_items = [await _supplier_to_response(db, s) for s in items]
+    return SupplierListResponse(items=response_items, total=total, limit=limit, offset=offset)
 
 
 @master_router.post(
@@ -778,7 +881,7 @@ async def api_create_supplier(
 ):
     """Create a new supplier."""
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
-    return await create_supplier(
+    supplier = await create_supplier(
         db,
         code=body.code,
         name=body.name,
@@ -787,8 +890,10 @@ async def api_create_supplier(
         phone=body.phone,
         address=body.address,
         tax_id=body.tax_id,
+        default_wht_type_id=body.default_wht_type_id,
         org_id=org_id,
     )
+    return await _supplier_to_response(db, supplier)
 
 
 @master_router.get(
@@ -803,7 +908,8 @@ async def api_get_supplier(
 ):
     """Get a single supplier by ID."""
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
-    return await get_supplier(db, supplier_id, org_id=org_id)
+    supplier = await get_supplier(db, supplier_id, org_id=org_id)
+    return await _supplier_to_response(db, supplier)
 
 
 @master_router.put(
@@ -820,7 +926,8 @@ async def api_update_supplier(
     """Update a supplier."""
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
-    return await update_supplier(db, supplier_id, update_data=update_data, org_id=org_id)
+    supplier = await update_supplier(db, supplier_id, update_data=update_data, org_id=org_id)
+    return await _supplier_to_response(db, supplier)
 
 
 @master_router.delete(
@@ -836,3 +943,37 @@ async def api_delete_supplier(
     """Soft-delete a supplier."""
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     await delete_supplier(db, supplier_id, org_id=org_id)
+
+
+# ============================================================
+# RESPONSE HELPERS
+# ============================================================
+
+async def _supplier_to_response(db: AsyncSession, supplier) -> dict:
+    """Enrich supplier with WHT type info for response."""
+    wht_code = None
+    wht_name = None
+    if supplier.default_wht_type_id:
+        try:
+            wht = await get_wht_type(db, supplier.default_wht_type_id)
+            wht_code = wht.code
+            wht_name = wht.name
+        except Exception:
+            pass
+
+    return {
+        "id": supplier.id,
+        "code": supplier.code,
+        "name": supplier.name,
+        "contact_name": supplier.contact_name,
+        "email": supplier.email,
+        "phone": supplier.phone,
+        "address": supplier.address,
+        "tax_id": supplier.tax_id,
+        "default_wht_type_id": supplier.default_wht_type_id,
+        "default_wht_type_code": wht_code,
+        "default_wht_type_name": wht_name,
+        "is_active": supplier.is_active,
+        "created_at": supplier.created_at,
+        "updated_at": supplier.updated_at,
+    }

@@ -62,6 +62,7 @@ export const RESOURCE_META = {
   schedule:    'ตารางกะ',
   roster:      'ตารางเข้ากะ',
   supplier:    'ซัพพลายเออร์',
+  whttype:     'ประเภทหัก ณ ที่จ่าย',
   withdrawal:  'ใบเบิกของ',
   recharge:    'Internal Recharge',
 };

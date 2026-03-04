@@ -141,6 +141,11 @@ ALL_PERMISSIONS: list[str] = [
     "master.supplier.read",
     "master.supplier.update",
     "master.supplier.delete",
+    # Phase C5.2: WHT Type (Withholding Tax)
+    "master.whttype.create",
+    "master.whttype.read",
+    "master.whttype.update",
+    "master.whttype.delete",
 
     # --- admin (8 + 2 = 10) ---
     "admin.role.create",
@@ -197,8 +202,8 @@ ALL_PERMISSIONS: list[str] = [
     "hr.roster.read",
 ]
 
-assert len(ALL_PERMISSIONS) == 139, f"Expected 139 permissions, got {len(ALL_PERMISSIONS)}"
-assert len(set(ALL_PERMISSIONS)) == 139, "Duplicate permissions found!"
+assert len(ALL_PERMISSIONS) == 143, f"Expected 143 permissions, got {len(ALL_PERMISSIONS)}"
+assert len(set(ALL_PERMISSIONS)) == 143, "Duplicate permissions found!"
 
 
 # ============================================================
@@ -313,6 +318,11 @@ PERMISSION_DESCRIPTIONS: dict[str, str] = {
     "master.supplier.read": "ดูรายชื่อซัพพลายเออร์",
     "master.supplier.update": "แก้ไขข้อมูลซัพพลายเออร์",
     "master.supplier.delete": "ลบซัพพลายเออร์ (Owner เท่านั้น)",
+    # Phase C5.2: WHT Type
+    "master.whttype.create": "สร้างประเภทภาษีหัก ณ ที่จ่ายใหม่",
+    "master.whttype.read": "ดูรายการประเภทภาษีหัก ณ ที่จ่าย",
+    "master.whttype.update": "แก้ไขประเภทภาษีหัก ณ ที่จ่าย",
+    "master.whttype.delete": "ลบประเภทภาษีหัก ณ ที่จ่าย (Owner เท่านั้น)",
     # --- admin (10) ---
     "admin.role.create": "สร้างบทบาทใหม่ (สำรองสำหรับอนาคต)",
     "admin.role.read": "ดูรายการบทบาทและสิทธิ์ทั้งหมด",
@@ -373,7 +383,7 @@ assert set(PERMISSION_DESCRIPTIONS.keys()) == set(ALL_PERMISSIONS), \
 # Legend:  ✅ = granted  ❌ = denied
 
 def _owner() -> set[str]:
-    """Owner: ALL 139 permissions."""
+    """Owner: ALL 143 permissions."""
     return set(ALL_PERMISSIONS)
 
 
@@ -410,6 +420,7 @@ def _manager() -> set[str]:
         "master.shifttype.delete",
         "master.schedule.delete",
         "master.supplier.delete",
+        "master.whttype.delete",
         "customer.customer.delete",
         "tools.tool.delete",
         "hr.employee.delete",
@@ -494,6 +505,10 @@ def _supervisor() -> set[str]:
         "master.supplier.create",
         "master.supplier.read",
         "master.supplier.update",
+        # WHT Type (C5.2)
+        "master.whttype.create",
+        "master.whttype.read",
+        "master.whttype.update",
         # Customer
         "customer.customer.create",
         "customer.customer.read",
@@ -568,6 +583,7 @@ def _staff() -> set[str]:
         "master.department.read",
         "master.leavetype.read",
         "master.supplier.read",
+        "master.whttype.read",
         # Customer
         "customer.customer.read",
         # Tools
@@ -624,6 +640,7 @@ def _viewer() -> set[str]:
         "master.department.read",
         "master.leavetype.read",
         "master.supplier.read",
+        "master.whttype.read",
         # Customer
         "customer.customer.read",
         "customer.customer.export",

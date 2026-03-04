@@ -229,6 +229,7 @@ class ConvertToPORequest(BaseModel):
     note: Optional[str] = None
     vat_rate: Optional[Decimal] = Field(default=None, ge=0, le=100, decimal_places=2,
                                          description="VAT rate %. None = use org default")
+    wht_type_id: Optional[UUID] = Field(default=None, description="C5.2: WHT type to apply. None = auto-fill from supplier default")
     lines: list[ConvertToPOLine] = Field(min_length=1)
 
 
@@ -298,6 +299,13 @@ class PurchaseOrderResponse(BaseModel):
     vat_rate: Decimal
     vat_amount: Decimal
     total_amount: Decimal
+    # C5.2 WHT fields
+    wht_type_id: Optional[UUID] = None
+    wht_type_code: Optional[str] = None
+    wht_type_name: Optional[str] = None
+    wht_rate: Decimal = Decimal("0.00")
+    wht_amount: Decimal = Decimal("0.00")
+    net_payment: Decimal = Decimal("0.00")
     cost_center_id: Optional[UUID] = None
     note: Optional[str] = None
     delivery_note_number: Optional[str] = None

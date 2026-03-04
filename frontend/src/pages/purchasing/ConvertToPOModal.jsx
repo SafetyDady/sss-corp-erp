@@ -14,19 +14,26 @@ export default function ConvertToPOModal({ open, pr, products, onClose, onSucces
   const [suppliersLoading, setSuppliersLoading] = useState(false);
   const [vatEnabled, setVatEnabled] = useState(true);
   const [vatRate, setVatRate] = useState(7);
+  const [whtEnabled, setWhtEnabled] = useState(false);
+  const [whtTypes, setWhtTypes] = useState([]);
+  const [selectedWhtTypeId, setSelectedWhtTypeId] = useState(null);
   const { message } = App.useApp();
 
   useEffect(() => {
     if (open) {
       setSuppliersLoading(true);
+      setSelectedWhtTypeId(null);
       Promise.all([
         api.get('/api/master/suppliers', { params: { limit: 500, offset: 0 } }),
-        api.get('/api/admin/config/tax').catch(() => ({ data: { vat_enabled: true, default_vat_rate: 7 } })),
-      ]).then(([suppRes, taxRes]) => {
+        api.get('/api/admin/config/tax').catch(() => ({ data: { vat_enabled: true, default_vat_rate: 7, wht_enabled: false } })),
+        api.get('/api/master/wht-types', { params: { limit: 500, offset: 0 } }).catch(() => ({ data: { items: [] } })),
+      ]).then(([suppRes, taxRes, whtRes]) => {
         setSuppliers(suppRes.data.items || []);
         const taxCfg = taxRes.data;
         setVatEnabled(taxCfg.vat_enabled);
         setVatRate(Number(taxCfg.default_vat_rate) || 7);
+        setWhtEnabled(!!taxCfg.wht_enabled);
+        setWhtTypes((whtRes.data.items || []).filter((w) => w.is_active));
       }).catch(() => {
         setSuppliers([]);
       }).finally(() => setSuppliersLoading(false));
@@ -56,6 +63,7 @@ export default function ConvertToPOModal({ open, pr, products, onClose, onSucces
         expected_date: values.expected_date?.format('YYYY-MM-DD') || null,
         note: values.note || null,
         vat_rate: vatEnabled ? vatRate : 0,
+        wht_type_id: whtEnabled ? selectedWhtTypeId || null : null,
         lines: pr.lines.map((line) => ({
           pr_line_id: line.id,
           unit_cost: getLineCost(line.id, line.estimated_unit_cost),
@@ -149,6 +157,12 @@ export default function ConvertToPOModal({ open, pr, products, onClose, onSucces
   const vatAmount = Math.round(subtotal * effectiveRate) / 100;
   const grandTotal = subtotal + vatAmount;
 
+  // WHT calculation (base = subtotal, before VAT per Thai law)
+  const selectedWht = whtTypes.find((w) => w.id === selectedWhtTypeId);
+  const whtRate = whtEnabled && selectedWht ? Number(selectedWht.rate) : 0;
+  const whtAmount = Math.round(subtotal * whtRate) / 100;
+  const netPayment = grandTotal - whtAmount;
+
   return (
     <Modal
       title="Convert PR to PO"
@@ -175,6 +189,12 @@ export default function ConvertToPOModal({ open, pr, products, onClose, onSucces
               placeholder="เลือกซัพพลายเออร์"
               loading={suppliersLoading}
               optionFilterProp="label"
+              onChange={(supplierId) => {
+                const sup = suppliers.find((s) => s.id === supplierId);
+                if (sup?.default_wht_type_id && whtEnabled) {
+                  setSelectedWhtTypeId(sup.default_wht_type_id);
+                }
+              }}
               options={suppliers.map((s) => ({
                 value: s.id,
                 label: `${s.code} — ${s.name}`,
@@ -200,9 +220,10 @@ export default function ConvertToPOModal({ open, pr, products, onClose, onSucces
         scroll={{ x: 800 }}
       />
 
-      {/* VAT Section */}
+      {/* VAT + WHT Section */}
       <div style={{ marginTop: 16, padding: '12px 16px', background: COLORS.surface, borderRadius: 6, border: `1px solid ${COLORS.border}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: vatEnabled ? 12 : 0 }}>
+        {/* VAT controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
           <span style={{ fontWeight: 500, color: COLORS.text }}>VAT</span>
           <Switch checked={vatEnabled} onChange={setVatEnabled} size="small" />
           {vatEnabled && (
@@ -213,24 +234,50 @@ export default function ConvertToPOModal({ open, pr, products, onClose, onSucces
             />
           )}
         </div>
-        {vatEnabled && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
-            <div style={{ color: COLORS.textMuted, fontSize: 13 }}>
-              {'ยอดรวมก่อน VAT'}: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(subtotal)}</span>
-            </div>
+
+        {/* WHT controls */}
+        {whtEnabled && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
+            <span style={{ fontWeight: 500, color: COLORS.text }}>WHT</span>
+            <Select
+              allowClear
+              placeholder="ไม่หัก ณ ที่จ่าย"
+              value={selectedWhtTypeId}
+              onChange={setSelectedWhtTypeId}
+              style={{ width: 280 }}
+              size="small"
+              options={whtTypes.map((w) => ({
+                value: w.id,
+                label: `${w.code} — ${w.name} (${parseFloat(w.rate).toFixed(2)}%)`,
+              }))}
+            />
+          </div>
+        )}
+
+        {/* Summary */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+          <div style={{ color: COLORS.textMuted, fontSize: 13 }}>
+            {'ยอดรวมก่อน VAT'}: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(subtotal)}</span>
+          </div>
+          {vatEnabled && (
             <div style={{ color: COLORS.textMuted, fontSize: 13 }}>
               VAT {vatRate}%: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(vatAmount)}</span>
             </div>
-            <div style={{ color: COLORS.accent, fontWeight: 600, fontSize: 14 }}>
-              {'ยอดรวม PO'}: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(grandTotal)}</span>
-            </div>
+          )}
+          <div style={{ color: COLORS.accent, fontWeight: 600, fontSize: 14 }}>
+            {'ยอดรวม PO'}: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(grandTotal)}</span>
           </div>
-        )}
-        {!vatEnabled && (
-          <div style={{ textAlign: 'right', color: COLORS.accent, fontWeight: 600, fontSize: 14 }}>
-            {'ยอดรวม PO'}: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(subtotal)}</span>
-          </div>
-        )}
+          {whtEnabled && whtRate > 0 && (
+            <>
+              <div style={{ color: COLORS.warning, fontSize: 13 }}>
+                {'หัก ณ ที่จ่าย'} {selectedWht?.name} {whtRate}%: <span style={{ fontFamily: 'monospace' }}>-{formatCurrency(whtAmount)}</span>
+              </div>
+              <div style={{ color: COLORS.success, fontWeight: 600, fontSize: 14 }}>
+                {'ยอดชำระสุทธิ'}: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(netPayment)}</span>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </Modal>
   );
