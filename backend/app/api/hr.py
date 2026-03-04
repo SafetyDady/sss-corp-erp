@@ -217,6 +217,75 @@ async def api_update_profile_self(
     return emp
 
 
+# ── Employee Export (Phase 10) — MUST be before /employees/{emp_id}
+@hr_router.get(
+    "/employees/export",
+    dependencies=[Depends(require("hr.employee.export"))],
+)
+async def api_export_employees(
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Export all active employees as .xlsx"""
+    from app.models.organization import Organization, Department
+
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+
+    # Fetch org name for header
+    org_result = await db.execute(
+        select(Organization.name).where(Organization.id == org_id)
+    )
+    org_name = org_result.scalar_one_or_none() or ""
+
+    # Fetch department names for mapping
+    dept_result = await db.execute(
+        select(Department.id, Department.name).where(Department.org_id == org_id)
+    )
+    dept_map = {row.id: row.name for row in dept_result.all()}
+
+    # Fetch all active employees (no pagination)
+    items, _ = await list_employees(db, limit=10000, offset=0, org_id=org_id)
+
+    from app.services.export import create_excel_workbook
+
+    headers = [
+        "รหัสพนักงาน", "ชื่อ-สกุล", "ตำแหน่ง", "แผนก",
+        "ประเภทค่าจ้าง", "รายวัน", "รายเดือน", "เรท/ชม.",
+        "วันเริ่มงาน", "สถานะ",
+    ]
+    rows = []
+    for e in items:
+        pay_type = e.pay_type.value if hasattr(e.pay_type, "value") else str(e.pay_type)
+        dept_name = dept_map.get(e.department_id, "") if e.department_id else ""
+        rows.append([
+            e.employee_code,
+            e.full_name,
+            e.position or "",
+            dept_name,
+            pay_type,
+            float(e.daily_rate) if e.daily_rate else "",
+            float(e.monthly_salary) if e.monthly_salary else "",
+            float(e.hourly_rate),
+            str(e.hire_date) if e.hire_date else "",
+            "Active" if e.is_active else "Inactive",
+        ])
+
+    buf = create_excel_workbook(
+        title="รายชื่อพนักงาน (Employees)",
+        headers=headers,
+        rows=rows,
+        org_name=org_name,
+        col_widths=[14, 25, 18, 18, 14, 12, 14, 12, 14, 10],
+        money_cols=[5, 6, 7],
+    )
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=employees_export.xlsx"},
+    )
+
+
 @hr_router.get(
     "/employees/{emp_id}",
     response_model=EmployeeResponse,

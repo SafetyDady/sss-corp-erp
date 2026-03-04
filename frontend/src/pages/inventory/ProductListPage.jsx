@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Table, Button, App, Space, Popconfirm } from 'antd';
-import { Plus, Pencil, Trash2, ArrowRightLeft, AlertTriangle } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowRightLeft, AlertTriangle, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
+import { downloadExcel } from '../../utils/download';
 import PageHeader from '../../components/PageHeader';
 import SearchInput from '../../components/SearchInput';
 import StatusBadge from '../../components/StatusBadge';
@@ -23,6 +24,19 @@ export default function ProductListPage({ embedded = false }) {
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
+  const [exportLoading, setExportLoading] = useState(false);
+
+  const handleExport = async () => {
+    setExportLoading(true);
+    try {
+      await downloadExcel('/api/inventory/products/export', 'products');
+      message.success('Export สำเร็จ');
+    } catch {
+      message.error('ไม่สามารถ Export ได้');
+    } finally {
+      setExportLoading(false);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -109,6 +123,9 @@ export default function ProductListPage({ embedded = false }) {
           subtitle={'\u0E08\u0E31\u0E14\u0E01\u0E32\u0E23\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32\u0E41\u0E25\u0E30\u0E27\u0E31\u0E15\u0E16\u0E38\u0E14\u0E34\u0E1A'}
           actions={
             <Space>
+              {can('inventory.product.export') && (
+                <Button icon={<Download size={14} />} loading={exportLoading} onClick={handleExport}>Export</Button>
+              )}
               {can('inventory.movement.read') && (
                 <Button icon={<ArrowRightLeft size={14} />} onClick={() => navigate('/inventory/movements')}>
                   Stock Movements
@@ -124,12 +141,17 @@ export default function ProductListPage({ embedded = false }) {
           }
         />
       )}
-      {embedded && can('inventory.product.create') && (
-        <div style={{ marginBottom: 16, textAlign: 'right' }}>
-          <Button type="primary" icon={<Plus size={14} />}
-            onClick={() => { setEditItem(null); setModalOpen(true); }}>
-            {'\u0E40\u0E1E\u0E34\u0E48\u0E21\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32'}
-          </Button>
+      {embedded && (
+        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          {can('inventory.product.export') && (
+            <Button icon={<Download size={14} />} loading={exportLoading} onClick={handleExport}>Export</Button>
+          )}
+          {can('inventory.product.create') && (
+            <Button type="primary" icon={<Plus size={14} />}
+              onClick={() => { setEditItem(null); setModalOpen(true); }}>
+              {'\u0E40\u0E1E\u0E34\u0E48\u0E21\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32'}
+            </Button>
+          )}
         </div>
       )}
       <div style={{ marginBottom: 16 }}>

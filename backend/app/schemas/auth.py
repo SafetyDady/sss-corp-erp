@@ -55,3 +55,7 @@ class UserMe(UserResponse):
     working_days: Optional[list[int]] = None  # OrgWorkConfig: ISO weekdays [1-7]
     hours_per_day: Optional[float] = None  # OrgWorkConfig: hours per day
     dept_menu: Optional[dict[str, bool]] = None  # Go-Live G6: menu visibility per dept
+    # Phase 10: Organization info for print headers
+    org_name: Optional[str] = None
+    org_address: Optional[str] = None
+    org_tax_id: Optional[str] = None

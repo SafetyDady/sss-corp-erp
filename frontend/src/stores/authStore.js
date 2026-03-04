@@ -27,6 +27,10 @@ const useAuthStore = create(
       workingDays: null, // OrgWorkConfig: ISO weekdays [1-7], e.g. [1,2,3,4,5,6]
       hoursPerDay: null,
       deptMenu: null, // Go-Live G6: per-dept menu visibility
+      // Phase 10: Organization info for print headers
+      orgName: null,
+      orgAddress: null,
+      orgTaxId: null,
 
       // Actions
       setTokens: (accessToken, refreshToken) => {
@@ -71,6 +75,9 @@ const useAuthStore = create(
             workingDays: data.working_days || null,
             hoursPerDay: data.hours_per_day || null,
             deptMenu: data.dept_menu || null,
+            orgName: data.org_name || null,
+            orgAddress: data.org_address || null,
+            orgTaxId: data.org_tax_id || null,
           });
         } catch {
           get().logout();
@@ -98,6 +105,9 @@ const useAuthStore = create(
           workingDays: null,
           hoursPerDay: null,
           deptMenu: null,
+          orgName: null,
+          orgAddress: null,
+          orgTaxId: null,
         });
       },
 
@@ -143,6 +153,9 @@ const useAuthStore = create(
         workingDays: state.workingDays,
         hoursPerDay: state.hoursPerDay,
         deptMenu: state.deptMenu,
+        orgName: state.orgName,
+        orgAddress: state.orgAddress,
+        orgTaxId: state.orgTaxId,
       }),
       merge: (persisted, current) => ({
         ...current,

@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Table, Button, App, Space, Popconfirm, Select } from 'antd';
-import { Plus, Pencil, Trash2, Eye, Play, Square } from 'lucide-react';
+import { Table, Button, App, Space, Popconfirm, Select, Tooltip } from 'antd';
+import { Plus, Pencil, Trash2, Eye, Play, Square, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
+import { downloadExcel } from '../../utils/download';
 import PageHeader from '../../components/PageHeader';
 import SearchInput from '../../components/SearchInput';
 import StatusBadge from '../../components/StatusBadge';
@@ -23,6 +24,19 @@ export default function WorkOrderListPage() {
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
+  const [exportLoading, setExportLoading] = useState(false);
+
+  const handleExport = async () => {
+    setExportLoading(true);
+    try {
+      await downloadExcel('/api/work-orders/export', 'work_orders');
+      message.success('Export สำเร็จ');
+    } catch {
+      message.error('ไม่สามารถ Export ได้');
+    } finally {
+      setExportLoading(false);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -128,12 +142,17 @@ export default function WorkOrderListPage() {
         title="Work Orders"
         subtitle={'\u0E08\u0E31\u0E14\u0E01\u0E32\u0E23\u0E43\u0E1A\u0E2A\u0E31\u0E48\u0E07\u0E07\u0E32\u0E19\u0E41\u0E25\u0E30\u0E15\u0E49\u0E19\u0E17\u0E38\u0E19'}
         actions={
-          can('workorder.order.create') && (
-            <Button type="primary" icon={<Plus size={14} />}
-              onClick={() => { setEditItem(null); setModalOpen(true); }}>
-              {'\u0E2A\u0E23\u0E49\u0E32\u0E07 Work Order'}
-            </Button>
-          )
+          <Space>
+            {can('workorder.order.export') && (
+              <Button icon={<Download size={14} />} loading={exportLoading} onClick={handleExport}>Export</Button>
+            )}
+            {can('workorder.order.create') && (
+              <Button type="primary" icon={<Plus size={14} />}
+                onClick={() => { setEditItem(null); setModalOpen(true); }}>
+                {'\u0E2A\u0E23\u0E49\u0E32\u0E07 Work Order'}
+              </Button>
+            )}
+          </Space>
         }
       />
       <div style={{ marginBottom: 16, display: 'flex', gap: 12 }}>

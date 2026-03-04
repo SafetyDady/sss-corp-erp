@@ -182,6 +182,13 @@ async def get_me(
         department_id=employee.department_id if employee else None,
     )
 
+    # Phase 10: Organization info for print headers
+    from app.models.organization import Organization
+    org_result = await db.execute(
+        select(Organization).where(Organization.id == org_id)
+    )
+    org = org_result.scalar_one_or_none()
+
     return UserMe(
         id=user.id,
         email=user.email,
@@ -200,6 +207,9 @@ async def get_me(
         working_days=working_days,
         hours_per_day=hours_per_day,
         dept_menu=dept_menu,
+        org_name=org.name if org else None,
+        org_address=org.address if org else None,
+        org_tax_id=org.tax_id if org else None,
     )
 
 

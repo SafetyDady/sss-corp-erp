@@ -18,6 +18,7 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import DEFAULT_ORG_ID
@@ -70,6 +71,89 @@ async def api_list_work_orders(
         db, limit=limit, offset=offset, search=search, wo_status=status, org_id=org_id
     )
     return WorkOrderListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+# ============================================================
+# WORK ORDER EXPORT  (Phase 10 — Excel Export)
+# Must be BEFORE /{wo_id} to avoid route conflict
+# ============================================================
+
+@workorder_router.get(
+    "/export",
+    dependencies=[Depends(require("workorder.order.export"))],
+)
+async def api_export_work_orders(
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Export all work orders as .xlsx"""
+    from sqlalchemy import select as sa_select
+    from app.models.organization import Organization
+
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+
+    # Fetch org name for header
+    org_result = await db.execute(
+        sa_select(Organization.name).where(Organization.id == org_id)
+    )
+    org_name = org_result.scalar_one_or_none() or ""
+
+    # Fetch all work orders (no pagination)
+    items, _ = await list_work_orders(db, limit=10000, offset=0, org_id=org_id)
+
+    # Fetch cost summaries for each WO
+    cost_map = {}
+    for wo in items:
+        try:
+            cost = await get_cost_summary(db, wo.id, org_id=org_id)
+            cost_map[wo.id] = cost
+        except Exception:
+            cost_map[wo.id] = None
+
+    from app.services.export import create_excel_workbook
+
+    headers = [
+        "WO Number", "สถานะ", "ลูกค้า", "Cost Center",
+        "วัสดุ", "แรงงาน", "เครื่องมือ", "Overhead", "ต้นทุนรวม",
+        "เปิดงาน", "ปิดงาน",
+    ]
+    rows = []
+    for wo in items:
+        status = wo.status.value if hasattr(wo.status, "value") else str(wo.status)
+        cost = cost_map.get(wo.id)
+        material = float(cost.get("material_cost", 0)) if cost else 0
+        manhour = float(cost.get("manhour_cost", 0)) if cost else 0
+        tools = float(cost.get("tools_recharge", 0)) if cost else 0
+        overhead = float(cost.get("admin_overhead", 0)) if cost else 0
+        total = float(cost.get("total_cost", 0)) if cost else 0
+        rows.append([
+            wo.wo_number,
+            status,
+            wo.customer_name or "",
+            wo.cost_center_code or "",
+            material,
+            manhour,
+            tools,
+            overhead,
+            total,
+            wo.opened_at.strftime("%Y-%m-%d") if wo.opened_at else "",
+            wo.closed_at.strftime("%Y-%m-%d") if wo.closed_at else "",
+        ])
+
+    buf = create_excel_workbook(
+        title="รายการใบสั่งงาน (Work Orders)",
+        headers=headers,
+        rows=rows,
+        org_name=org_name,
+        col_widths=[16, 10, 25, 14, 14, 14, 14, 14, 16, 14, 14],
+        money_cols=[4, 5, 6, 7, 8],
+    )
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=work_orders_export.xlsx"},
+    )
 
 
 @workorder_router.post(

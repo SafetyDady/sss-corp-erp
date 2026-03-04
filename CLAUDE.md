@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-02 v16 (Documentation: SYSTEM_OVERVIEW_V3 + Word export for Owner review)
+> อัปเดตล่าสุด: 2026-03-03 v17 (Phase 10: Export & Print — Print Views + Excel Export)
 
 ---
 
@@ -643,6 +643,7 @@ POST   /api/auth/logout                    — (JWT)
 ```
 GET    /api/inventory/products              inventory.product.read
 POST   /api/inventory/products              inventory.product.create
+GET    /api/inventory/products/export       inventory.product.export     (Phase 10 — xlsx)
 GET    /api/inventory/products/{id}         inventory.product.read
 PUT    /api/inventory/products/{id}         inventory.product.update
 DELETE /api/inventory/products/{id}         inventory.product.delete
@@ -691,6 +692,7 @@ DELETE /api/warehouse/locations/{id}        warehouse.location.delete
 ```
 GET    /api/work-orders                     workorder.order.read
 POST   /api/work-orders                     workorder.order.create
+GET    /api/work-orders/export              workorder.order.export       (Phase 10 — xlsx)
 GET    /api/work-orders/{id}               workorder.order.read
 PUT    /api/work-orders/{id}               workorder.order.update
 DELETE /api/work-orders/{id}               workorder.order.delete
@@ -792,6 +794,7 @@ POST   /api/hr/timesheet/{id}/unlock        hr.timesheet.execute
 ```
 GET    /api/hr/employees                    hr.employee.read
 POST   /api/hr/employees                    hr.employee.create
+GET    /api/hr/employees/export             hr.employee.export     (Phase 10 — xlsx)
 PUT    /api/hr/employees/{id}              hr.employee.update
 DELETE /api/hr/employees/{id}              hr.employee.delete
 PUT    /api/hr/employees/me                 — (JWT, self only)     (body: ProfileSelfUpdate)
@@ -1158,14 +1161,16 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [ ] **9.6** Integration: connect with existing email service (Phase 4.6) — dual channel (in-app + email)
 - [ ] **9.7** Notification preferences: user can toggle per-event-type (in-app / email / both / none)
 
-### Phase 10 — Export & Print 🖨️ (Planned)
-- [ ] **10.1** PDF generation — backend (WeasyPrint or ReportLab) or frontend (jsPDF + html2canvas)
-- [ ] **10.2** WO Report PDF — cost summary, material list, manhour breakdown, tools recharge
-- [ ] **10.3** PO / SO PDF — document header, line items, totals, approval signatures
-- [ ] **10.4** Payroll PDF — employee payslip, period summary
-- [ ] **10.5** Excel export (xlsx) — all list pages via backend (openpyxl) or frontend (SheetJS)
-- [ ] **10.6** Print-friendly CSS — `@media print` styles for key pages
-- [ ] **10.7** Report templates — admin-configurable headers (company logo, address)
+### Phase 10 — Export & Print 🖨️ (Partial ✅)
+- [x] **10.1** Shared Print Infrastructure — `PrintStyles.jsx` (PS styles + CompanyHeader + SignatureSection + PrintFooter + formatters), `@media print` CSS with `.erp-print-content` class
+- [x] **10.2** Org Info in Auth — `/api/auth/me` returns org_name/org_address/org_tax_id → authStore for print headers
+- [x] **10.3** PO Print View — `POPrintView.jsx` (forwardRef, inline styles, company header, lines table, signatures) + Print button in PODetailPage
+- [x] **10.4** WO Report Print View — `WOReportPrintView.jsx` (cost summary, materials, manhour breakdown) + Print button in WorkOrderDetailPage
+- [x] **10.5** Payslip Print View — `PayslipPrintView.jsx` (earnings breakdown, confidentiality note) + Print button in MyPayslipTab detail modal
+- [x] **10.6** Excel Export Backend — `openpyxl` + shared `export.py` helper + 3 endpoints: Products (.xlsx), Employees (.xlsx), Work Orders (.xlsx with cost summary)
+- [x] **10.7** Excel Export Frontend — `download.js` shared helper + Export buttons wired: ProductListPage, EmployeeTab, WorkOrderListPage
+- [ ] **10.8** PDF generation — backend (WeasyPrint or ReportLab) for server-side PDF
+- [ ] **10.9** Report templates — admin-configurable headers (company logo)
 
 ### Phase 11 — Inventory Enhancement 📦 (Partial ✅)
 - [x] **11.1** Stock-Location Integration — StockMovement.location_id FK + stock_by_location table (per-product per-location on_hand) + location-aware RECEIVE/ISSUE/CONSUME + reverse (BR#69-72)
@@ -1325,6 +1330,12 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/admin/DeptMenuConfigTab.jsx` | G6: Dept menu template config per department (Go-Live) |
 | `frontend/src/pages/my/MyPayslipTab.jsx` | G7: Staff payslip viewer — RELEASED only (Go-Live) |
 | `frontend/src/pages/my/ProfileEditModal.jsx` | G7: Self-edit full_name + position modal (Go-Live) |
+| `frontend/src/components/PrintStyles.jsx` | Phase 10: Shared print styles (PS), CompanyHeader, SignatureSection, PrintFooter, formatters |
+| `frontend/src/pages/purchasing/POPrintView.jsx` | Phase 10: PO print document (forwardRef + erp-print-content) |
+| `frontend/src/pages/workorder/WOReportPrintView.jsx` | Phase 10: WO cost report print (cost summary + materials + manhour) |
+| `frontend/src/pages/my/PayslipPrintView.jsx` | Phase 10: Employee payslip print (earnings breakdown) |
+| `backend/app/services/export.py` | Phase 10: Shared Excel workbook helper (openpyxl, styled headers) |
+| `frontend/src/utils/download.js` | Phase 10: Shared blob download helper (downloadExcel) |
 | `SYSTEM_OVERVIEW_V3.md` | PRD ฉบับสมบูรณ์ — 4 ส่วน (A:ระบบปัจจุบัน, B:แผน, C:ช่องว่าง, D:ลำดับ) + UX assessment ต่อ module |
 | `SYSTEM_OVERVIEW_V3.docx` | Word export สำหรับ Owner review ด้วย Track Changes |
 | `convert_to_docx.py` | Python script แปลง MD → Word (.docx) ด้วย python-docx |
@@ -1350,4 +1361,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v16 (Phase 0-7.9 complete + Phase 11 partial + Go-Live Gate G1-G7 complete: SPAREPART, Bin, Direct PO Cost, Sourcer, GR 2 Modes, Dept Menu Template, Self-service MVP, Phase 8-14 planned)*
+*End of CLAUDE.md — SSS Corp ERP v17 (Phase 0-7.9 complete + Phase 10 partial (Print Views + Excel Export) + Phase 11 partial + Go-Live Gate G1-G7 complete, Phase 8-14 planned)*

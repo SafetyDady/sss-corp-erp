@@ -3,6 +3,7 @@ import { Table, Button, App, Space, Popconfirm, Tooltip, Tag } from 'antd';
 import { Plus, Pencil, Trash2, Download } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
+import { downloadExcel } from '../../utils/download';
 import SearchInput from '../../components/SearchInput';
 import StatusBadge from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
@@ -25,6 +26,19 @@ export default function EmployeeTab() {
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
+  const [exportLoading, setExportLoading] = useState(false);
+
+  const handleExport = async () => {
+    setExportLoading(true);
+    try {
+      await downloadExcel('/api/hr/employees/export', 'employees');
+      message.success('Export สำเร็จ');
+    } catch {
+      message.error('ไม่สามารถ Export ได้');
+    } finally {
+      setExportLoading(false);
+    }
+  };
 
   // Lookup maps for display
   const [departmentMap, setDepartmentMap] = useState({});
@@ -159,8 +173,8 @@ export default function EmployeeTab() {
         <SearchInput onSearch={setSearch} placeholder="ค้นหาชื่อ, รหัส, ตำแหน่ง..." />
         <Space>
           {can('hr.employee.export') && (
-            <Tooltip title="Export รายชื่อพนักงาน">
-              <Button icon={<Download size={14} />}>Export</Button>
+            <Tooltip title="Export รายชื่อพนักงาน (Excel)">
+              <Button icon={<Download size={14} />} loading={exportLoading} onClick={handleExport}>Export</Button>
             </Tooltip>
           )}
           {can('hr.employee.create') && (

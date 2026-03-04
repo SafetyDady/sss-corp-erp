@@ -23,6 +23,7 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import DEFAULT_ORG_ID
@@ -120,6 +121,63 @@ async def api_create_product(
         org_id=org_id,
     )
     return product
+
+
+# ── Product Export (Phase 10) ── must be before {product_id} route
+@product_router.get(
+    "/products/export",
+    dependencies=[Depends(require("inventory.product.export"))],
+)
+async def api_export_products(
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Export all active products as .xlsx"""
+    from sqlalchemy import select as sa_select
+    from app.models.organization import Organization
+
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+
+    # Fetch org name for header
+    org_result = await db.execute(
+        sa_select(Organization.name).where(Organization.id == org_id)
+    )
+    org_name = org_result.scalar_one_or_none() or ""
+
+    # Fetch all active products (no pagination — export all)
+    items, _ = await list_products(db, limit=10000, offset=0, org_id=org_id)
+
+    from app.services.export import create_excel_workbook
+
+    headers = ["SKU", "ชื่อสินค้า", "Model", "ประเภท", "หน่วย", "คงเหลือ", "Min Stock", "ต้นทุน/หน่วย"]
+    rows = []
+    for p in items:
+        ptype = p.product_type.value if hasattr(p.product_type, "value") else str(p.product_type)
+        rows.append([
+            p.sku,
+            p.name,
+            p.model or "",
+            ptype,
+            p.unit,
+            p.on_hand,
+            p.min_stock,
+            float(p.cost),
+        ])
+
+    buf = create_excel_workbook(
+        title="รายการสินค้า (Products)",
+        headers=headers,
+        rows=rows,
+        org_name=org_name,
+        col_widths=[15, 30, 20, 14, 8, 10, 10, 14],
+        money_cols=[7],
+    )
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=products_export.xlsx"},
+    )
 
 
 @product_router.get(

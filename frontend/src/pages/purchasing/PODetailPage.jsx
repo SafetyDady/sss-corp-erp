@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Card, Table, Button, App, Space, Descriptions, Spin, Popconfirm, Tag } from 'antd';
-import { ArrowLeft, Check, PackageCheck, QrCode } from 'lucide-react';
+import { Card, Table, Button, App, Space, Descriptions, Spin, Popconfirm, Tag, Modal } from 'antd';
+import { ArrowLeft, Check, PackageCheck, QrCode, Printer } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
+import useAuthStore from '../../stores/authStore';
 import api from '../../services/api';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
@@ -10,6 +11,7 @@ import { formatCurrency, formatDate, formatDateTime, getApiErrorMsg } from '../.
 import { COLORS } from '../../utils/constants';
 import GoodsReceiptModal from './GoodsReceiptModal';
 import POQRCodeModal from './POQRCodeModal';
+import POPrintView from './POPrintView';
 
 export default function PODetailPage() {
   const { id } = useParams();
@@ -17,11 +19,15 @@ export default function PODetailPage() {
   const [searchParams] = useSearchParams();
   const { can } = usePermission();
   const { message } = App.useApp();
+  const orgName = useAuthStore((s) => s.orgName);
+  const orgAddress = useAuthStore((s) => s.orgAddress);
+  const orgTaxId = useAuthStore((s) => s.orgTaxId);
   const [po, setPo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState({});
   const [grModalOpen, setGrModalOpen] = useState(false);
   const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [printModalOpen, setPrintModalOpen] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -122,6 +128,12 @@ export default function PODetailPage() {
                 QR Code
               </Button>
             )}
+            <Button icon={<Printer size={14} />} onClick={() => {
+              setPrintModalOpen(true);
+              setTimeout(() => window.print(), 400);
+            }}>
+              {'\u0E1E\u0E34\u0E21\u0E1E\u0E4C'}
+            </Button>
           </Space>
         }
       />
@@ -193,6 +205,29 @@ export default function PODetailPage() {
         products={products}
         onClose={() => setQrModalOpen(false)}
       />
+
+      {/* Print Modal */}
+      <Modal
+        open={printModalOpen}
+        onCancel={() => setPrintModalOpen(false)}
+        footer={[
+          <Button key="close" onClick={() => setPrintModalOpen(false)}>{'\u0E1B\u0E34\u0E14'}</Button>,
+          <Button key="print" type="primary" icon={<Printer size={14} />} onClick={() => window.print()}>
+            {'\u0E1E\u0E34\u0E21\u0E1E\u0E4C'}
+          </Button>,
+        ]}
+        title={'\u0E43\u0E1A\u0E2A\u0E31\u0E48\u0E07\u0E0B\u0E37\u0E49\u0E2D / Purchase Order'}
+        width={700}
+        destroyOnHidden
+      >
+        <POPrintView
+          po={po}
+          products={products}
+          orgName={orgName}
+          orgAddress={orgAddress}
+          orgTaxId={orgTaxId}
+        />
+      </Modal>
     </div>
   );
 }

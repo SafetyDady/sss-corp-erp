@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Row, Col, Button, App, Space, Descriptions, Spin, Popconfirm, Progress, Table, Tag } from 'antd';
-import { ArrowLeft, Play, Square, Users, Package, PackageMinus, PackagePlus } from 'lucide-react';
+import { Card, Row, Col, Button, App, Space, Descriptions, Spin, Popconfirm, Progress, Table, Tag, Modal } from 'antd';
+import { ArrowLeft, Play, Square, Users, Package, PackageMinus, PackagePlus, Printer } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
+import useAuthStore from '../../stores/authStore';
 import api from '../../services/api';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
 import MasterPlanSection from './MasterPlanSection';
 import WOConsumeModal from './WOConsumeModal';
 import WOReturnModal from './WOReturnModal';
+import WOReportPrintView from './WOReportPrintView';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
 
@@ -17,6 +19,9 @@ export default function WorkOrderDetailPage() {
   const navigate = useNavigate();
   const { can } = usePermission();
   const { message } = App.useApp();
+  const orgName = useAuthStore((s) => s.orgName);
+  const orgAddress = useAuthStore((s) => s.orgAddress);
+  const orgTaxId = useAuthStore((s) => s.orgTaxId);
   const [wo, setWo] = useState(null);
   const [cost, setCost] = useState(null);
   const [manhour, setManhour] = useState(null);
@@ -24,6 +29,7 @@ export default function WorkOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [consumeOpen, setConsumeOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
+  const [printModalOpen, setPrintModalOpen] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -97,6 +103,14 @@ export default function WorkOrderDetailPage() {
               <Popconfirm title={'\u0E1B\u0E34\u0E14 Work Order?'} onConfirm={handleClose}>
                 <Button icon={<Square size={14} />}>Close</Button>
               </Popconfirm>
+            )}
+            {cost && (
+              <Button icon={<Printer size={14} />} onClick={() => {
+                setPrintModalOpen(true);
+                setTimeout(() => window.print(), 400);
+              }}>
+                {'\u0E1E\u0E34\u0E21\u0E1E\u0E4C Report'}
+              </Button>
             )}
           </Space>
         }
@@ -298,6 +312,31 @@ export default function WorkOrderDetailPage() {
         onClose={() => setReturnOpen(false)}
         onSuccess={() => { setReturnOpen(false); fetchData(); }}
       />
+
+      {/* Print Modal */}
+      <Modal
+        open={printModalOpen}
+        onCancel={() => setPrintModalOpen(false)}
+        footer={[
+          <Button key="close" onClick={() => setPrintModalOpen(false)}>{'\u0E1B\u0E34\u0E14'}</Button>,
+          <Button key="print" type="primary" icon={<Printer size={14} />} onClick={() => window.print()}>
+            {'\u0E1E\u0E34\u0E21\u0E1E\u0E4C'}
+          </Button>,
+        ]}
+        title="Work Order Cost Report"
+        width={700}
+        destroyOnHidden
+      >
+        <WOReportPrintView
+          wo={wo}
+          cost={cost}
+          manhour={manhour}
+          materials={materials}
+          orgName={orgName}
+          orgAddress={orgAddress}
+          orgTaxId={orgTaxId}
+        />
+      </Modal>
     </div>
   );
 }

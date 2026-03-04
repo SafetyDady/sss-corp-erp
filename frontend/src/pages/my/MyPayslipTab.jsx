@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Table, Select, Modal, Descriptions, App, Typography } from 'antd';
-import { Receipt } from 'lucide-react';
+import { Table, Select, Modal, Descriptions, App, Typography, Button } from 'antd';
+import { Receipt, Printer } from 'lucide-react';
+import useAuthStore from '../../stores/authStore';
 import api from '../../services/api';
 import StatusBadge from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
+import PayslipPrintView from './PayslipPrintView';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
 import dayjs from 'dayjs';
@@ -18,10 +20,17 @@ const yearOptions = Array.from({ length: 5 }, (_, i) => ({
 
 export default function MyPayslipTab() {
   const { message } = App.useApp();
+  const employeeName = useAuthStore((s) => s.employeeName);
+  const employeeCode = useAuthStore((s) => s.employeeCode);
+  const departmentName = useAuthStore((s) => s.departmentName);
+  const orgName = useAuthStore((s) => s.orgName);
+  const orgAddress = useAuthStore((s) => s.orgAddress);
+  const orgTaxId = useAuthStore((s) => s.orgTaxId);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [detailRecord, setDetailRecord] = useState(null);
+  const [printModalOpen, setPrintModalOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -170,7 +179,13 @@ export default function MyPayslipTab() {
         }
         open={!!detailRecord}
         onCancel={() => setDetailRecord(null)}
-        footer={null}
+        footer={[
+          <Button key="close" onClick={() => setDetailRecord(null)}>ปิด</Button>,
+          <Button key="print" type="primary" icon={<Printer size={14} />} onClick={() => {
+            setPrintModalOpen(true);
+            setTimeout(() => window.print(), 400);
+          }}>พิมพ์</Button>,
+        ]}
         width={520}
         destroyOnHidden
       >
@@ -221,6 +236,30 @@ export default function MyPayslipTab() {
             </Descriptions.Item>
           </Descriptions>
         )}
+      </Modal>
+
+      {/* Print Modal */}
+      <Modal
+        open={printModalOpen}
+        onCancel={() => setPrintModalOpen(false)}
+        footer={[
+          <Button key="close" onClick={() => setPrintModalOpen(false)}>ปิด</Button>,
+          <Button key="print" type="primary" icon={<Printer size={14} />} onClick={() => window.print()}>พิมพ์</Button>,
+        ]}
+        title="สลิปเงินเดือน / Payslip"
+        width={600}
+        destroyOnHidden
+      >
+        <PayslipPrintView
+          slip={detailRecord}
+          employeeName={employeeName}
+          employeeCode={employeeCode}
+          departmentName={departmentName}
+          position={detailRecord?.position}
+          orgName={orgName}
+          orgAddress={orgAddress}
+          orgTaxId={orgTaxId}
+        />
       </Modal>
     </div>
   );

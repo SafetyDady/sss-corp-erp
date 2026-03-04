@@ -27,6 +27,9 @@ email-validator==2.2.0
 # Monitoring
 sentry-sdk[fastapi]==2.19.2
 
+# Excel Export
+openpyxl==3.1.5
+
 # Utilities
 python-dotenv==1.0.1
 httpx==0.28.1
