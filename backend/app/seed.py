@@ -29,7 +29,7 @@ from app.core.config import DEFAULT_ORG_ID
 from app.core.security import hash_password
 from app.models import User, Organization
 from app.models.master import CostCenter, OTType, LeaveType, ShiftType, WorkSchedule, ScheduleType, Supplier
-from app.models.organization import Department
+from app.models.organization import Department, OrgTaxConfig
 from app.models.hr import Employee, LeaveBalance, PayType
 from app.models.warehouse import Warehouse, Location
 from app.models.inventory import Product, ProductType
@@ -687,6 +687,21 @@ async def seed():
             print(f"  [RB]   CC-ADMIN — 1,200,000 THB/year (ACTIVE)")
         else:
             print(f"  [RB]   CC-ADMIN budget (exists)")
+
+        # ── 18. OrgTaxConfig (Phase C5) ───────────────────
+        print()
+        existing_tax = await _check_exists(db, OrgTaxConfig, org_id=DEFAULT_ORG_ID)
+        if not existing_tax:
+            tax_cfg = OrgTaxConfig(
+                org_id=DEFAULT_ORG_ID,
+                vat_enabled=True,
+                default_vat_rate=Decimal("7.00"),
+                wht_enabled=False,
+            )
+            db.add(tax_cfg)
+            print(f"  [Tax]  OrgTaxConfig — VAT 7% enabled")
+        else:
+            print(f"  [Tax]  OrgTaxConfig (exists)")
 
         # ----- COMMIT -----
         await db.commit()

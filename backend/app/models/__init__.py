@@ -15,7 +15,7 @@ from app.models.purchasing import (
     PurchaseOrder, PurchaseOrderLine, POStatus, GRMode,
 )
 from app.models.sales import SalesOrder, SalesOrderLine, SOStatus
-from app.models.organization import Organization, Department, OrgWorkConfig, OrgApprovalConfig, DeptMenuConfig
+from app.models.organization import Organization, Department, OrgWorkConfig, OrgApprovalConfig, DeptMenuConfig, OrgTaxConfig
 from app.models.planning import (
     WOMasterPlan, WOMasterPlanLine, PlanLineType,
     DailyPlan, DailyPlanWorker, DailyPlanTool, DailyPlanMaterial,
@@ -96,6 +96,7 @@ __all__ = [
     "WithdrawalType",
     "WithdrawalStatus",
     "DeptMenuConfig",
+    "OrgTaxConfig",
     "PayrollSlip",
     "PayrollSlipStatus",
     "FixedRechargeBudget",

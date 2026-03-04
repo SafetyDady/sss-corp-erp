@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Modal, Form, Input, InputNumber, DatePicker, Select, Button, Table, App } from 'antd';
+import { Modal, Form, Input, InputNumber, DatePicker, Select, Button, Table, App, Switch } from 'antd';
 import { Plus, Trash2 } from 'lucide-react';
 import api from '../../services/api';
+import { formatCurrency } from '../../utils/formatters';
+import { COLORS } from '../../utils/constants';
 
 export default function SOFormModal({ open, onClose, onSuccess }) {
   const [form] = Form.useForm();
@@ -12,6 +14,8 @@ export default function SOFormModal({ open, onClose, onSuccess }) {
   const { message } = App.useApp();
 
   const [approvers, setApprovers] = useState([]);
+  const [vatEnabled, setVatEnabled] = useState(true);
+  const [vatRate, setVatRate] = useState(7);
 
   useEffect(() => {
     if (open) {
@@ -21,13 +25,22 @@ export default function SOFormModal({ open, onClose, onSuccess }) {
         api.get('/api/inventory/products', { params: { limit: 500, offset: 0 } }),
         api.get('/api/customers', { params: { limit: 500, offset: 0 } }),
         api.get('/api/admin/approvers', { params: { module: 'sales.order' } }),
-      ]).then(([prodRes, custRes, appRes]) => {
+        api.get('/api/admin/config/tax').catch(() => ({ data: { vat_enabled: true, default_vat_rate: 7 } })),
+      ]).then(([prodRes, custRes, appRes, taxRes]) => {
         setProducts(prodRes.data.items);
         setCustomers(custRes.data.items);
         setApprovers(appRes.data);
+        const taxCfg = taxRes.data;
+        setVatEnabled(taxCfg.vat_enabled);
+        setVatRate(Number(taxCfg.default_vat_rate) || 7);
       }).catch(() => {});
     }
   }, [open]);
+
+  const subtotal = lines.reduce((sum, l) => sum + (l.quantity || 0) * (l.unit_price || 0), 0);
+  const effectiveRate = vatEnabled ? vatRate : 0;
+  const vatAmount = Math.round(subtotal * effectiveRate) / 100;
+  const grandTotal = subtotal + vatAmount;
 
   const onFinish = async (values) => {
     if (lines.length === 0 || lines.some((l) => !l.product_id)) {
@@ -39,6 +52,7 @@ export default function SOFormModal({ open, onClose, onSuccess }) {
       await api.post('/api/sales/orders', {
         ...values,
         order_date: values.order_date?.format('YYYY-MM-DD'),
+        vat_rate: vatEnabled ? vatRate : 0,
         lines: lines.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
       });
       message.success('\u0E1A\u0E31\u0E19\u0E17\u0E36\u0E01\u0E2A\u0E33\u0E40\u0E23\u0E47\u0E08');
@@ -115,6 +129,41 @@ export default function SOFormModal({ open, onClose, onSuccess }) {
           <Button size="small" icon={<Plus size={12} />} onClick={addLine}>{'\u0E40\u0E1E\u0E34\u0E48\u0E21\u0E23\u0E32\u0E22\u0E01\u0E32\u0E23'}</Button>
         </div>
         <Table dataSource={lines} columns={lineColumns} rowKey="key" pagination={false} size="small" />
+      </div>
+
+      {/* VAT Section */}
+      <div style={{ marginTop: 16, padding: '12px 16px', background: COLORS.surface, borderRadius: 6, border: `1px solid ${COLORS.border}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: vatEnabled ? 12 : 0 }}>
+          <span style={{ fontWeight: 500, color: COLORS.text }}>VAT</span>
+          <Switch checked={vatEnabled} onChange={setVatEnabled} size="small" />
+          {vatEnabled && (
+            <InputNumber
+              min={0} max={100} step={0.01} value={vatRate}
+              onChange={(v) => setVatRate(v || 0)}
+              style={{ width: 90 }}
+              size="small"
+              addonAfter="%"
+            />
+          )}
+        </div>
+        {vatEnabled && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+            <div style={{ color: COLORS.textMuted, fontSize: 13 }}>
+              {'\u0E22\u0E2D\u0E14\u0E23\u0E27\u0E21\u0E01\u0E48\u0E2D\u0E19 VAT'}: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(subtotal)}</span>
+            </div>
+            <div style={{ color: COLORS.textMuted, fontSize: 13 }}>
+              VAT {vatRate}%: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(vatAmount)}</span>
+            </div>
+            <div style={{ color: COLORS.accent, fontWeight: 600, fontSize: 14 }}>
+              {'\u0E22\u0E2D\u0E14\u0E23\u0E27\u0E21\u0E17\u0E31\u0E49\u0E07\u0E2A\u0E34\u0E49\u0E19'}: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(grandTotal)}</span>
+            </div>
+          </div>
+        )}
+        {!vatEnabled && (
+          <div style={{ textAlign: 'right', color: COLORS.accent, fontWeight: 600, fontSize: 14 }}>
+            {'\u0E22\u0E2D\u0E14\u0E23\u0E27\u0E21'}: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(subtotal)}</span>
+          </div>
+        )}
       </div>
     </Modal>
   );

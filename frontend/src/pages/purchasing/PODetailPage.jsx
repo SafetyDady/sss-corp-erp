@@ -160,7 +160,17 @@ export default function PODetailPage() {
           {po.supplier_phone && (
             <Descriptions.Item label="โทรศัพท์">{po.supplier_phone}</Descriptions.Item>
           )}
-          <Descriptions.Item label="ยอดรวม">{formatCurrency(po.total_amount)}</Descriptions.Item>
+          {Number(po.vat_rate) > 0 ? (
+            <>
+              <Descriptions.Item label="ยอดรวมก่อน VAT">{formatCurrency(po.subtotal_amount)}</Descriptions.Item>
+              <Descriptions.Item label={`VAT ${po.vat_rate}%`}>{formatCurrency(po.vat_amount)}</Descriptions.Item>
+              <Descriptions.Item label="ยอดรวมทั้งสิ้น">
+                <span style={{ color: COLORS.accent, fontWeight: 600 }}>{formatCurrency(po.total_amount)}</span>
+              </Descriptions.Item>
+            </>
+          ) : (
+            <Descriptions.Item label="ยอดรวม">{formatCurrency(po.total_amount)}</Descriptions.Item>
+          )}
           <Descriptions.Item label="วันที่สั่ง">{formatDate(po.order_date)}</Descriptions.Item>
           <Descriptions.Item label="วันที่คาดรับ">{formatDate(po.expected_date)}</Descriptions.Item>
           {po.pr_number && (

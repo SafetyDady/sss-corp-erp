@@ -44,6 +44,8 @@ class SalesOrderCreate(BaseModel):
     order_date: date
     note: Optional[str] = None
     requested_approver_id: Optional[UUID] = None
+    vat_rate: Optional[Decimal] = Field(default=None, ge=0, le=100, decimal_places=2,
+                                         description="VAT rate %. None = use org default")
     lines: list[SOLineCreate] = Field(min_length=1)
 
 
@@ -57,6 +59,9 @@ class SalesOrderResponse(BaseModel):
     customer_id: UUID
     status: SOStatus
     order_date: date
+    subtotal_amount: Decimal
+    vat_rate: Decimal
+    vat_amount: Decimal
     total_amount: Decimal
     note: Optional[str] = None
     created_by: UUID

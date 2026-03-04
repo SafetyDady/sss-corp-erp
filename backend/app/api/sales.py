@@ -86,6 +86,7 @@ async def api_create_order(
         created_by=user_id,
         org_id=org_id,
         requested_approver_id=body.requested_approver_id,
+        vat_rate=body.vat_rate,
     )
     # Phase 4.2: Auto-approve if bypass is on
     if await check_approval_bypass(db, org_id, "sales.order"):

@@ -5,7 +5,10 @@ const POPrintView = forwardRef(function POPrintView({ po, products, orgName, org
   if (!po) return null;
 
   const lines = po.lines || [];
-  const totalAmount = lines.reduce((sum, l) => sum + (l.unit_cost || 0) * l.quantity, 0);
+  const subtotal = po.subtotal_amount != null ? Number(po.subtotal_amount) : lines.reduce((sum, l) => sum + (l.unit_cost || 0) * l.quantity, 0);
+  const vatRate = Number(po.vat_rate) || 0;
+  const vatAmount = po.vat_amount != null ? Number(po.vat_amount) : 0;
+  const totalAmount = po.total_amount != null ? Number(po.total_amount) : subtotal;
 
   return (
     <div className="erp-print-content" ref={ref} style={PS.container}>
@@ -13,7 +16,7 @@ const POPrintView = forwardRef(function POPrintView({ po, products, orgName, org
         orgName={orgName}
         orgAddress={orgAddress}
         orgTaxId={orgTaxId}
-        docTitle={'\u0E43\u0E1A\u0E2A\u0E31\u0E48\u0E07\u0E0B\u0E37\u0E49\u0E2D / Purchase Order'}
+        docTitle={'ใบสั่งซื้อ / Purchase Order'}
       />
 
       {/* Info section */}
@@ -23,41 +26,41 @@ const POPrintView = forwardRef(function POPrintView({ po, products, orgName, org
           <span style={{ fontFamily: 'monospace' }}>{po.po_number}</span>
         </div>
         <div>
-          <span style={PS.infoLabel}>{'\u0E27\u0E31\u0E19\u0E17\u0E35\u0E48\u0E2A\u0E31\u0E48\u0E07\u0E0B\u0E37\u0E49\u0E2D'}: </span>
+          <span style={PS.infoLabel}>{'วันที่สั่งซื้อ'}: </span>
           {formatDatePrint(po.order_date)}
         </div>
         <div>
-          <span style={PS.infoLabel}>{'\u0E0B\u0E31\u0E1E\u0E1E\u0E25\u0E32\u0E22\u0E40\u0E2D\u0E2D\u0E23\u0E4C'}: </span>
+          <span style={PS.infoLabel}>{'ซัพพลายเออร์'}: </span>
           {po.supplier_code && (
             <span style={{ fontFamily: 'monospace' }}>{po.supplier_code} — </span>
           )}
           {po.supplier_name || '-'}
         </div>
         <div>
-          <span style={PS.infoLabel}>{'\u0E27\u0E31\u0E19\u0E17\u0E35\u0E48\u0E04\u0E32\u0E14\u0E23\u0E31\u0E1A'}: </span>
+          <span style={PS.infoLabel}>{'วันที่คาดรับ'}: </span>
           {formatDatePrint(po.expected_date)}
         </div>
         {po.supplier_contact && (
           <div>
-            <span style={PS.infoLabel}>{'\u0E1C\u0E39\u0E49\u0E15\u0E34\u0E14\u0E15\u0E48\u0E2D'}: </span>
+            <span style={PS.infoLabel}>{'ผู้ติดต่อ'}: </span>
             {po.supplier_contact}
           </div>
         )}
         {po.supplier_phone && (
           <div>
-            <span style={PS.infoLabel}>{'\u0E42\u0E17\u0E23\u0E28\u0E31\u0E1E\u0E17\u0E4C'}: </span>
+            <span style={PS.infoLabel}>{'โทรศัพท์'}: </span>
             {po.supplier_phone}
           </div>
         )}
         {po.pr_number && (
           <div>
-            <span style={PS.infoLabel}>PR {'\u0E2D\u0E49\u0E32\u0E07\u0E2D\u0E34\u0E07'}: </span>
+            <span style={PS.infoLabel}>PR {'อ้างอิง'}: </span>
             <span style={{ fontFamily: 'monospace' }}>{po.pr_number}</span>
           </div>
         )}
         {po.delivery_note_number && (
           <div>
-            <span style={PS.infoLabel}>{'\u0E40\u0E25\u0E02\u0E43\u0E1A\u0E27\u0E32\u0E07\u0E02\u0E2D\u0E07'}: </span>
+            <span style={PS.infoLabel}>{'เลขใบวางของ'}: </span>
             <span style={{ fontFamily: 'monospace' }}>{po.delivery_note_number}</span>
           </div>
         )}
@@ -68,12 +71,12 @@ const POPrintView = forwardRef(function POPrintView({ po, products, orgName, org
         <thead>
           <tr>
             <th style={{ ...PS.th, width: 35 }}>#</th>
-            <th style={{ ...PS.th, width: 65 }}>{'\u0E1B\u0E23\u0E30\u0E40\u0E20\u0E17'}</th>
-            <th style={PS.th}>{'\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32/\u0E1A\u0E23\u0E34\u0E01\u0E32\u0E23'}</th>
-            <th style={{ ...PS.th, width: 60 }}>{'\u0E08\u0E33\u0E19\u0E27\u0E19'}</th>
-            <th style={{ ...PS.th, width: 55 }}>{'\u0E2B\u0E19\u0E48\u0E27\u0E22'}</th>
-            <th style={{ ...PS.th, width: 90 }}>{'\u0E23\u0E32\u0E04\u0E32/\u0E2B\u0E19\u0E48\u0E27\u0E22'}</th>
-            <th style={{ ...PS.th, width: 100 }}>{'\u0E23\u0E27\u0E21'}</th>
+            <th style={{ ...PS.th, width: 65 }}>{'ประเภท'}</th>
+            <th style={PS.th}>{'สินค้า/บริการ'}</th>
+            <th style={{ ...PS.th, width: 60 }}>{'จำนวน'}</th>
+            <th style={{ ...PS.th, width: 55 }}>{'หน่วย'}</th>
+            <th style={{ ...PS.th, width: 90 }}>{'ราคา/หน่วย'}</th>
+            <th style={{ ...PS.th, width: 100 }}>{'รวม'}</th>
           </tr>
         </thead>
         <tbody>
@@ -97,27 +100,44 @@ const POPrintView = forwardRef(function POPrintView({ po, products, orgName, org
           })}
           {lines.length === 0 && (
             <tr>
-              <td colSpan={7} style={{ ...PS.tdCenter, color: '#666' }}>{'\u0E44\u0E21\u0E48\u0E21\u0E35\u0E23\u0E32\u0E22\u0E01\u0E32\u0E23'}</td>
+              <td colSpan={7} style={{ ...PS.tdCenter, color: '#666' }}>{'ไม่มีรายการ'}</td>
             </tr>
           )}
-          {/* Total row */}
-          <tr className="summary-row">
-            <td colSpan={6} style={{ ...PS.summaryRow, textAlign: 'right' }}>{'\u0E22\u0E2D\u0E14\u0E23\u0E27\u0E21'}</td>
-            <td style={PS.summaryRow}>{formatCurrencyPrint(totalAmount)}</td>
-          </tr>
+          {/* Summary rows — VAT breakdown */}
+          {vatRate > 0 ? (
+            <>
+              <tr>
+                <td colSpan={6} style={{ ...PS.td, textAlign: 'right', fontWeight: 500 }}>{'ยอดรวมก่อน VAT'}</td>
+                <td style={{ ...PS.tdRight, fontWeight: 500 }}>{formatCurrencyPrint(subtotal)}</td>
+              </tr>
+              <tr>
+                <td colSpan={6} style={{ ...PS.td, textAlign: 'right' }}>VAT {vatRate}%</td>
+                <td style={PS.tdRight}>{formatCurrencyPrint(vatAmount)}</td>
+              </tr>
+              <tr className="summary-row">
+                <td colSpan={6} style={{ ...PS.summaryRow, textAlign: 'right' }}>{'ยอดรวมทั้งสิ้น'}</td>
+                <td style={PS.summaryRow}>{formatCurrencyPrint(totalAmount)}</td>
+              </tr>
+            </>
+          ) : (
+            <tr className="summary-row">
+              <td colSpan={6} style={{ ...PS.summaryRow, textAlign: 'right' }}>{'ยอดรวม'}</td>
+              <td style={PS.summaryRow}>{formatCurrencyPrint(totalAmount)}</td>
+            </tr>
+          )}
         </tbody>
       </table>
 
       {/* Note */}
       {po.note && (
         <div style={PS.note}>
-          <span style={PS.infoLabel}>{'\u0E2B\u0E21\u0E32\u0E22\u0E40\u0E2B\u0E15\u0E38'}: </span>
+          <span style={PS.infoLabel}>{'หมายเหตุ'}: </span>
           {po.note}
         </div>
       )}
 
       {/* Signature blocks */}
-      <SignatureSection labels={['\u0E1C\u0E39\u0E49\u0E08\u0E31\u0E14\u0E17\u0E33', '\u0E1C\u0E39\u0E49\u0E15\u0E23\u0E27\u0E08\u0E2A\u0E2D\u0E1A', '\u0E1C\u0E39\u0E49\u0E2D\u0E19\u0E38\u0E21\u0E31\u0E15\u0E34']} />
+      <SignatureSection labels={['ผู้จัดทำ', 'ผู้ตรวจสอบ', 'ผู้อนุมัติ']} />
 
       <PrintFooter />
     </div>

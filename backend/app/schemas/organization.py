@@ -194,3 +194,29 @@ class DeptMenuConfigResponse(BaseModel):
     department_id: Optional[UUID] = None
     department_name: Optional[str] = None
     items: list[DeptMenuConfigItem]
+
+
+# ============================================================
+# ORG TAX CONFIG SCHEMAS  (C5 Tax Calculation)
+# ============================================================
+
+class OrgTaxConfigUpdate(BaseModel):
+    vat_enabled: Optional[bool] = None
+    default_vat_rate: Optional[Decimal] = Field(
+        default=None, ge=0, le=100, decimal_places=2,
+        description="Default VAT rate % for new PO/SO (e.g. 7.00)"
+    )
+    wht_enabled: Optional[bool] = None
+
+
+class OrgTaxConfigResponse(BaseModel):
+    id: UUID
+    org_id: UUID
+    vat_enabled: bool
+    default_vat_rate: Decimal
+    wht_enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

@@ -242,6 +242,16 @@ class PurchaseOrder(Base, TimestampMixin, OrgMixin):
     )
     order_date: Mapped[date] = mapped_column(Date, nullable=False)
     expected_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # --- Amount fields (C5 Tax) ---
+    subtotal_amount: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=Decimal("0.00")
+    )
+    vat_rate: Mapped[Decimal] = mapped_column(
+        Numeric(5, 2), nullable=False, default=Decimal("0.00")
+    )
+    vat_amount: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=Decimal("0.00")
+    )
     total_amount: Mapped[Decimal] = mapped_column(
         Numeric(12, 2), nullable=False, default=Decimal("0.00")
     )
@@ -282,6 +292,9 @@ class PurchaseOrder(Base, TimestampMixin, OrgMixin):
     __table_args__ = (
         UniqueConstraint("org_id", "po_number", name="uq_po_org_number"),
         CheckConstraint("total_amount >= 0", name="ck_po_total_positive"),
+        CheckConstraint("subtotal_amount >= 0", name="ck_po_subtotal_positive"),
+        CheckConstraint("vat_amount >= 0", name="ck_po_vat_amount_positive"),
+        CheckConstraint("vat_rate >= 0 AND vat_rate <= 100", name="ck_po_vat_rate_range"),
     )
 
     def __repr__(self) -> str:

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Modal, Form, Input, DatePicker, InputNumber, Table, App, Tag, Select } from 'antd';
+import { Modal, Form, Input, DatePicker, InputNumber, Table, App, Tag, Select, Switch } from 'antd';
 import { ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import api from '../../services/api';
 import { formatCurrency } from '../../utils/formatters';
@@ -12,15 +12,24 @@ export default function ConvertToPOModal({ open, pr, products, onClose, onSucces
   const [lineCosts, setLineCosts] = useState({});
   const [suppliers, setSuppliers] = useState([]);
   const [suppliersLoading, setSuppliersLoading] = useState(false);
+  const [vatEnabled, setVatEnabled] = useState(true);
+  const [vatRate, setVatRate] = useState(7);
   const { message } = App.useApp();
 
   useEffect(() => {
     if (open) {
       setSuppliersLoading(true);
-      api.get('/api/master/suppliers', { params: { limit: 500, offset: 0 } })
-        .then(({ data }) => setSuppliers(data.items || []))
-        .catch(() => setSuppliers([]))
-        .finally(() => setSuppliersLoading(false));
+      Promise.all([
+        api.get('/api/master/suppliers', { params: { limit: 500, offset: 0 } }),
+        api.get('/api/admin/config/tax').catch(() => ({ data: { vat_enabled: true, default_vat_rate: 7 } })),
+      ]).then(([suppRes, taxRes]) => {
+        setSuppliers(suppRes.data.items || []);
+        const taxCfg = taxRes.data;
+        setVatEnabled(taxCfg.vat_enabled);
+        setVatRate(Number(taxCfg.default_vat_rate) || 7);
+      }).catch(() => {
+        setSuppliers([]);
+      }).finally(() => setSuppliersLoading(false));
     }
   }, [open]);
 
@@ -46,6 +55,7 @@ export default function ConvertToPOModal({ open, pr, products, onClose, onSucces
         supplier_name: selectedSupplier?.name || values.supplier_name || '',
         expected_date: values.expected_date?.format('YYYY-MM-DD') || null,
         note: values.note || null,
+        vat_rate: vatEnabled ? vatRate : 0,
         lines: pr.lines.map((line) => ({
           pr_line_id: line.id,
           unit_cost: getLineCost(line.id, line.estimated_unit_cost),
@@ -130,11 +140,14 @@ export default function ConvertToPOModal({ open, pr, products, onClose, onSucces
     },
   ];
 
-  // Calculate grand total
-  const grandTotal = (pr?.lines || []).reduce((sum, line) => {
+  // Calculate subtotal, VAT, grand total
+  const subtotal = (pr?.lines || []).reduce((sum, line) => {
     const cost = getLineCost(line.id, line.estimated_unit_cost);
     return sum + cost * line.quantity;
   }, 0);
+  const effectiveRate = vatEnabled ? vatRate : 0;
+  const vatAmount = Math.round(subtotal * effectiveRate) / 100;
+  const grandTotal = subtotal + vatAmount;
 
   return (
     <Modal
@@ -185,12 +198,40 @@ export default function ConvertToPOModal({ open, pr, products, onClose, onSucces
         pagination={false}
         size="small"
         scroll={{ x: 800 }}
-        footer={() => (
-          <div style={{ textAlign: 'right', fontWeight: 600, fontSize: 14 }}>
-            ยอดรวม PO: <span style={{ color: COLORS.accent, fontFamily: 'monospace' }}>{formatCurrency(grandTotal)}</span>
+      />
+
+      {/* VAT Section */}
+      <div style={{ marginTop: 16, padding: '12px 16px', background: COLORS.surface, borderRadius: 6, border: `1px solid ${COLORS.border}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: vatEnabled ? 12 : 0 }}>
+          <span style={{ fontWeight: 500, color: COLORS.text }}>VAT</span>
+          <Switch checked={vatEnabled} onChange={setVatEnabled} size="small" />
+          {vatEnabled && (
+            <InputNumber
+              min={0} max={100} step={0.01} value={vatRate}
+              onChange={(v) => setVatRate(v || 0)}
+              style={{ width: 90 }} size="small" addonAfter="%"
+            />
+          )}
+        </div>
+        {vatEnabled && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+            <div style={{ color: COLORS.textMuted, fontSize: 13 }}>
+              {'ยอดรวมก่อน VAT'}: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(subtotal)}</span>
+            </div>
+            <div style={{ color: COLORS.textMuted, fontSize: 13 }}>
+              VAT {vatRate}%: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(vatAmount)}</span>
+            </div>
+            <div style={{ color: COLORS.accent, fontWeight: 600, fontSize: 14 }}>
+              {'ยอดรวม PO'}: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(grandTotal)}</span>
+            </div>
           </div>
         )}
-      />
+        {!vatEnabled && (
+          <div style={{ textAlign: 'right', color: COLORS.accent, fontWeight: 600, fontSize: 14 }}>
+            {'ยอดรวม PO'}: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(subtotal)}</span>
+          </div>
+        )}
+      </div>
     </Modal>
   );
 }

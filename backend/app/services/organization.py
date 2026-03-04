@@ -15,6 +15,7 @@ from app.models.organization import (
     Department,
     DeptMenuConfig,
     OrgApprovalConfig,
+    OrgTaxConfig,
     OrgWorkConfig,
     Organization,
     VALID_MENU_KEYS,
@@ -430,3 +431,41 @@ async def update_dept_menu(
             )
         )
     return list(result.scalars().all())
+
+
+# ============================================================
+# ORG TAX CONFIG  (C5 Tax Calculation)
+# ============================================================
+
+async def get_or_create_tax_config(db: AsyncSession, org_id: UUID) -> OrgTaxConfig:
+    """Get tax config for org, auto-create with defaults if missing."""
+    result = await db.execute(
+        select(OrgTaxConfig).where(OrgTaxConfig.org_id == org_id)
+    )
+    config = result.scalar_one_or_none()
+    if not config:
+        config = OrgTaxConfig(
+            org_id=org_id,
+            vat_enabled=True,
+            default_vat_rate=Decimal("7.00"),
+            wht_enabled=False,
+        )
+        db.add(config)
+        await db.commit()
+        await db.refresh(config)
+    return config
+
+
+async def update_tax_config(
+    db: AsyncSession,
+    org_id: UUID,
+    *,
+    update_data: dict,
+) -> OrgTaxConfig:
+    config = await get_or_create_tax_config(db, org_id)
+    for field, value in update_data.items():
+        if value is not None:
+            setattr(config, field, value)
+    await db.commit()
+    await db.refresh(config)
+    return config

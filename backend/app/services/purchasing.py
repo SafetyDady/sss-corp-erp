@@ -26,6 +26,7 @@ from app.models.purchasing import (
     PurchaseRequisitionLine,
 )
 from app.services.inventory import create_movement
+from app.services.organization import get_or_create_tax_config
 
 
 # ============================================================
@@ -353,11 +354,25 @@ async def convert_pr_to_po(
 
     # Create PO
     po_number = await _next_po_number(db, org_id)
-    total_amount = Decimal("0.00")
+    subtotal = Decimal("0.00")
 
     for cl in convert_lines:
         pr_line = pr_lines_by_id[cl["pr_line_id"]]
-        total_amount += Decimal(str(pr_line.quantity)) * Decimal(str(cl["unit_cost"]))
+        subtotal += Decimal(str(pr_line.quantity)) * Decimal(str(cl["unit_cost"]))
+
+    # C5 Tax: resolve VAT rate → calculate vat_amount → grand total
+    vat_rate = body.get("vat_rate")
+    if vat_rate is None:
+        tax_config = await get_or_create_tax_config(db, org_id)
+        if tax_config.vat_enabled:
+            vat_rate = tax_config.default_vat_rate
+        else:
+            vat_rate = Decimal("0.00")
+    else:
+        vat_rate = Decimal(str(vat_rate))
+
+    vat_amount = (subtotal * vat_rate / Decimal("100")).quantize(Decimal("0.01"))
+    total_amount = subtotal + vat_amount
 
     po = PurchaseOrder(
         po_number=po_number,
@@ -367,6 +382,9 @@ async def convert_pr_to_po(
         status=POStatus.APPROVED,  # Auto-approved since PR is approved
         order_date=date.today(),
         expected_date=body.get("expected_date"),
+        subtotal_amount=subtotal,
+        vat_rate=vat_rate,
+        vat_amount=vat_amount,
         total_amount=total_amount,
         cost_center_id=pr.cost_center_id,
         note=body.get("note"),

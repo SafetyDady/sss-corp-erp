@@ -28,7 +28,7 @@ export default function SODetailPage() {
       setSo(soRes.data);
       setProducts(Object.fromEntries(prodRes.data.items.map((p) => [p.id, p])));
     } catch (err) {
-      message.error('\u0E44\u0E21\u0E48\u0E1E\u0E1A\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25');
+      message.error('ไม่พบข้อมูล');
       navigate('/sales');
     } finally {
       setLoading(false);
@@ -40,10 +40,10 @@ export default function SODetailPage() {
   const handleApprove = async () => {
     try {
       await api.post(`/api/sales/orders/${id}/approve`);
-      message.success('\u0E2D\u0E19\u0E38\u0E21\u0E31\u0E15\u0E34\u0E2A\u0E33\u0E40\u0E23\u0E47\u0E08');
+      message.success('อนุมัติสำเร็จ');
       fetchData();
     } catch (err) {
-      message.error(err.response?.data?.detail || '\u0E44\u0E21\u0E48\u0E2A\u0E32\u0E21\u0E32\u0E23\u0E16\u0E2D\u0E19\u0E38\u0E21\u0E31\u0E15\u0E34\u0E44\u0E14\u0E49');
+      message.error(err.response?.data?.detail || 'ไม่สามารถอนุมัติได้');
     }
   };
 
@@ -51,21 +51,21 @@ export default function SODetailPage() {
   if (!so) return null;
 
   const lineColumns = [
-    { title: '\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32', dataIndex: 'product_id', render: (v) => products[v]?.name || v },
-    { title: '\u0E08\u0E33\u0E19\u0E27\u0E19', dataIndex: 'quantity', width: 100, align: 'right' },
-    { title: '\u0E23\u0E32\u0E04\u0E32/\u0E2B\u0E19\u0E48\u0E27\u0E22', dataIndex: 'unit_price', width: 120, align: 'right', render: (v) => formatCurrency(v) },
+    { title: 'สินค้า', dataIndex: 'product_id', render: (v) => products[v]?.name || v },
+    { title: 'จำนวน', dataIndex: 'quantity', width: 100, align: 'right' },
+    { title: 'ราคา/หน่วย', dataIndex: 'unit_price', width: 120, align: 'right', render: (v) => formatCurrency(v) },
   ];
 
   return (
     <div>
       <PageHeader
         title={so.so_number}
-        subtitle={'\u0E23\u0E32\u0E22\u0E25\u0E30\u0E40\u0E2D\u0E35\u0E22\u0E14\u0E43\u0E1A\u0E2A\u0E31\u0E48\u0E07\u0E02\u0E32\u0E22'}
+        subtitle={'รายละเอียดใบสั่งขาย'}
         actions={
           <Space>
-            <Button icon={<ArrowLeft size={14} />} onClick={() => navigate('/sales')}>{'\u0E01\u0E25\u0E31\u0E1A'}</Button>
+            <Button icon={<ArrowLeft size={14} />} onClick={() => navigate('/sales')}>{'กลับ'}</Button>
             {so.status === 'SUBMITTED' && can('sales.order.approve') && (
-              <Popconfirm title={'\u0E2D\u0E19\u0E38\u0E21\u0E31\u0E15\u0E34 SO?'} onConfirm={handleApprove}>
+              <Popconfirm title={'อนุมัติ SO?'} onConfirm={handleApprove}>
                 <Button type="primary" icon={<Check size={14} />}>Approve</Button>
               </Popconfirm>
             )}
@@ -76,11 +76,21 @@ export default function SODetailPage() {
         <Descriptions column={2} size="small">
           <Descriptions.Item label="SO Number">{so.so_number}</Descriptions.Item>
           <Descriptions.Item label="Status"><StatusBadge status={so.status} /></Descriptions.Item>
-          <Descriptions.Item label={'\u0E27\u0E31\u0E19\u0E17\u0E35\u0E48\u0E2A\u0E31\u0E48\u0E07'}>{formatDate(so.order_date)}</Descriptions.Item>
-          <Descriptions.Item label={'\u0E22\u0E2D\u0E14\u0E23\u0E27\u0E21'}>{formatCurrency(so.total_amount)}</Descriptions.Item>
+          <Descriptions.Item label={'วันที่สั่ง'}>{formatDate(so.order_date)}</Descriptions.Item>
+          {Number(so.vat_rate) > 0 ? (
+            <>
+              <Descriptions.Item label={'ยอดรวมก่อน VAT'}>{formatCurrency(so.subtotal_amount)}</Descriptions.Item>
+              <Descriptions.Item label={`VAT ${so.vat_rate}%`}>{formatCurrency(so.vat_amount)}</Descriptions.Item>
+              <Descriptions.Item label={'ยอดรวมทั้งสิ้น'}>
+                <span style={{ color: COLORS.accent, fontWeight: 600 }}>{formatCurrency(so.total_amount)}</span>
+              </Descriptions.Item>
+            </>
+          ) : (
+            <Descriptions.Item label={'ยอดรวม'}>{formatCurrency(so.total_amount)}</Descriptions.Item>
+          )}
         </Descriptions>
       </Card>
-      <h3 style={{ color: COLORS.text, marginBottom: 16 }}>{'\u0E23\u0E32\u0E22\u0E01\u0E32\u0E23\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32'}</h3>
+      <h3 style={{ color: COLORS.text, marginBottom: 16 }}>{'รายการสินค้า'}</h3>
       <Table dataSource={so.lines || []} columns={lineColumns} rowKey="id" pagination={false} size="small" />
     </div>
   );

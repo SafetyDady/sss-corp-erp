@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.sales import SOStatus, SalesOrder, SalesOrderLine
+from app.services.organization import get_or_create_tax_config
 
 
 async def _next_so_number(db: AsyncSession, org_id: UUID) -> str:
@@ -39,16 +40,32 @@ async def create_sales_order(
     created_by: UUID,
     org_id: UUID,
     requested_approver_id: Optional[UUID] = None,
+    vat_rate: Optional[Decimal] = None,
 ) -> SalesOrder:
     so_number = await _next_so_number(db, org_id)
 
-    total = sum(Decimal(str(l["quantity"])) * l["unit_price"] for l in lines)
+    # C5 Tax: calculate subtotal, VAT, and grand total
+    subtotal = sum(Decimal(str(l["quantity"])) * l["unit_price"] for l in lines)
+
+    # Resolve VAT rate: explicit → org default (if VAT enabled) → 0
+    if vat_rate is None:
+        tax_config = await get_or_create_tax_config(db, org_id)
+        if tax_config.vat_enabled:
+            vat_rate = tax_config.default_vat_rate
+        else:
+            vat_rate = Decimal("0.00")
+
+    vat_amount = (subtotal * vat_rate / Decimal("100")).quantize(Decimal("0.01"))
+    total = subtotal + vat_amount
 
     so = SalesOrder(
         so_number=so_number,
         customer_id=customer_id,
         order_date=order_date,
         note=note,
+        subtotal_amount=subtotal,
+        vat_rate=vat_rate,
+        vat_amount=vat_amount,
         total_amount=total,
         created_by=created_by,
         org_id=org_id,

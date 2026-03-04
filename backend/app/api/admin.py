@@ -38,6 +38,8 @@ from app.schemas.organization import (
     OrgApprovalConfigUpdate,
     OrganizationResponse,
     OrganizationUpdate,
+    OrgTaxConfigResponse,
+    OrgTaxConfigUpdate,
     OrgWorkConfigResponse,
     OrgWorkConfigUpdate,
     VALID_MENU_KEYS,
@@ -46,11 +48,13 @@ from app.services.organization import (
     get_approval_configs,
     get_dept_menu,
     get_dept_menu_configs,
+    get_or_create_tax_config,
     get_or_create_work_config,
     get_organization,
     update_approval_configs,
     update_dept_menu,
     update_organization,
+    update_tax_config,
     update_work_config,
 )
 
@@ -650,3 +654,37 @@ async def api_update_dept_menu(
         department_name=dept_name,
         items=result_items,
     )
+
+
+# ============================================================
+# ORG TAX CONFIG ROUTES  (C5 Tax Calculation)
+# ============================================================
+
+@admin_router.get(
+    "/config/tax",
+    response_model=OrgTaxConfigResponse,
+    dependencies=[Depends(require("admin.config.read"))],
+)
+async def api_get_tax_config(
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Get org tax configuration (VAT enabled, default VAT rate, WHT enabled)."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await get_or_create_tax_config(db, org_id)
+
+
+@admin_router.put(
+    "/config/tax",
+    response_model=OrgTaxConfigResponse,
+    dependencies=[Depends(require("admin.config.update"))],
+)
+async def api_update_tax_config(
+    body: OrgTaxConfigUpdate,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Update org tax configuration."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    update_data = body.model_dump(exclude_unset=True)
+    return await update_tax_config(db, org_id, update_data=update_data)

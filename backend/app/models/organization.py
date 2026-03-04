@@ -14,6 +14,7 @@ from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     ForeignKey,
     Index,
     Integer,
@@ -200,3 +201,42 @@ class DeptMenuConfig(Base, TimestampMixin):
         UniqueConstraint("org_id", "department_id", "menu_key", name="uq_dept_menu_org_dept_key"),
         Index("ix_dept_menu_org_dept", "org_id", "department_id"),
     )
+
+
+# ============================================================
+# ORG TAX CONFIG  (1 per org — C5 Tax Calculation)
+# ============================================================
+
+class OrgTaxConfig(Base, TimestampMixin):
+    """
+    Organization-level tax configuration.
+    - vat_enabled: global toggle for VAT calculation
+    - default_vat_rate: default VAT rate for new PO/SO (e.g. 7.00 for Thailand)
+    - wht_enabled: toggle for Withholding Tax (Phase C5.2)
+    """
+    __tablename__ = "org_tax_configs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+    )
+    vat_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    default_vat_rate: Mapped[Decimal] = mapped_column(
+        Numeric(5, 2), nullable=False, default=Decimal("7.00")
+    )
+    wht_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "default_vat_rate >= 0 AND default_vat_rate <= 100",
+            name="ck_org_tax_vat_range",
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return f"<OrgTaxConfig org={self.org_id} vat={self.default_vat_rate}% enabled={self.vat_enabled}>"

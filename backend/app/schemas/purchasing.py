@@ -227,6 +227,8 @@ class ConvertToPORequest(BaseModel):
     supplier_id: Optional[UUID] = None
     expected_date: Optional[date] = None
     note: Optional[str] = None
+    vat_rate: Optional[Decimal] = Field(default=None, ge=0, le=100, decimal_places=2,
+                                         description="VAT rate %. None = use org default")
     lines: list[ConvertToPOLine] = Field(min_length=1)
 
 
@@ -292,6 +294,9 @@ class PurchaseOrderResponse(BaseModel):
     status: POStatus
     order_date: date
     expected_date: Optional[date] = None
+    subtotal_amount: Decimal
+    vat_rate: Decimal
+    vat_amount: Decimal
     total_amount: Decimal
     cost_center_id: Optional[UUID] = None
     note: Optional[str] = None
