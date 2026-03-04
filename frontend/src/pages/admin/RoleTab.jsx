@@ -1,91 +1,84 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Card, Button, App, Collapse, Tag, Space, Tooltip, Spin, Badge, Switch, Input } from 'antd';
+/**
+ * RoleTab — Permission Matrix UI (Redesigned)
+ *
+ * 3 Module Groups (Segmented) → Sub-tabs per module → Permission Matrix Table
+ * Rows = permissions, Columns = roles, Cells = Checkbox
+ * Batch save, change tracking, bulk actions
+ */
+
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Button, App, Tabs, Tag, Space, Tooltip, Spin, Input, Badge, Segmented } from 'antd';
 import {
-  Save, Lock, RefreshCw, Search, Package, Warehouse, FileText,
-  ShoppingCart, DollarSign, BarChart3, Database, Settings, UserCheck,
-  Wrench, Users, Plus, Eye, Pencil, Trash2, Check, Download, Play,
-  ToggleLeft, ToggleRight,
+  Save, RefreshCw, Search, RotateCcw, X,
+  Package, Warehouse, FileText, ShoppingCart, DollarSign,
+  BarChart3, Database, Settings, UserCheck, Wrench, Users,
+  Boxes, HardHat, Server,
 } from 'lucide-react';
 import api from '../../services/api';
 import { usePermission } from '../../hooks/usePermission';
 import { COLORS } from '../../utils/constants';
 import {
-  MODULE_META, MODULE_ORDER, RESOURCE_META, ACTION_META, ACTION_ORDER,
-  buildPermissionTree,
+  MODULE_META, RESOURCE_META, ACTION_META,
+  buildPermissionTree, getModulePermissions,
 } from '../../utils/permissionMeta';
+import PermissionMatrixTable from './PermissionMatrixTable';
 
 const ROLE_ORDER = ['owner', 'manager', 'supervisor', 'staff', 'viewer'];
 const ROLE_LABELS = {
   owner: 'Owner', manager: 'Manager', supervisor: 'Supervisor', staff: 'Staff', viewer: 'Viewer',
-};
-const ROLE_COLORS = {
-  owner: 'cyan', manager: 'blue', supervisor: 'green', staff: 'default', viewer: 'default',
 };
 
 // Lucide icon components map
 const ICON_MAP = {
   Package, Warehouse, FileText, ShoppingCart, DollarSign, BarChart3,
   Database, Settings, UserCheck, Wrench, Users,
-  Plus, Eye, Pencil, Trash2, Check, Download, Play,
 };
 
-function ActionToggle({ perm, action, checked, disabled, description, onToggle }) {
-  const meta = ACTION_META[action];
-  if (!meta) return null;
-  const IconComp = ICON_MAP[meta.icon];
+// ── Module Groups ────────────────────────────────────────────
+const MODULE_GROUPS = [
+  {
+    key: 'operations',
+    label: 'ปฏิบัติการ',
+    icon: Boxes,
+    modules: ['inventory', 'warehouse', 'workorder', 'purchasing', 'sales'],
+  },
+  {
+    key: 'hr',
+    label: 'บุคคล',
+    icon: HardHat,
+    modules: ['hr', 'tools', 'customer'],
+  },
+  {
+    key: 'system',
+    label: 'ข้อมูลหลัก & ระบบ',
+    icon: Server,
+    modules: ['master', 'finance', 'admin'],
+  },
+];
 
-  return (
-    <Tooltip title={description || perm} placement="top">
-      <div
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 4,
-          padding: '3px 8px',
-          borderRadius: 6,
-          background: checked ? `${meta.color}18` : 'transparent',
-          border: `1px solid ${checked ? `${meta.color}40` : COLORS.border}`,
-          cursor: disabled ? 'not-allowed' : 'pointer',
-          opacity: disabled ? 0.5 : 1,
-          transition: 'all 0.2s',
-          minWidth: 80,
-        }}
-        onClick={() => !disabled && onToggle(perm, !checked)}
-      >
-        {IconComp && <IconComp size={12} color={checked ? meta.color : COLORS.textMuted} />}
-        <span style={{
-          fontSize: 11,
-          color: checked ? meta.color : COLORS.textMuted,
-          fontWeight: checked ? 500 : 400,
-          whiteSpace: 'nowrap',
-        }}>
-          {meta.label}
-        </span>
-        <Switch
-          size="small"
-          checked={checked}
-          disabled={disabled}
-          onChange={(val) => onToggle(perm, val)}
-          onClick={(e) => e.stopPropagation()}
-          style={{ marginLeft: 'auto' }}
-        />
-      </div>
-    </Tooltip>
-  );
+// Quick lookup: moduleKey → groupKey
+const MODULE_TO_GROUP = {};
+for (const g of MODULE_GROUPS) {
+  for (const m of g.modules) MODULE_TO_GROUP[m] = g.key;
 }
 
 export default function RoleTab() {
   const { can } = usePermission();
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [rolesData, setRolesData] = useState({});
   const [allPerms, setAllPerms] = useState([]);
   const [descriptions, setDescriptions] = useState({});
-  const [editedPerms, setEditedPerms] = useState({});
+  const [pendingChanges, setPendingChanges] = useState({});
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [activeGroup, setActiveGroup] = useState(MODULE_GROUPS[0].key);
+  const [activeModule, setActiveModule] = useState(MODULE_GROUPS[0].modules[0]);
   const [searchText, setSearchText] = useState('');
 
-  const fetchData = async () => {
+  const canEdit = can('admin.role.update');
+
+  // ── Fetch ──────────────────────────────────────────────────
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const [rolesRes, seedRes] = await Promise.all([
@@ -95,20 +88,21 @@ export default function RoleTab() {
       setRolesData(rolesRes.data);
       setAllPerms(seedRes.data.all_permissions || []);
       setDescriptions(seedRes.data.descriptions || {});
-      setEditedPerms({});
+      setPendingChanges({});
     } catch {
       message.error('ไม่สามารถโหลดข้อมูลสิทธิ์ได้');
     } finally {
       setLoading(false);
     }
-  };
+  }, [message]);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
+  // ── Permission tree ────────────────────────────────────────
   const permTree = useMemo(() => buildPermissionTree(allPerms), [allPerms]);
 
-  // Filter tree by search text (matches module/resource/action Thai labels + description + English key)
-  const getFilteredTree = useMemo(() => {
+  // Filtered tree (for search)
+  const filteredTree = useMemo(() => {
     if (!searchText.trim()) return permTree;
     const q = searchText.trim().toLowerCase();
     const filtered = {};
@@ -141,242 +135,386 @@ export default function RoleTab() {
     return filtered;
   }, [permTree, searchText, descriptions]);
 
-  const handleToggle = (role, perm, checked) => {
-    setEditedPerms((prev) => {
-      const current = prev[role] || [...(rolesData[role] || [])];
-      const updated = checked
-        ? [...new Set([...current, perm])]
-        : current.filter((p) => p !== perm);
-      return { ...prev, [role]: updated };
-    });
-  };
+  // ── Change tracking helpers ────────────────────────────────
 
-  const handleGrantAllModule = (role, mod) => {
-    const modulePerms = [];
-    for (const resource of Object.keys(permTree[mod] || {})) {
-      for (const action of Object.keys(permTree[mod][resource] || {})) {
-        modulePerms.push(permTree[mod][resource][action]);
+  const getRolePermSet = useCallback((role) => {
+    if (pendingChanges[role]) return pendingChanges[role];
+    return new Set(rolesData[role] || []);
+  }, [pendingChanges, rolesData]);
+
+  const hasAnyChanges = Object.keys(pendingChanges).length > 0;
+  const modifiedRolesCount = Object.keys(pendingChanges).length;
+
+  const moduleHasChanges = useCallback((moduleKey) => {
+    const modPerms = getModulePermissions(permTree, moduleKey);
+    for (const role of ROLE_ORDER) {
+      if (role === 'owner') continue;
+      if (!pendingChanges[role]) continue;
+      const original = new Set(rolesData[role] || []);
+      const current = pendingChanges[role];
+      for (const p of modPerms) {
+        if (original.has(p.permission) !== current.has(p.permission)) return true;
       }
     }
-    setEditedPerms((prev) => {
-      const current = prev[role] || [...(rolesData[role] || [])];
-      const updated = [...new Set([...current, ...modulePerms])];
-      return { ...prev, [role]: updated };
-    });
-  };
+    return false;
+  }, [permTree, pendingChanges, rolesData]);
 
-  const handleRevokeAllModule = (role, mod) => {
-    const modulePerms = new Set();
-    for (const resource of Object.keys(permTree[mod] || {})) {
-      for (const action of Object.keys(permTree[mod][resource] || {})) {
-        modulePerms.add(permTree[mod][resource][action]);
+  // Check if a group has pending changes (any module in that group)
+  const groupHasChanges = useCallback((groupKey) => {
+    const group = MODULE_GROUPS.find((g) => g.key === groupKey);
+    if (!group) return false;
+    return group.modules.some((mod) => moduleHasChanges(mod));
+  }, [moduleHasChanges]);
+
+  // ── Handlers ───────────────────────────────────────────────
+
+  const handleToggle = useCallback((role, perm, checked) => {
+    if (role === 'owner') return;
+    setPendingChanges((prev) => {
+      const current = prev[role]
+        ? new Set(prev[role])
+        : new Set(rolesData[role] || []);
+
+      if (checked) {
+        current.add(perm);
+      } else {
+        current.delete(perm);
       }
-    }
-    setEditedPerms((prev) => {
-      const current = prev[role] || [...(rolesData[role] || [])];
-      const updated = current.filter((p) => !modulePerms.has(p));
-      return { ...prev, [role]: updated };
-    });
-  };
 
-  const handleSave = async (role) => {
-    const perms = editedPerms[role];
-    if (!perms) return;
-    setSaving(role);
+      const original = new Set(rolesData[role] || []);
+      const isIdentical =
+        current.size === original.size &&
+        [...current].every((p) => original.has(p));
+
+      if (isIdentical) {
+        const next = { ...prev };
+        delete next[role];
+        return next;
+      }
+
+      return { ...prev, [role]: current };
+    });
+  }, [rolesData]);
+
+  const handleBulkAction = useCallback((role, moduleKey, actionType) => {
+    if (role === 'owner') return;
+    const modPerms = getModulePermissions(permTree, moduleKey);
+
+    setPendingChanges((prev) => {
+      const current = prev[role]
+        ? new Set(prev[role])
+        : new Set(rolesData[role] || []);
+
+      if (actionType === 'grant_all') {
+        for (const p of modPerms) current.add(p.permission);
+      } else if (actionType === 'revoke_all') {
+        for (const p of modPerms) current.delete(p.permission);
+      } else if (actionType === 'grant_read') {
+        for (const p of modPerms) {
+          if (p.action === 'read') current.add(p.permission);
+        }
+      }
+
+      const original = new Set(rolesData[role] || []);
+      const isIdentical =
+        current.size === original.size &&
+        [...current].every((p) => original.has(p));
+
+      if (isIdentical) {
+        const next = { ...prev };
+        delete next[role];
+        return next;
+      }
+
+      return { ...prev, [role]: current };
+    });
+  }, [permTree, rolesData]);
+
+  const handleSaveAll = async () => {
+    const changedRoles = Object.keys(pendingChanges);
+    if (changedRoles.length === 0) return;
+
+    setSaving(true);
     try {
-      await api.put(`/api/admin/roles/${role}/permissions`, { permissions: perms });
-      message.success(`บันทึกสิทธิ์ของ ${ROLE_LABELS[role]} สำเร็จ`);
+      await Promise.all(
+        changedRoles.map((role) =>
+          api.put(`/api/admin/roles/${role}/permissions`, {
+            permissions: [...pendingChanges[role]],
+          }),
+        ),
+      );
+      message.success(`บันทึกสิทธิ์สำเร็จ (${changedRoles.length} roles)`);
       fetchData();
     } catch (err) {
       message.error(err.response?.data?.detail || 'ไม่สามารถบันทึกได้');
     } finally {
-      setSaving(null);
+      setSaving(false);
     }
   };
 
-  const hasChanges = (role) => !!editedPerms[role];
-
-  const getModulePermCount = (mod, permSet) => {
-    let granted = 0;
-    let total = 0;
-    for (const resource of Object.keys(permTree[mod] || {})) {
-      for (const action of Object.keys(permTree[mod][resource] || {})) {
-        total++;
-        if (permSet.has(permTree[mod][resource][action])) granted++;
-      }
-    }
-    return { granted, total };
+  const handleDiscard = () => {
+    if (!hasAnyChanges) return;
+    modal.confirm({
+      title: 'ยกเลิกการเปลี่ยนแปลง?',
+      content: `คุณมีการเปลี่ยนแปลงที่ยังไม่ได้บันทึกใน ${modifiedRolesCount} role — ต้องการยกเลิกทั้งหมด?`,
+      okText: 'ยกเลิกการเปลี่ยนแปลง',
+      cancelText: 'ทำต่อ',
+      okButtonProps: { danger: true },
+      onOk: () => setPendingChanges({}),
+    });
   };
 
+  const handleReset = async () => {
+    modal.confirm({
+      title: 'คืนค่าเริ่มต้น?',
+      content: 'คืนค่าสิทธิ์ทุก role เป็นค่าเริ่มต้นของระบบ? การเปลี่ยนแปลงที่ยังไม่ได้บันทึกจะถูกยกเลิก',
+      okText: 'คืนค่าเริ่มต้น',
+      cancelText: 'ยกเลิก',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await api.post('/api/admin/seed-permissions');
+          message.success('คืนค่าสิทธิ์เริ่มต้นเรียบร้อย');
+          fetchData();
+        } catch {
+          message.error('ไม่สามารถคืนค่าเริ่มต้นได้');
+        }
+      },
+    });
+  };
+
+  // When switching group, auto-select first module in that group
+  const handleGroupChange = useCallback((groupKey) => {
+    setActiveGroup(groupKey);
+    const group = MODULE_GROUPS.find((g) => g.key === groupKey);
+    if (group) {
+      // Pick first module that has results in filtered tree
+      const first = group.modules.find((m) => filteredTree[m]) || group.modules[0];
+      setActiveModule(first);
+    }
+  }, [filteredTree]);
+
+  // ── Role summary ───────────────────────────────────────────
+  const roleSummary = useMemo(() => {
+    return ROLE_ORDER.map((role) => {
+      const permSet = getRolePermSet(role);
+      return { role, count: permSet.size };
+    });
+  }, [getRolePermSet]);
+
+  // ── Current group's module sub-tabs ────────────────────────
+  const currentGroup = MODULE_GROUPS.find((g) => g.key === activeGroup) || MODULE_GROUPS[0];
+
+  const subTabItems = useMemo(() => {
+    return currentGroup.modules
+      .filter((mod) => filteredTree[mod])
+      .map((mod) => {
+        const meta = MODULE_META[mod] || { label: mod, icon: 'Package' };
+        const ModIcon = ICON_MAP[meta.icon] || Package;
+        const total = getModulePermissions(permTree, mod).length;
+        const hasChanges = moduleHasChanges(mod);
+
+        return {
+          key: mod,
+          label: (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <ModIcon size={14} />
+              <span>{meta.label}</span>
+              <Tag
+                style={{
+                  fontSize: 10,
+                  lineHeight: '16px',
+                  padding: '0 4px',
+                  marginInlineEnd: 0,
+                  borderColor: 'transparent',
+                }}
+              >
+                {total}
+              </Tag>
+              {hasChanges && (
+                <Badge status="warning" style={{ marginLeft: -2 }} />
+              )}
+            </span>
+          ),
+        };
+      });
+  }, [currentGroup, filteredTree, permTree, moduleHasChanges]);
+
+  // Segmented items for group selector
+  const groupSegmentedOptions = useMemo(() => {
+    return MODULE_GROUPS.map((g) => {
+      const GIcon = g.icon;
+      const hasChanges = groupHasChanges(g.key);
+      const moduleCount = g.modules.filter((m) => filteredTree[m]).length;
+
+      return {
+        value: g.key,
+        label: (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 4px' }}>
+            <GIcon size={14} />
+            <span>{g.label}</span>
+            {hasChanges && (
+              <Badge status="warning" dot style={{ marginLeft: -2 }} />
+            )}
+          </span>
+        ),
+        disabled: moduleCount === 0,
+      };
+    });
+  }, [filteredTree, groupHasChanges]);
+
+  // ── Loading state ──────────────────────────────────────────
   if (loading) {
     return <div style={{ textAlign: 'center', padding: 48 }}><Spin size="large" /></div>;
   }
 
   return (
-    <div>
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ position: 'relative', paddingBottom: hasAnyChanges ? 72 : 0 }}>
+      {/* ── Toolbar ──────────────────────────────────── */}
+      <div style={{
+        marginBottom: 12,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 12,
+      }}>
         <Input
           placeholder="ค้นหาสิทธิ์... (ชื่อ, คำอธิบาย, โมดูล)"
           prefix={<Search size={14} color={COLORS.textMuted} />}
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
           allowClear
-          style={{ maxWidth: 400, background: COLORS.surface, borderColor: COLORS.border }}
+          style={{ maxWidth: 360, background: COLORS.surface, borderColor: COLORS.border }}
         />
-        <Tooltip title="รีเฟรชข้อมูล">
-          <Button icon={<RefreshCw size={14} />} onClick={fetchData}>รีเฟรช</Button>
-        </Tooltip>
+        <Space>
+          {canEdit && (
+            <Tooltip title="คืนค่าสิทธิ์เริ่มต้น">
+              <Button
+                icon={<RotateCcw size={14} />}
+                onClick={handleReset}
+                size="small"
+              >
+                คืนค่าเริ่มต้น
+              </Button>
+            </Tooltip>
+          )}
+          <Tooltip title="รีเฟรชข้อมูล">
+            <Button icon={<RefreshCw size={14} />} onClick={fetchData} size="small">
+              รีเฟรช
+            </Button>
+          </Tooltip>
+        </Space>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {ROLE_ORDER.map((role) => {
-          const perms = editedPerms[role] || rolesData[role] || [];
-          const isOwner = role === 'owner';
-          const permSet = new Set(perms);
-          const canEdit = !isOwner && can('admin.role.update');
-          const tree = getFilteredTree;
-
-          return (
-            <Card
-              key={role}
-              size="small"
-              style={{ background: COLORS.card, borderColor: COLORS.border }}
-              title={
-                <Space>
-                  <Tag color={ROLE_COLORS[role]}>{ROLE_LABELS[role]}</Tag>
-                  <span style={{ color: COLORS.textSecondary, fontSize: 12 }}>
-                    {perms.length} สิทธิ์
-                  </span>
-                  {isOwner && (
-                    <Tooltip title="Owner มีสิทธิ์ทั้งหมดเสมอ — ไม่สามารถแก้ไขได้">
-                      <Lock size={12} style={{ color: COLORS.textMuted }} />
-                    </Tooltip>
-                  )}
-                  {hasChanges(role) && <Badge status="warning" text="มีการเปลี่ยนแปลง" />}
-                </Space>
-              }
-              extra={
-                canEdit && (
-                  <Button
-                    type="primary" size="small"
-                    icon={<Save size={12} />}
-                    loading={saving === role}
-                    disabled={!hasChanges(role)}
-                    onClick={() => handleSave(role)}
-                  >
-                    บันทึก
-                  </Button>
-                )
-              }
-            >
-              <Collapse
-                ghost
-                defaultActiveKey={[]}
-                items={MODULE_ORDER
-                  .filter((mod) => tree[mod])
-                  .map((mod) => {
-                    const modMeta = MODULE_META[mod] || { label: mod, icon: 'Package' };
-                    const ModIcon = ICON_MAP[modMeta.icon] || Package;
-                    const { granted, total } = getModulePermCount(mod, permSet);
-                    const resources = tree[mod];
-
-                    return {
-                      key: mod,
-                      label: (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                          <Space>
-                            <ModIcon size={16} color={COLORS.accent} />
-                            <span style={{ fontWeight: 500, color: COLORS.text }}>
-                              {modMeta.label}
-                            </span>
-                            <span style={{ color: COLORS.textMuted, fontSize: 12 }}>
-                              ({granted}/{total})
-                            </span>
-                          </Space>
-                          {canEdit && (
-                            <Space size={4} onClick={(e) => e.stopPropagation()}>
-                              <Tooltip title="เปิดทั้งหมด">
-                                <Button
-                                  type="text" size="small"
-                                  icon={<ToggleRight size={14} color={COLORS.success} />}
-                                  onClick={() => handleGrantAllModule(role, mod)}
-                                  style={{ fontSize: 11, color: COLORS.success }}
-                                >
-                                  เปิดทั้งหมด
-                                </Button>
-                              </Tooltip>
-                              <Tooltip title="ปิดทั้งหมด">
-                                <Button
-                                  type="text" size="small"
-                                  icon={<ToggleLeft size={14} color={COLORS.danger} />}
-                                  onClick={() => handleRevokeAllModule(role, mod)}
-                                  style={{ fontSize: 11, color: COLORS.danger }}
-                                >
-                                  ปิดทั้งหมด
-                                </Button>
-                              </Tooltip>
-                            </Space>
-                          )}
-                        </div>
-                      ),
-                      children: (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          {Object.keys(resources).map((resource) => {
-                            const actions = resources[resource];
-                            const resLabel = RESOURCE_META[resource] || resource;
-
-                            return (
-                              <div
-                                key={resource}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 12,
-                                  padding: '6px 12px',
-                                  background: COLORS.surface,
-                                  borderRadius: 6,
-                                  border: `1px solid ${COLORS.borderLight}`,
-                                  flexWrap: 'wrap',
-                                }}
-                              >
-                                <span style={{
-                                  minWidth: 140,
-                                  fontSize: 13,
-                                  fontWeight: 500,
-                                  color: COLORS.text,
-                                }}>
-                                  {resLabel}
-                                </span>
-                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1 }}>
-                                  {ACTION_ORDER
-                                    .filter((act) => actions[act])
-                                    .map((act) => {
-                                      const fullPerm = actions[act];
-                                      return (
-                                        <ActionToggle
-                                          key={fullPerm}
-                                          perm={fullPerm}
-                                          action={act}
-                                          checked={permSet.has(fullPerm)}
-                                          disabled={!canEdit}
-                                          description={descriptions[fullPerm]}
-                                          onToggle={(p, v) => handleToggle(role, p, v)}
-                                        />
-                                      );
-                                    })}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ),
-                    };
-                  })}
-              />
-            </Card>
-          );
-        })}
+      {/* ── Group Selector (Segmented) ───────────────── */}
+      <div style={{ marginBottom: 12 }}>
+        <Segmented
+          value={activeGroup}
+          onChange={handleGroupChange}
+          options={groupSegmentedOptions}
+          size="middle"
+          style={{ background: COLORS.surface }}
+        />
       </div>
+
+      {/* ── Module Sub-tabs + Matrix Table ────────────── */}
+      <Tabs
+        activeKey={activeModule}
+        onChange={setActiveModule}
+        items={subTabItems}
+        type="card"
+        size="small"
+        style={{ marginBottom: 0 }}
+        tabBarStyle={{
+          marginBottom: 0,
+          borderBottom: `1px solid ${COLORS.border}`,
+        }}
+      />
+
+      <div style={{
+        background: COLORS.card,
+        border: `1px solid ${COLORS.border}`,
+        borderTop: 'none',
+        borderRadius: '0 0 8px 8px',
+        overflow: 'hidden',
+      }}>
+        <PermissionMatrixTable
+          moduleKey={activeModule}
+          permTree={filteredTree}
+          rolesData={rolesData}
+          pendingChanges={pendingChanges}
+          descriptions={descriptions}
+          canEdit={canEdit}
+          onToggle={handleToggle}
+          onBulkAction={handleBulkAction}
+        />
+      </div>
+
+      {/* ── Role Summary ─────────────────────────────── */}
+      <div style={{
+        marginTop: 16,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        padding: '8px 12px',
+        background: COLORS.surface,
+        borderRadius: 6,
+        border: `1px solid ${COLORS.borderLight}`,
+        flexWrap: 'wrap',
+      }}>
+        <span style={{ fontSize: 12, color: COLORS.textMuted, fontWeight: 500 }}>
+          สิทธิ์รวม:
+        </span>
+        {roleSummary.map(({ role, count }) => (
+          <span key={role} style={{ fontSize: 12, color: COLORS.textSecondary }}>
+            {ROLE_LABELS[role]}{' '}
+            <span style={{
+              fontFamily: 'monospace',
+              fontWeight: 600,
+              color: pendingChanges[role] ? COLORS.warning : COLORS.text,
+            }}>
+              {count}
+            </span>
+          </span>
+        ))}
+      </div>
+
+      {/* ── Sticky Save Bar ──────────────────────────── */}
+      {hasAnyChanges && (
+        <div style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 100,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 12,
+          padding: '12px 24px',
+          background: COLORS.card,
+          borderTop: `2px solid ${COLORS.warning}`,
+          boxShadow: '0 -4px 16px rgba(0,0,0,0.4)',
+        }}>
+          <span style={{ fontSize: 13, color: COLORS.textSecondary }}>
+            {modifiedRolesCount} role{modifiedRolesCount > 1 ? 's' : ''} มีการเปลี่ยนแปลง
+          </span>
+          <Button
+            icon={<X size={14} />}
+            onClick={handleDiscard}
+          >
+            ยกเลิก
+          </Button>
+          <Button
+            type="primary"
+            icon={<Save size={14} />}
+            loading={saving}
+            onClick={handleSaveAll}
+          >
+            บันทึก ({modifiedRolesCount} roles)
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

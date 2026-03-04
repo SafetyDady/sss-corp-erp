@@ -171,6 +171,11 @@ body {
   }
 }
 
+/* Permission Matrix Table — resource group separator */
+.perm-matrix-first-resource td {
+  border-top: 2px solid #2a2a3a !important;
+}
+
 /* Sidebar menu group labels */
 .ant-menu-dark .ant-menu-item-group-title {
   color: #64748b !important;
