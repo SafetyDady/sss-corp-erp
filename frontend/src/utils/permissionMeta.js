@@ -65,6 +65,7 @@ export const RESOURCE_META = {
   whttype:     'ประเภทหัก ณ ที่จ่าย',
   withdrawal:  'ใบเบิกของ',
   recharge:    'Internal Recharge',
+  invoice:     'ใบวางบิล (Invoice)',
 };
 
 // ============================================================

@@ -45,6 +45,10 @@ const STATUS_CONFIG = {
   // ADJUST directions
   INCREASE: { color: '#10b981' },
   DECREASE: { color: '#ef4444' },
+  // Invoice/AP
+  PAID: { color: '#3b82f6' },
+  OVERDUE: { color: '#ef4444' },
+  PRODUCE: { color: '#10b981' },
 };
 
 export default function StatusBadge({ status }) {

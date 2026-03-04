@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, Row, Col, Table, Button, App, DatePicker, Space, Tooltip, Spin, Divider, Alert, Tabs } from 'antd';
 import { Download, RefreshCw, DollarSign, TrendingUp, Layers, Banknote, BookOpen, ArrowDownLeft, ArrowUpRight, Repeat2 } from 'lucide-react';
 import InternalRechargeTab from './InternalRechargeTab';
+import APTab from './APTab';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
 import PageHeader from '../../components/PageHeader';
@@ -250,18 +251,13 @@ export default function FinancePage() {
                   />
                 ),
               },
-              {
+              ...(can('finance.invoice.read') ? [{
                 key: 'ap',
                 label: (
                   <span><ArrowDownLeft size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />AP</span>
                 ),
-                children: (
-                  <EmptyState
-                    message="Accounts Payable"
-                    hint="AP module อยู่ระหว่างพัฒนา — ติดตามยอดค้างจ่ายจาก PO"
-                  />
-                ),
-              },
+                children: <APTab />,
+              }] : []),
               {
                 key: 'ar',
                 label: (

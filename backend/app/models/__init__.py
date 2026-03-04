@@ -24,6 +24,7 @@ from app.models.planning import (
 )
 from app.models.daily_report import DailyWorkReport, DailyWorkReportLine, ReportStatus, LineType
 from app.models.recharge import FixedRechargeBudget, FixedRechargeEntry, RechargeStatus
+from app.models.invoice import SupplierInvoice, InvoicePayment, InvoiceStatus
 
 __all__ = [
     "User",
@@ -103,4 +104,7 @@ __all__ = [
     "FixedRechargeBudget",
     "FixedRechargeEntry",
     "RechargeStatus",
+    "SupplierInvoice",
+    "InvoicePayment",
+    "InvoiceStatus",
 ]
