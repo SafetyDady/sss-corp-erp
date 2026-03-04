@@ -63,6 +63,7 @@ export const RESOURCE_META = {
   roster:      'ตารางเข้ากะ',
   supplier:    'ซัพพลายเออร์',
   withdrawal:  'ใบเบิกของ',
+  recharge:    'Internal Recharge',
 };
 
 // ============================================================

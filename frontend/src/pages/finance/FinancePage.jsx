@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, Row, Col, Table, Button, App, DatePicker, Space, Tooltip, Spin, Divider, Alert, Tabs } from 'antd';
-import { Download, RefreshCw, DollarSign, TrendingUp, Layers, Banknote, BookOpen, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import { Download, RefreshCw, DollarSign, TrendingUp, Layers, Banknote, BookOpen, ArrowDownLeft, ArrowUpRight, Repeat2 } from 'lucide-react';
+import InternalRechargeTab from './InternalRechargeTab';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
 import PageHeader from '../../components/PageHeader';
@@ -230,6 +231,13 @@ export default function FinancePage() {
                   </>
                 ),
               },
+              ...(can('finance.recharge.read') ? [{
+                key: 'recharge',
+                label: (
+                  <span><Repeat2 size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Internal Recharge</span>
+                ),
+                children: <InternalRechargeTab />,
+              }] : []),
               {
                 key: 'gl',
                 label: (

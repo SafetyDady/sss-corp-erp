@@ -93,9 +93,16 @@ ALL_PERMISSIONS: list[str] = [
     "sales.order.approve",
     "sales.order.export",
 
-    # --- finance (2) ---
+    # --- finance (2 + 6 = 8) ---
     "finance.report.read",
     "finance.report.export",
+    # Phase C9: Internal Recharge
+    "finance.recharge.create",
+    "finance.recharge.read",
+    "finance.recharge.update",
+    "finance.recharge.delete",
+    "finance.recharge.execute",   # generate monthly entries
+    "finance.recharge.export",
 
     # --- master data (32: costcenter 4 + costelement 4 + ottype 4 + department 4 + leavetype 4 + shifttype 4 + schedule 4 + supplier 4) ---
     "master.costcenter.create",
@@ -190,8 +197,8 @@ ALL_PERMISSIONS: list[str] = [
     "hr.roster.read",
 ]
 
-assert len(ALL_PERMISSIONS) == 133, f"Expected 133 permissions, got {len(ALL_PERMISSIONS)}"
-assert len(set(ALL_PERMISSIONS)) == 133, "Duplicate permissions found!"
+assert len(ALL_PERMISSIONS) == 139, f"Expected 139 permissions, got {len(ALL_PERMISSIONS)}"
+assert len(set(ALL_PERMISSIONS)) == 139, "Duplicate permissions found!"
 
 
 # ============================================================
@@ -261,9 +268,16 @@ PERMISSION_DESCRIPTIONS: dict[str, str] = {
     "sales.order.delete": "ลบใบสั่งขาย (Owner เท่านั้น)",
     "sales.order.approve": "อนุมัติใบสั่งขาย",
     "sales.order.export": "ส่งออกข้อมูลใบสั่งขาย",
-    # --- finance (2) ---
+    # --- finance (8) ---
     "finance.report.read": "ดูรายงานการเงิน (สรุปรายได้/ต้นทุน)",
     "finance.report.export": "ส่งออกรายงานการเงินเป็น CSV (Owner เท่านั้น)",
+    # Phase C9: Internal Recharge
+    "finance.recharge.create": "สร้างงบประมาณ Recharge ใหม่",
+    "finance.recharge.read": "ดูข้อมูล Internal Recharge (Budget + Entries)",
+    "finance.recharge.update": "แก้ไข/เปลี่ยนสถานะงบประมาณ Recharge",
+    "finance.recharge.delete": "ลบงบประมาณ Recharge DRAFT (Owner เท่านั้น)",
+    "finance.recharge.execute": "สร้างรายการจัดสรร Recharge รายเดือน (Generate)",
+    "finance.recharge.export": "ส่งออกข้อมูล Internal Recharge (Owner เท่านั้น)",
     # --- master (20) ---
     "master.costcenter.create": "สร้าง Cost Center ใหม่",
     "master.costcenter.read": "ดูรายการ Cost Center",
@@ -359,7 +373,7 @@ assert set(PERMISSION_DESCRIPTIONS.keys()) == set(ALL_PERMISSIONS), \
 # Legend:  ✅ = granted  ❌ = denied
 
 def _owner() -> set[str]:
-    """Owner: ALL 133 permissions."""
+    """Owner: ALL 139 permissions."""
     return set(ALL_PERMISSIONS)
 
 
@@ -399,8 +413,10 @@ def _manager() -> set[str]:
         "customer.customer.delete",
         "tools.tool.delete",
         "hr.employee.delete",
-        # Finance export: owner only
+        # Finance: owner only
         "finance.report.export",
+        "finance.recharge.delete",
+        "finance.recharge.export",
     }
     return result
 
@@ -463,6 +479,7 @@ def _supervisor() -> set[str]:
         "sales.order.export",
         # Finance
         "finance.report.read",
+        "finance.recharge.read",
         # Master Data
         "master.costcenter.create",
         "master.costcenter.read",
@@ -599,6 +616,7 @@ def _viewer() -> set[str]:
         "sales.order.export",
         # Finance
         "finance.report.read",
+        "finance.recharge.read",
         # Master Data
         "master.costcenter.read",
         "master.costelement.read",

@@ -23,6 +23,7 @@ from app.models.planning import (
     ToolReservation, ToolReservationStatus,
 )
 from app.models.daily_report import DailyWorkReport, DailyWorkReportLine, ReportStatus, LineType
+from app.models.recharge import FixedRechargeBudget, FixedRechargeEntry, RechargeStatus
 
 __all__ = [
     "User",
@@ -97,4 +98,7 @@ __all__ = [
     "DeptMenuConfig",
     "PayrollSlip",
     "PayrollSlipStatus",
+    "FixedRechargeBudget",
+    "FixedRechargeEntry",
+    "RechargeStatus",
 ]

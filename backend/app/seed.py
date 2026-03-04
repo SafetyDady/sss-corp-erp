@@ -34,6 +34,7 @@ from app.models.hr import Employee, LeaveBalance, PayType
 from app.models.warehouse import Warehouse, Location
 from app.models.inventory import Product, ProductType
 from app.models.tools import Tool, ToolStatus
+from app.models.recharge import FixedRechargeBudget, RechargeStatus
 
 
 # ============================================================
@@ -109,6 +110,9 @@ SUP_ELEC_ID     = UUID("00000000-0000-0000-000c-000000000002")
 SUP_BOLT_ID     = UUID("00000000-0000-0000-000c-000000000003")
 SUP_CHEM_ID     = UUID("00000000-0000-0000-000c-000000000004")
 SUP_PROTECH_ID  = UUID("00000000-0000-0000-000c-000000000005")
+
+# Recharge Budgets
+RB_ADMIN_ID = UUID("00000000-0000-0000-000d-000000000001")
 
 
 # ============================================================
@@ -664,6 +668,25 @@ async def seed():
                 print(f"  [Sup]  {sup_data['code']} — {sup_data['name']}")
             else:
                 print(f"  [Sup]  {sup_data['code']} (exists)")
+
+        # ── 17. Fixed Recharge Budget (Phase C9) ──────────
+        print()
+        existing_rb = await _check_exists(db, FixedRechargeBudget, id=RB_ADMIN_ID)
+        if not existing_rb:
+            rb = FixedRechargeBudget(
+                id=RB_ADMIN_ID,
+                fiscal_year=date.today().year,
+                source_cost_center_id=CC_ADMIN_ID,
+                annual_budget=Decimal("1200000.00"),
+                description="ค่าน้ำ ค่าไฟ ค่าเช่า สำนักงาน ค่าทำความสะอาด",
+                status=RechargeStatus.ACTIVE,
+                created_by=user_map["owner@sss-corp.com"].id,
+                org_id=DEFAULT_ORG_ID,
+            )
+            db.add(rb)
+            print(f"  [RB]   CC-ADMIN — 1,200,000 THB/year (ACTIVE)")
+        else:
+            print(f"  [RB]   CC-ADMIN budget (exists)")
 
         # ----- COMMIT -----
         await db.commit()

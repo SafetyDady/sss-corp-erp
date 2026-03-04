@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-03 v17 (Phase 10: Export & Print — Print Views + Excel Export)
+> อัปเดตล่าสุด: 2026-03-04 v18 (C9: Internal Recharge — Fixed Budget + Monthly Allocation)
 
 ---
 
@@ -10,7 +10,7 @@
 
 **SSS Corp ERP** — ระบบ ERP สำหรับธุรกิจ Manufacturing/Trading ขนาดเล็ก-กลาง
 - Multi-tenant (Shared DB + org_id)
-- **11 Modules, 133 Permissions, 5 Roles**
+- **11 Modules, 139 Permissions, 5 Roles**
 - Job Costing: Material + ManHour + Tools Recharge + Admin Overhead
 - อ้างอิงเพิ่มเติม: `UI_GUIDELINES.md` (theme/icons), `BUSINESS_POLICY.md` (business rules)
 
@@ -56,13 +56,13 @@ sss-corp-erp/
 │   └── vercel.json               # SPA rewrites + security headers + caching
 ├── backend/                      ← Railway deploys this (Dockerfile)
 │   ├── app/
-│   │   ├── api/                  # Route handlers (17 files, 18 routers)
+│   │   ├── api/                  # Route handlers (18 files, 19 routers)
 │   │   │   ├── _helpers.py       # Shared data scope helpers (Phase 6)
 │   │   │   ├── planning.py       # Daily plans, reservations (Phase 4.5)
 │   │   │   ├── setup.py          # One-time org setup (Phase 4.7)
 │   │   │   └── ...               # auth, inventory, warehouse, etc.
 │   │   ├── core/                 # config, database, security, permissions
-│   │   ├── models/               # SQLAlchemy models (12 files)
+│   │   ├── models/               # SQLAlchemy models (13 files)
 │   │   │   ├── organization.py   # Org, Department, OrgConfig (Phase 4.1)
 │   │   │   ├── planning.py       # WOMasterPlan, DailyPlan, Reservations (Phase 4.5)
 │   │   │   └── ...               # user, inventory, warehouse, etc.
@@ -73,7 +73,7 @@ sss-corp-erp/
 │   │   │   ├── planning.py       # Planning + Reservation service (Phase 4.5)
 │   │   │   └── ...
 │   │   └── main.py               # FastAPI app + Sentry init
-│   ├── alembic/                  # DB migrations (14 revisions)
+│   ├── alembic/                  # DB migrations (15 revisions)
 │   ├── tests/                    # pytest
 │   ├── Dockerfile                # Production (Railway, non-root user)
 │   ├── Dockerfile.dev            # Dev (hot-reload)
@@ -161,7 +161,7 @@ sss-corp-erp/
 
 ---
 
-## RBAC — 5 Roles x 133 Permissions (Full Matrix)
+## RBAC — 5 Roles x 139 Permissions (Full Matrix)
 
 ### Inventory (15 permissions)
 
@@ -244,12 +244,18 @@ sss-corp-erp/
 | sales.order.approve | ✅ | ✅ | ✅ | ❌ | ❌ |
 | sales.order.export | ✅ | ✅ | ✅ | ❌ | ✅ |
 
-### Finance (2 permissions)
+### Finance (8 permissions)
 
 | Permission | owner | manager | supervisor | staff | viewer |
 |-----------|:-----:|:-------:|:----------:|:-----:|:------:|
 | finance.report.read | ✅ | ✅ | ✅ | ✅ | ✅ |
 | finance.report.export | ✅ | ❌ | ❌ | ❌ | ❌ |
+| finance.recharge.create | ✅ | ✅ | ❌ | ❌ | ❌ |
+| finance.recharge.read | ✅ | ✅ | ✅ | ❌ | ✅ |
+| finance.recharge.update | ✅ | ✅ | ❌ | ❌ | ❌ |
+| finance.recharge.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
+| finance.recharge.execute | ✅ | ✅ | ❌ | ❌ | ❌ |
+| finance.recharge.export | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 ### Master Data (32 permissions)
 
@@ -355,11 +361,11 @@ sss-corp-erp/
 
 | Role | Count | Description |
 |------|-------|-------------|
-| owner | 133 | ALL permissions |
-| manager | ~81 | ไม่มี admin.*, ไม่มี *.delete + planning create/update |
-| supervisor | ~65 | read + approve + limited create + planning read |
+| owner | 139 | ALL permissions |
+| manager | ~85 | ไม่มี admin.*, ไม่มี *.delete + planning create/update + recharge CRUD/execute |
+| supervisor | ~66 | read + approve + limited create + planning read + recharge read |
 | staff | ~39 | read + own create (timesheet, leave, movement, dailyreport, roster, PR, withdrawal) |
-| viewer | ~26 | read + selected export only |
+| viewer | ~27 | read + selected export only + recharge read |
 
 ### Permission Usage Pattern
 ```python
@@ -509,7 +515,7 @@ Manager จองเครื่องมือ → POST /api/planning/reservati
 
 ---
 
-## Business Rules (Complete — 77 Rules)
+## Business Rules (Complete — 98 Rules)
 
 | # | Module | Feature | Rule | Enforcement |
 |---|--------|---------|------|-------------|
@@ -601,6 +607,16 @@ Manager จองเครื่องมือ → POST /api/planning/reservati
 | 86 | inventory | Withdrawal | Lines with issued_qty = 0 → skip (ไม่สร้าง movement) | Service logic |
 | 87 | inventory | Withdrawal | Stock validation ผ่าน create_movement() ที่มีอยู่ (BR#5,6,69-70) | Reuse existing |
 | 88 | inventory | Withdrawal | ISSUED แล้วแก้ไม่ได้ — corrections ผ่าน movement REVERSAL | State machine |
+| 89 | finance | Recharge | 1 budget per org per fiscal year per source CC | DB UNIQUE |
+| 90 | finance | Recharge | Edit only DRAFT budget | Service check |
+| 91 | finance | Recharge | Delete only DRAFT (owner only) | Permission + Service |
+| 92 | finance | Recharge | Budget status: DRAFT → ACTIVE → CLOSED (ห้ามย้อน) | State machine |
+| 93 | finance | Recharge | Generate only for ACTIVE budget | Service check |
+| 94 | finance | Recharge | Cannot regenerate same month (409 if exists) | UNIQUE constraint |
+| 95 | finance | Recharge | Headcount = active employees per dept (snapshot) | Service calc |
+| 96 | finance | Recharge | Skip source CC's own department | Service logic |
+| 97 | finance | Recharge | Rounding adjustment ensures sum = monthly_budget | Service calc |
+| 98 | finance | Recharge | amount Numeric(12,2), budget Numeric(14,2) | DB constraint |
 
 ---
 
@@ -739,6 +755,20 @@ POST   /api/sales/orders/{id}/approve       sales.order.approve
 ```
 GET    /api/finance/reports                 finance.report.read
 GET    /api/finance/reports/export          finance.report.export
+GET    /api/finance/reports/cost-center-summary  finance.report.read
+```
+
+### Finance — Internal Recharge (C9)
+```
+GET    /api/finance/recharge/budgets              finance.recharge.read
+POST   /api/finance/recharge/budgets              finance.recharge.create
+GET    /api/finance/recharge/budgets/{id}         finance.recharge.read
+PUT    /api/finance/recharge/budgets/{id}         finance.recharge.update  (DRAFT only)
+DELETE /api/finance/recharge/budgets/{id}         finance.recharge.delete  (DRAFT only)
+POST   /api/finance/recharge/budgets/{id}/activate  finance.recharge.update
+POST   /api/finance/recharge/budgets/{id}/close     finance.recharge.update
+POST   /api/finance/recharge/generate             finance.recharge.execute
+GET    /api/finance/recharge/entries               finance.recharge.read
 ```
 
 ### Master Data
@@ -981,7 +1011,7 @@ npm run build                                          # Production build
 
 | Email | Password | Role |
 |-------|----------|------|
-| owner@sss-corp.com | owner123 | owner (all 133 perms) |
+| owner@sss-corp.com | owner123 | owner (all 139 perms) |
 | manager@sss-corp.com | manager123 | manager (~73 perms) |
 | supervisor@sss-corp.com | supervisor123 | supervisor (~57 perms) |
 | staff@sss-corp.com | staff123 | staff (~36 perms) |
@@ -1144,6 +1174,16 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **7.9.8** PODetailPage (PR ref, item_type, GR modal) + PRApprovalTab + ApprovalPage PR tab
 - [x] **7.9.9** App.jsx (routes, sidebar, _purchasing_check) + permissionMeta + StatusBadge (PO_CREATED, SERVICE)
 
+### C9 — Internal Recharge: Fixed Budget Monthly Allocation ✅
+- [x] **C9.1** Models + Migration — FixedRechargeBudget + FixedRechargeEntry tables, recharge_status_enum (DRAFT/ACTIVE/CLOSED)
+- [x] **C9.2** Permissions — 6 new (finance.recharge.*: create/read/update/delete/execute/export) → 133→139
+- [x] **C9.3** Schemas — Budget CRUD, RechargeGenerateRequest, Entry response, CostCenterSummary
+- [x] **C9.4** Service — Budget CRUD + activate/close state machine + generate_monthly_entries (headcount allocation, source CC skip, rounding adjustment) + cost center summary
+- [x] **C9.5** API Routes — 10 endpoints under /api/finance/recharge/* + /api/finance/reports/cost-center-summary
+- [x] **C9.6** Frontend — InternalRechargeTab + RechargeBudgetFormModal + GenerateRechargeModal + RechargeEntryTable
+- [x] **C9.7** FinancePage — Permission-gated "Internal Recharge" tab + permissionMeta update
+- [x] **C9.8** Seed — Sample ACTIVE budget (CC-ADMIN, 1,200,000 THB/year)
+
 ### Phase 8 — Dashboard & Analytics 📊 (Planned)
 - [ ] **8.1** KPI Dashboard — real-time stat cards (ยอดขาย, ต้นทุน WO, สถานะ stock, pending approvals)
 - [ ] **8.2** Charts — Recharts/Ant Charts (WO Cost Trend, Inventory Turnover, Revenue)
@@ -1257,6 +1297,9 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 29. ❌ อย่าแก้ไข Withdrawal Slip ที่ ISSUED แล้ว — corrections ผ่าน movement REVERSAL เท่านั้น (BR#88)
 30. ❌ อย่าสร้าง Withdrawal Slip ที่มี SERVICE products — ต้องเป็น MATERIAL/CONSUMABLE เท่านั้น (BR#82)
 31. ❌ อย่าลืม Issue ต้อง reuse `create_movement()` — ไม่ duplicate stock logic (BR#85,87)
+32. ❌ อย่าแก้ Budget ที่ไม่ใช่ DRAFT — ต้องเช็ค status ก่อน edit/delete (BR#90-91)
+33. ❌ อย่า generate recharge เดือนซ้ำ — 409 Conflict (BR#94)
+34. ❌ อย่าลืม skip source CC's own department ตอน generate recharge — ห้าม allocate ให้ตัวเอง (BR#96)
 
 ---
 
@@ -1269,7 +1312,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `BUSINESS_POLICY.md` | Business rules (source of truth) |
 | `TODO.md` | Implementation tracker + checklist |
 | `SmartERP_Master_Document_v2.xlsx` | Original design spec |
-| `backend/app/core/permissions.py` | RBAC permissions + role mapping + PERMISSION_DESCRIPTIONS (133 Thai descriptions) |
+| `backend/app/core/permissions.py` | RBAC permissions + role mapping + PERMISSION_DESCRIPTIONS (139 Thai descriptions) |
 | `backend/app/core/security.py` | JWT token creation/validation |
 | `backend/app/core/config.py` | Environment settings + DEFAULT_ORG_ID |
 | `frontend/src/stores/authStore.js` | Auth state + token management |
@@ -1291,7 +1334,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `backend/app/api/_helpers.py` | Shared data scope helpers (Phase 6) |
 | `frontend/src/components/ScopeBadge.jsx` | Role-aware scope indicator badge (Phase 6) |
 | `frontend/src/components/EmployeeContextSelector.jsx` | Role-scoped employee dropdown + dept grouping + server-side search (Phase 6) |
-| `backend/app/seed.py` | Enhanced dev seed: 3 depts, 5 users, 5 employees, OT/Leave types, LeaveBalances, 1 warehouse, 3 locations, 5 products, 3 tools, 5 suppliers |
+| `backend/app/seed.py` | Enhanced dev seed: 3 depts, 5 users, 5 employees, OT/Leave types, LeaveBalances, 1 warehouse, 3 locations, 5 products, 3 tools, 5 suppliers, 1 recharge budget |
 | `frontend/src/pages/approval/ApprovalPage.jsx` | Centralized Approval Center — 6 tabs + badge counts (Phase 7+) |
 | `frontend/src/pages/approval/TimesheetApprovalTab.jsx` | Timesheet approve/final (Phase 7) |
 | `frontend/src/pages/approval/LeaveApprovalTab.jsx` | Leave approve/reject (Phase 7) |
@@ -1336,6 +1379,14 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/my/PayslipPrintView.jsx` | Phase 10: Employee payslip print (earnings breakdown) |
 | `backend/app/services/export.py` | Phase 10: Shared Excel workbook helper (openpyxl, styled headers) |
 | `frontend/src/utils/download.js` | Phase 10: Shared blob download helper (downloadExcel) |
+| `backend/app/models/recharge.py` | Internal Recharge models: FixedRechargeBudget, FixedRechargeEntry (C9) |
+| `backend/app/schemas/recharge.py` | Recharge Pydantic schemas: Budget CRUD, Generate, Entry, CostCenterSummary (C9) |
+| `backend/app/services/recharge.py` | Recharge business logic: Budget CRUD + generate_monthly_entries + headcount allocation (C9) |
+| `backend/app/api/recharge.py` | Recharge 10 API endpoints: Budget CRUD + activate/close + generate + entries (C9) |
+| `frontend/src/pages/finance/InternalRechargeTab.jsx` | Internal Recharge tab: budget cards + entry table + modals (C9) |
+| `frontend/src/pages/finance/RechargeBudgetFormModal.jsx` | Budget create/edit modal (C9) |
+| `frontend/src/pages/finance/GenerateRechargeModal.jsx` | Generate monthly entries modal (C9) |
+| `frontend/src/pages/finance/RechargeEntryTable.jsx` | Recharge entries display table with summary (C9) |
 | `SYSTEM_OVERVIEW_V3.md` | PRD ฉบับสมบูรณ์ — 4 ส่วน (A:ระบบปัจจุบัน, B:แผน, C:ช่องว่าง, D:ลำดับ) + UX assessment ต่อ module |
 | `SYSTEM_OVERVIEW_V3.docx` | Word export สำหรับ Owner review ด้วย Track Changes |
 | `convert_to_docx.py` | Python script แปลง MD → Word (.docx) ด้วย python-docx |
@@ -1361,4 +1412,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v17 (Phase 0-7.9 complete + Phase 10 partial (Print Views + Excel Export) + Phase 11 partial + Go-Live Gate G1-G7 complete, Phase 8-14 planned)*
+*End of CLAUDE.md — SSS Corp ERP v18 (Phase 0-7.9 complete + Phase 10 partial + Phase 11 partial + C9 Internal Recharge complete + Go-Live Gate G1-G7 complete, Phase 8-14 planned)*
