@@ -17,6 +17,9 @@ const DOPrintView = forwardRef(function DOPrintView({ doData }, ref) {
         orgName={user?.org_name}
         orgAddress={user?.org_address}
         orgTaxId={user?.org_tax_id}
+        companyName={doData.company_name}
+        companyAddress={doData.company_address}
+        companyTaxId={doData.company_tax_id}
         docTitle="ใบส่งของ / Delivery Order"
       />
 

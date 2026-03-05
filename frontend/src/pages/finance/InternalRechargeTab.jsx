@@ -34,6 +34,7 @@ export default function InternalRechargeTab() {
   const [fiscalYear, setFiscalYear] = useState(new Date().getFullYear());
   const [selectedBudgetId, setSelectedBudgetId] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(null);
+  const [interCompanyFilter, setInterCompanyFilter] = useState(null);
   const [monthlyBudget, setMonthlyBudget] = useState(null);
 
   // Modals
@@ -67,6 +68,7 @@ export default function InternalRechargeTab() {
     try {
       const params = { budget_id: selectedBudgetId, limit: 200 };
       if (selectedMonth) params.month = selectedMonth;
+      if (interCompanyFilter !== null) params.is_inter_company = interCompanyFilter;
       const res = await api.get('/api/finance/recharge/entries', { params });
       setEntries(res.data?.items || []);
       setMonthlyBudget(res.data?.monthly_budget || null);
@@ -75,7 +77,7 @@ export default function InternalRechargeTab() {
     } finally {
       setEntriesLoading(false);
     }
-  }, [selectedBudgetId, selectedMonth]);
+  }, [selectedBudgetId, selectedMonth, interCompanyFilter]);
 
   useEffect(() => { fetchBudgets(); }, [fetchBudgets]);
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
@@ -289,6 +291,17 @@ export default function InternalRechargeTab() {
                     options={MONTHS}
                     style={{ width: 160 }}
                     placeholder="เลือกเดือน"
+                  />
+                  <Select
+                    value={interCompanyFilter}
+                    onChange={setInterCompanyFilter}
+                    options={[
+                      { value: null, label: 'ทั้งหมด' },
+                      { value: true, label: 'Inter-Company เท่านั้น' },
+                      { value: false, label: 'ภายในบริษัทเท่านั้น' },
+                    ]}
+                    style={{ width: 200 }}
+                    placeholder="ประเภทรายการ"
                   />
                 </Space>
               </div>

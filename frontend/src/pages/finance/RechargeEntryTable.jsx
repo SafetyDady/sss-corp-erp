@@ -56,6 +56,15 @@ export default function RechargeEntryTable({ entries, loading, monthlyBudget }) 
       ),
     },
     {
+      title: 'ประเภท', dataIndex: 'is_inter_company', key: 'inter_company', width: 120,
+      align: 'center',
+      render: (v) => v ? (
+        <Tag color="orange">INTER-COMPANY</Tag>
+      ) : (
+        <Tag color="default">ภายในบริษัท</Tag>
+      ),
+    },
+    {
       title: 'CC ต้นทาง', dataIndex: 'source_cost_center_name', key: 'source', width: 140,
       render: (v) => <Text type="secondary">{v || '-'}</Text>,
     },
@@ -109,6 +118,7 @@ export default function RechargeEntryTable({ entries, loading, monthlyBudget }) 
                 )}
               </Table.Summary.Cell>
               <Table.Summary.Cell index={5} />
+              <Table.Summary.Cell index={6} />
             </Table.Summary.Row>
           </Table.Summary>
         );

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Table, Button, App, Space, Popconfirm, Tooltip } from 'antd';
+import { Table, Button, App, Space, Popconfirm, Tooltip, Tag } from 'antd';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
@@ -59,6 +59,13 @@ export default function CostCenterTab() {
     {
       title: 'ชื่อ', dataIndex: 'name', key: 'name',
       render: (v) => <span style={{ fontWeight: 500 }}>{v}</span>,
+    },
+    {
+      title: 'บริษัท', dataIndex: 'company_name', key: 'company_name', width: 160,
+      render: (v, record) => {
+        const code = record.company_code;
+        return code ? <Tag>{code}</Tag> : <span style={{ color: COLORS.textMuted }}>-</span>;
+      },
     },
     {
       title: 'รายละเอียด', dataIndex: 'description', key: 'description', ellipsis: true,

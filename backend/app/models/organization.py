@@ -2,10 +2,13 @@
 SSS Corp ERP — Organization Models
 Phase 4.1: Organization, Department, OrgWorkConfig, OrgApprovalConfig
 Go-Live G6: DeptMenuConfig — per-department sidebar menu visibility
+Phase C11: Company — legal entity within an Org (multi-company foundation)
 
 Department ↔ CostCenter = 1:1
 Employee → Department (many-to-one)
 Department.head_id → Employee (nullable, department head)
+Company → Org (many-to-one) — each Company is a legal entity within the Org
+Department → Company (many-to-one) — each department belongs to one Company
 """
 
 import enum
@@ -58,6 +61,36 @@ class Organization(Base, TimestampMixin):
 
 
 # ============================================================
+# COMPANY  (C11 — legal entity within an Org)
+# ============================================================
+
+class Company(Base, TimestampMixin, OrgMixin):
+    """
+    Legal entity (บริษัทในเครือ) within an Organization.
+    Each company has its own tax_id, address for documents (PO/SO/Invoice).
+    1 Org → many Companies. 1 Company → many CostCenters/Departments/Employees.
+    """
+    __tablename__ = "companies"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    code: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    tax_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("org_id", "code", name="uq_company_org_code"),
+        Index("ix_company_org", "org_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<Company {self.code} {self.name}>"
+
+
+# ============================================================
 # DEPARTMENT  (1:1 with CostCenter)
 # ============================================================
 
@@ -84,11 +117,18 @@ class Department(Base, TimestampMixin, OrgMixin):
         ForeignKey("employees.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # C11: Company affiliation — each department belongs to one Company
+    company_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("companies.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     __table_args__ = (
         UniqueConstraint("org_id", "code", name="uq_department_org_code"),
         UniqueConstraint("org_id", "cost_center_id", name="uq_department_org_cc"),
+        Index("ix_department_company", "company_id"),
     )
 
     def __repr__(self) -> str:

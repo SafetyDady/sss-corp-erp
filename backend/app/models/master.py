@@ -26,6 +26,7 @@ from sqlalchemy import (
     Date,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -62,6 +63,12 @@ class CostCenter(Base, TimestampMixin, OrgMixin):
     overhead_rate: Mapped[float] = mapped_column(
         Numeric(5, 2), nullable=False, default=0
     )
+    # C11: Company affiliation — each cost center belongs to one Company
+    company_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("companies.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     __table_args__ = (
@@ -70,6 +77,7 @@ class CostCenter(Base, TimestampMixin, OrgMixin):
             "overhead_rate >= 0 AND overhead_rate <= 100",
             name="ck_cost_center_overhead_rate_range",
         ),
+        Index("ix_cost_center_company", "company_id"),
     )
 
     def __repr__(self) -> str:

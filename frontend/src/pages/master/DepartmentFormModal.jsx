@@ -10,6 +10,7 @@ export default function DepartmentFormModal({ open, editItem, onClose, onSuccess
   const [form] = Form.useForm();
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
+  const [selectedCompanyId, setSelectedCompanyId] = useState(null);
 
   useEffect(() => {
     if (open) {
@@ -17,12 +18,15 @@ export default function DepartmentFormModal({ open, editItem, onClose, onSuccess
         form.setFieldsValue({
           code: editItem.code,
           name: editItem.name,
+          company_id: editItem.company_id || undefined,
           cost_center_id: editItem.cost_center_id,
           head_id: editItem.head_id || undefined,
           is_active: editItem.is_active,
         });
+        setSelectedCompanyId(editItem.company_id || null);
       } else {
         form.resetFields();
+        setSelectedCompanyId(null);
       }
     }
   }, [open, editItem]);
@@ -74,6 +78,22 @@ export default function DepartmentFormModal({ open, editItem, onClose, onSuccess
           <>{label}{required && <span style={{ color: COLORS.danger, marginLeft: 4 }}>*</span>}</>
         )}
       >
+        <Form.Item name="company_id" label="บริษัท">
+          <SearchSelect
+            apiUrl="/api/master/companies"
+            labelRender={(item) => `${item.code} — ${item.name}`}
+            extraParams={{ is_active: true }}
+            defaultOptions={editItem?.company_id ? [{ value: editItem.company_id, label: editItem.company_name || editItem.company_id }] : []}
+            allowClear
+            placeholder="เลือกบริษัท"
+            style={{ width: '100%' }}
+            onChange={(val) => {
+              setSelectedCompanyId(val || null);
+              form.setFieldValue('cost_center_id', undefined);
+            }}
+          />
+        </Form.Item>
+
         <Form.Item name="code" label="รหัสแผนก"
           rules={[{ required: true, message: 'กรุณากรอกรหัสแผนก' }]}
           extra={!editItem && <Text type="secondary" style={{ fontSize: 12 }}>รหัสจะถูกแปลงเป็นตัวพิมพ์ใหญ่อัตโนมัติ</Text>}
@@ -93,7 +113,7 @@ export default function DepartmentFormModal({ open, editItem, onClose, onSuccess
           <SearchSelect
             apiUrl="/api/master/cost-centers"
             labelRender={(item) => `${item.code} — ${item.name}`}
-            extraParams={{ is_active: true }}
+            extraParams={{ is_active: true, ...(selectedCompanyId ? { company_id: selectedCompanyId } : {}) }}
             itemsPath={null}
             defaultOptions={editItem?.cost_center_id ? [{ value: editItem.cost_center_id, label: editItem.cost_center_name || editItem.cost_center_id }] : []}
             placeholder="เลือก Cost Center"

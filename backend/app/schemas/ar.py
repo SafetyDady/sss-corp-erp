@@ -26,6 +26,7 @@ class CustomerInvoiceCreate(BaseModel):
     vat_amount: Decimal = Field(ge=0, default=Decimal("0.00"))
     total_amount: Decimal = Field(ge=0)
     note: Optional[str] = None
+    company_id: Optional[UUID] = None  # C11: Multi-Company
 
 
 class CustomerInvoiceUpdate(BaseModel):
@@ -83,6 +84,9 @@ class CustomerInvoiceResponse(BaseModel):
     approved_at: Optional[datetime] = None
     is_active: bool
     org_id: UUID
+    company_id: Optional[UUID] = None  # C11: Multi-Company
+    company_code: Optional[str] = None  # C11: Multi-Company enrichment
+    company_name: Optional[str] = None  # C11: Multi-Company enrichment
     created_at: datetime
     updated_at: datetime
     payments: Optional[list[CustomerPaymentResponse]] = None

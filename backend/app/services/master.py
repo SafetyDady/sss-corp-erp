@@ -19,6 +19,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.master import CostCenter, CostElement, LeaveType, OTType, ShiftType, WorkSchedule, ScheduleType, Supplier, WHTType
+from app.models.organization import Company
 
 
 # ============================================================
@@ -33,6 +34,7 @@ async def create_cost_center(
     description: Optional[str],
     overhead_rate: Decimal,
     org_id: UUID,
+    company_id: Optional[UUID] = None,
 ) -> CostCenter:
     existing = await db.execute(
         select(CostCenter).where(
@@ -52,6 +54,7 @@ async def create_cost_center(
         description=description,
         overhead_rate=overhead_rate,
         org_id=org_id,
+        company_id=company_id,
     )
     db.add(cc)
     await db.commit()
@@ -80,10 +83,13 @@ async def list_cost_centers(
     offset: int = 0,
     search: Optional[str] = None,
     org_id: Optional[UUID] = None,
+    company_id: Optional[UUID] = None,
 ) -> tuple[list[CostCenter], int]:
     query = select(CostCenter).where(CostCenter.is_active == True)
     if org_id:
         query = query.where(CostCenter.org_id == org_id)
+    if company_id:
+        query = query.where(CostCenter.company_id == company_id)
 
     if search:
         pattern = f"%{search}%"
@@ -926,4 +932,156 @@ async def update_supplier(
 async def delete_supplier(db: AsyncSession, supplier_id: UUID, *, org_id: Optional[UUID] = None) -> None:
     supplier = await get_supplier(db, supplier_id, org_id=org_id)
     supplier.is_active = False
+    await db.commit()
+
+
+# ============================================================
+# COMPANY CRUD  (C11 — Multi-Company Foundation)
+# ============================================================
+
+async def create_company(
+    db: AsyncSession,
+    *,
+    code: str,
+    name: str,
+    tax_id: Optional[str],
+    address: Optional[str],
+    org_id: UUID,
+) -> Company:
+    existing = await db.execute(
+        select(Company).where(
+            Company.org_id == org_id,
+            Company.code == code,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Company with code '{code}' already exists",
+        )
+
+    company = Company(
+        code=code,
+        name=name,
+        tax_id=tax_id,
+        address=address,
+        org_id=org_id,
+    )
+    db.add(company)
+    await db.commit()
+    await db.refresh(company)
+    return company
+
+
+async def get_company(db: AsyncSession, company_id: UUID, *, org_id: Optional[UUID] = None) -> Company:
+    query = select(Company).where(Company.id == company_id)
+    if org_id:
+        query = query.where(Company.org_id == org_id)
+    result = await db.execute(query)
+    company = result.scalar_one_or_none()
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Company not found",
+        )
+    return company
+
+
+async def list_companies(
+    db: AsyncSession,
+    *,
+    limit: int = 20,
+    offset: int = 0,
+    search: Optional[str] = None,
+    org_id: Optional[UUID] = None,
+):
+    query = select(Company).where(Company.is_active == True)
+    count_query = select(func.count(Company.id)).where(Company.is_active == True)
+
+    if org_id:
+        query = query.where(Company.org_id == org_id)
+        count_query = count_query.where(Company.org_id == org_id)
+
+    if search:
+        pattern = f"%{search}%"
+        query = query.where(
+            (Company.code.ilike(pattern)) | (Company.name.ilike(pattern))
+        )
+        count_query = count_query.where(
+            (Company.code.ilike(pattern)) | (Company.name.ilike(pattern))
+        )
+
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    query = query.order_by(Company.code).limit(limit).offset(offset)
+    result = await db.execute(query)
+    items = list(result.scalars().all())
+    return items, total
+
+
+async def update_company(
+    db: AsyncSession,
+    company_id: UUID,
+    *,
+    name: Optional[str] = None,
+    tax_id: Optional[str] = None,
+    address: Optional[str] = None,
+    is_active: Optional[bool] = None,
+    org_id: Optional[UUID] = None,
+) -> Company:
+    company = await get_company(db, company_id, org_id=org_id)
+
+    if name is not None:
+        company.name = name
+    if tax_id is not None:
+        company.tax_id = tax_id
+    if address is not None:
+        company.address = address
+    if is_active is not None:
+        company.is_active = is_active
+
+    await db.commit()
+    await db.refresh(company)
+    return company
+
+
+async def delete_company(db: AsyncSession, company_id: UUID, *, org_id: Optional[UUID] = None) -> None:
+    company = await get_company(db, company_id, org_id=org_id)
+
+    # Check references — cannot delete if CC/Dept/Employee linked
+    from app.models.organization import Department
+
+    for model, label in [
+        (CostCenter, "Cost Center"),
+        (Department, "Department"),
+    ]:
+        ref_result = await db.execute(
+            select(func.count(model.id)).where(
+                model.company_id == company_id,
+                model.is_active == True,
+            )
+        )
+        ref_count = ref_result.scalar() or 0
+        if ref_count > 0:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Cannot delete company: {ref_count} active {label}(s) still linked",
+            )
+
+    from app.models.hr import Employee
+    emp_result = await db.execute(
+        select(func.count(Employee.id)).where(
+            Employee.company_id == company_id,
+            Employee.is_active == True,
+        )
+    )
+    emp_count = emp_result.scalar() or 0
+    if emp_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot delete company: {emp_count} active Employee(s) still linked",
+        )
+
+    company.is_active = False
     await db.commit()

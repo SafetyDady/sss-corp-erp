@@ -102,6 +102,7 @@ class PRCreate(BaseModel):
     note: Optional[str] = None
     requested_approver_id: Optional[UUID] = None
     sourcer_id: Optional[UUID] = None
+    company_id: Optional[UUID] = None  # C11: Multi-Company
     lines: list[PRLineCreate] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -171,6 +172,9 @@ class PRResponse(BaseModel):
     rejected_reason: Optional[str] = None
     created_by: UUID
     is_active: bool
+    company_id: Optional[UUID] = None  # C11: Multi-Company
+    company_code: Optional[str] = None  # C11: Multi-Company enrichment
+    company_name: Optional[str] = None  # C11: Multi-Company enrichment
     lines: list[PRLineResponse] = []
     created_at: datetime
     updated_at: datetime
@@ -230,6 +234,7 @@ class ConvertToPORequest(BaseModel):
     vat_rate: Optional[Decimal] = Field(default=None, ge=0, le=100, decimal_places=2,
                                          description="VAT rate %. None = use org default")
     wht_type_id: Optional[UUID] = Field(default=None, description="C5.2: WHT type to apply. None = auto-fill from supplier default")
+    company_id: Optional[UUID] = None  # C11: Multi-Company
     lines: list[ConvertToPOLine] = Field(min_length=1)
 
 
@@ -273,6 +278,8 @@ class PurchaseOrderCreate(BaseModel):
     expected_date: Optional[date] = None
     note: Optional[str] = None
     requested_approver_id: Optional[UUID] = None
+    company_id: Optional[UUID] = None  # C11: Multi-Company
+    delivery_warehouse_id: Optional[UUID] = None  # C11: Multi-Company
     lines: list[POLineCreate] = Field(min_length=1)
 
 
@@ -313,6 +320,10 @@ class PurchaseOrderResponse(BaseModel):
     approved_by: Optional[UUID] = None
     requested_approver_id: Optional[UUID] = None
     is_active: bool
+    company_id: Optional[UUID] = None  # C11: Multi-Company
+    company_code: Optional[str] = None  # C11: Multi-Company enrichment
+    company_name: Optional[str] = None  # C11: Multi-Company enrichment
+    delivery_warehouse_id: Optional[UUID] = None  # C11: Multi-Company
     lines: list[POLineResponse] = []
     created_at: datetime
     updated_at: datetime

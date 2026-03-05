@@ -46,6 +46,7 @@ class SalesOrderCreate(BaseModel):
     requested_approver_id: Optional[UUID] = None
     vat_rate: Optional[Decimal] = Field(default=None, ge=0, le=100, decimal_places=2,
                                          description="VAT rate %. None = use org default")
+    company_id: Optional[UUID] = None  # C11: Multi-Company
     lines: list[SOLineCreate] = Field(min_length=1)
 
 
@@ -55,6 +56,7 @@ class SalesOrderUpdate(BaseModel):
     note: Optional[str] = None
     requested_approver_id: Optional[UUID] = None
     vat_rate: Optional[Decimal] = Field(default=None, ge=0, le=100, decimal_places=2)
+    company_id: Optional[UUID] = None  # C11: Multi-Company
     lines: Optional[list[SOLineCreate]] = None
 
 
@@ -84,6 +86,9 @@ class SalesOrderResponse(BaseModel):
     rejected_reason: Optional[str] = None
     requested_approver_id: Optional[UUID] = None
     is_active: bool
+    company_id: Optional[UUID] = None  # C11: Multi-Company
+    company_code: Optional[str] = None  # C11: Multi-Company enrichment
+    company_name: Optional[str] = None  # C11: Multi-Company enrichment
     lines: list[SOLineResponse] = []
     created_at: datetime
     updated_at: datetime

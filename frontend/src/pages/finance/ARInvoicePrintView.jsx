@@ -18,6 +18,9 @@ const ARInvoicePrintView = forwardRef(function ARInvoicePrintView({ invoice }, r
         orgName={user?.org_name}
         orgAddress={user?.org_address}
         orgTaxId={user?.org_tax_id}
+        companyName={inv.company_name}
+        companyAddress={inv.company_address}
+        companyTaxId={inv.company_tax_id}
         docTitle="ใบแจ้งหนี้ / Invoice"
       />
 

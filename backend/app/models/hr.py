@@ -160,6 +160,12 @@ class Employee(Base, TimestampMixin, OrgMixin):
         ForeignKey("work_schedules.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # C11: Company affiliation — employee belongs to Company directly (legal/payroll)
+    company_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("companies.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     __table_args__ = (
         UniqueConstraint("org_id", "employee_code", name="uq_employee_org_code"),
@@ -173,6 +179,7 @@ class Employee(Base, TimestampMixin, OrgMixin):
         CheckConstraint("monthly_salary IS NULL OR monthly_salary >= 0", name="ck_employee_monthly_salary_positive"),
         Index("ix_employees_department", "department_id"),
         Index("ix_employees_supervisor", "supervisor_id"),
+        Index("ix_employees_company", "company_id"),
     )
 
     def __repr__(self) -> str:
@@ -373,10 +380,17 @@ class PayrollRun(Base, TimestampMixin, OrgMixin):
         DateTime(timezone=True), nullable=True
     )
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # C11: Company scope — payroll run per company
+    company_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("companies.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     __table_args__ = (
         CheckConstraint("period_end >= period_start", name="ck_payroll_period_range"),
         CheckConstraint("total_amount >= 0", name="ck_payroll_total_positive"),
+        Index("ix_payroll_company", "company_id"),
     )
 
     def __repr__(self) -> str:

@@ -68,6 +68,7 @@ class EmployeeCreate(BaseModel):
     monthly_salary: Optional[Decimal] = Field(default=None, ge=0, decimal_places=2)
     hire_date: Optional[date] = None  # Phase 5: nullable for migration, frontend enforces
     work_schedule_id: Optional[UUID] = None  # Phase 4.9: Shift Management
+    company_id: Optional[UUID] = None  # C11: Multi-Company
 
     @field_validator("employee_code")
     @classmethod
@@ -110,6 +111,9 @@ class EmployeeResponse(BaseModel):
     is_active: bool
     hire_date: Optional[date] = None
     work_schedule_id: Optional[UUID] = None  # Phase 4.9: Shift Management
+    company_id: Optional[UUID] = None  # C11: Multi-Company
+    company_code: Optional[str] = None  # C11: Multi-Company enrichment
+    company_name: Optional[str] = None  # C11: Multi-Company enrichment
     created_at: datetime
     updated_at: datetime
 
@@ -329,6 +333,7 @@ class PayrollRunCreate(BaseModel):
     period_start: date
     period_end: date
     note: Optional[str] = None
+    company_id: Optional[UUID] = None  # C11: Multi-Company
 
     @field_validator("period_end")
     @classmethod
@@ -349,6 +354,9 @@ class PayrollRunResponse(BaseModel):
     executed_by: Optional[UUID] = None
     executed_at: Optional[datetime] = None
     note: Optional[str] = None
+    company_id: Optional[UUID] = None  # C11: Multi-Company
+    company_code: Optional[str] = None  # C11: Multi-Company enrichment
+    company_name: Optional[str] = None  # C11: Multi-Company enrichment
     created_at: datetime
     updated_at: datetime
 

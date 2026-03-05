@@ -224,6 +224,7 @@ async def list_entries(
     budget_id: Optional[UUID] = Query(None),
     year: Optional[int] = Query(None),
     month: Optional[int] = Query(None),
+    is_inter_company: Optional[bool] = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
@@ -232,7 +233,8 @@ async def list_entries(
     org_id = UUID(token["org_id"])
     items, total = await recharge_svc.list_entries(
         db, org_id=org_id, budget_id=budget_id,
-        year=year, month=month, limit=limit, offset=offset,
+        year=year, month=month, is_inter_company=is_inter_company,
+        limit=limit, offset=offset,
     )
     enriched = await recharge_svc.enrich_entries(db, items)
 

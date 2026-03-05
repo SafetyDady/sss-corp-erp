@@ -19,6 +19,8 @@ class WarehouseCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     description: Optional[str] = None
     address: Optional[str] = None
+    company_id: Optional[UUID] = None  # C11: Multi-Company
+    department_id: Optional[UUID] = None  # C11: Multi-Company
 
     @field_validator("code")
     @classmethod
@@ -48,6 +50,10 @@ class WarehouseResponse(BaseModel):
     description: Optional[str] = None
     address: Optional[str] = None
     is_active: bool
+    company_id: Optional[UUID] = None  # C11: Multi-Company
+    company_code: Optional[str] = None  # C11: Multi-Company enrichment
+    company_name: Optional[str] = None  # C11: Multi-Company enrichment
+    department_id: Optional[UUID] = None  # C11: Multi-Company
     created_at: datetime
     updated_at: datetime
 

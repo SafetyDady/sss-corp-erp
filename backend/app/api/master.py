@@ -64,12 +64,17 @@ from app.schemas.master import (
     WorkScheduleUpdate,
 )
 from app.schemas.organization import (
+    CompanyCreate,
+    CompanyListResponse,
+    CompanyResponse,
+    CompanyUpdate,
     DepartmentCreate,
     DepartmentListResponse,
     DepartmentResponse,
     DepartmentUpdate,
 )
 from app.services.master import (
+    create_company,
     create_cost_center,
     create_cost_element,
     create_leave_type,
@@ -78,6 +83,7 @@ from app.services.master import (
     create_supplier,
     create_wht_type,
     create_work_schedule,
+    delete_company,
     delete_cost_center,
     delete_cost_element,
     delete_leave_type,
@@ -86,6 +92,7 @@ from app.services.master import (
     delete_supplier,
     delete_wht_type,
     delete_work_schedule,
+    get_company,
     get_cost_center,
     get_cost_element,
     get_leave_type,
@@ -94,6 +101,7 @@ from app.services.master import (
     get_supplier,
     get_wht_type,
     get_work_schedule,
+    list_companies,
     list_cost_centers,
     list_cost_elements,
     list_leave_types,
@@ -102,6 +110,7 @@ from app.services.master import (
     list_suppliers,
     list_wht_types,
     list_work_schedules,
+    update_company,
     update_cost_center,
     update_cost_element,
     update_leave_type,
@@ -135,13 +144,15 @@ async def api_list_cost_centers(
     limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     search: Optional[str] = Query(default=None, max_length=100),
+    company_id: Optional[UUID] = Query(default=None, description="Filter by company"),
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     """List cost centers with pagination and search."""
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
-    items, total = await list_cost_centers(db, limit=limit, offset=offset, search=search, org_id=org_id)
-    return CostCenterListResponse(items=items, total=total, limit=limit, offset=offset)
+    items, total = await list_cost_centers(db, limit=limit, offset=offset, search=search, org_id=org_id, company_id=company_id)
+    response_items = [await _cost_center_to_response(db, cc) for cc in items]
+    return CostCenterListResponse(items=response_items, total=total, limit=limit, offset=offset)
 
 
 @master_router.post(
@@ -157,14 +168,16 @@ async def api_create_cost_center(
 ):
     """Create a new cost center."""
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
-    return await create_cost_center(
+    cc = await create_cost_center(
         db,
         code=body.code,
         name=body.name,
         description=body.description,
         overhead_rate=body.overhead_rate,
         org_id=org_id,
+        company_id=body.company_id,
     )
+    return await _cost_center_to_response(db, cc)
 
 
 @master_router.get(
@@ -179,7 +192,8 @@ async def api_get_cost_center(
 ):
     """Get a single cost center by ID."""
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
-    return await get_cost_center(db, cc_id, org_id=org_id)
+    cc = await get_cost_center(db, cc_id, org_id=org_id)
+    return await _cost_center_to_response(db, cc)
 
 
 @master_router.put(
@@ -194,7 +208,8 @@ async def api_update_cost_center(
 ):
     """Update a cost center (BR#30: overhead rate per cost center)."""
     update_data = body.model_dump(exclude_unset=True)
-    return await update_cost_center(db, cc_id, update_data=update_data)
+    cc = await update_cost_center(db, cc_id, update_data=update_data)
+    return await _cost_center_to_response(db, cc)
 
 
 @master_router.delete(
@@ -949,6 +964,33 @@ async def api_delete_supplier(
 # RESPONSE HELPERS
 # ============================================================
 
+async def _cost_center_to_response(db: AsyncSession, cc) -> dict:
+    """Enrich cost center with Company info for response."""
+    company_code = None
+    company_name = None
+    if cc.company_id:
+        try:
+            company = await get_company(db, cc.company_id)
+            company_code = company.code
+            company_name = company.name
+        except Exception:
+            pass
+
+    return {
+        "id": cc.id,
+        "code": cc.code,
+        "name": cc.name,
+        "description": cc.description,
+        "overhead_rate": cc.overhead_rate,
+        "company_id": cc.company_id,
+        "company_code": company_code,
+        "company_name": company_name,
+        "is_active": cc.is_active,
+        "created_at": cc.created_at,
+        "updated_at": cc.updated_at,
+    }
+
+
 async def _supplier_to_response(db: AsyncSession, supplier) -> dict:
     """Enrich supplier with WHT type info for response."""
     wht_code = None
@@ -977,3 +1019,92 @@ async def _supplier_to_response(db: AsyncSession, supplier) -> dict:
         "created_at": supplier.created_at,
         "updated_at": supplier.updated_at,
     }
+
+
+# ============================================================
+# COMPANY ROUTES  (C11 — admin.config.read / admin.config.update)
+# ============================================================
+
+@master_router.get(
+    "/companies",
+    response_model=CompanyListResponse,
+    dependencies=[Depends(require("admin.config.read"))],
+)
+async def api_list_companies(
+    limit: int = Query(default=20, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    search: Optional[str] = Query(default=None, max_length=100),
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    org_id = token.get("org_id", DEFAULT_ORG_ID)
+    items, total = await list_companies(
+        db, limit=limit, offset=offset, search=search, org_id=org_id,
+    )
+    return CompanyListResponse(
+        items=[CompanyResponse.model_validate(c) for c in items],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@master_router.post(
+    "/companies",
+    response_model=CompanyResponse,
+    status_code=201,
+    dependencies=[Depends(require("admin.config.update"))],
+)
+async def api_create_company(
+    data: CompanyCreate,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    org_id = token.get("org_id", DEFAULT_ORG_ID)
+    company = await create_company(
+        db,
+        code=data.code,
+        name=data.name,
+        tax_id=data.tax_id,
+        address=data.address,
+        org_id=org_id,
+    )
+    return CompanyResponse.model_validate(company)
+
+
+@master_router.put(
+    "/companies/{company_id}",
+    response_model=CompanyResponse,
+    dependencies=[Depends(require("admin.config.update"))],
+)
+async def api_update_company(
+    company_id: UUID,
+    data: CompanyUpdate,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    org_id = token.get("org_id", DEFAULT_ORG_ID)
+    company = await update_company(
+        db,
+        company_id,
+        name=data.name,
+        tax_id=data.tax_id,
+        address=data.address,
+        is_active=data.is_active,
+        org_id=org_id,
+    )
+    return CompanyResponse.model_validate(company)
+
+
+@master_router.delete(
+    "/companies/{company_id}",
+    status_code=204,
+    dependencies=[Depends(require("admin.config.update"))],
+)
+async def api_delete_company(
+    company_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    org_id = token.get("org_id", DEFAULT_ORG_ID)
+    await delete_company(db, company_id, org_id=org_id)

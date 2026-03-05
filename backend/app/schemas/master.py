@@ -30,6 +30,7 @@ class CostCenterCreate(BaseModel):
         default=Decimal("0.00"), ge=0, le=100, decimal_places=2,
         description="Overhead rate % (BR#30)"
     )
+    company_id: Optional[UUID] = Field(default=None, description="C11: Company affiliation")
 
     @field_validator("code")
     @classmethod
@@ -44,6 +45,7 @@ class CostCenterUpdate(BaseModel):
         default=None, ge=0, le=100, decimal_places=2
     )
     is_active: Optional[bool] = None
+    company_id: Optional[UUID] = None
 
 
 class CostCenterResponse(BaseModel):
@@ -52,6 +54,9 @@ class CostCenterResponse(BaseModel):
     name: str
     description: Optional[str] = None
     overhead_rate: Decimal
+    company_id: Optional[UUID] = None
+    company_code: Optional[str] = None
+    company_name: Optional[str] = None
     is_active: bool
     created_at: datetime
     updated_at: datetime

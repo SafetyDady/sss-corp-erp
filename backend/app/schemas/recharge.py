@@ -85,6 +85,7 @@ class FixedRechargeEntryResponse(BaseModel):
     allocation_pct: Decimal
     amount: Decimal
     note: Optional[str] = None
+    is_inter_company: bool = False
     generated_by: UUID
     org_id: UUID
     created_at: datetime

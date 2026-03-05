@@ -14,8 +14,8 @@ from app.models.purchasing import (
     PRStatus, PRPriority, PRItemType, PRType,
     PurchaseOrder, PurchaseOrderLine, POStatus, GRMode,
 )
-from app.models.sales import SalesOrder, SalesOrderLine, SOStatus
-from app.models.organization import Organization, Department, OrgWorkConfig, OrgApprovalConfig, DeptMenuConfig, OrgTaxConfig
+from app.models.sales import SalesOrder, SalesOrderLine, SOStatus, DeliveryOrder, DeliveryOrderLine, DOStatus
+from app.models.organization import Organization, Department, OrgWorkConfig, OrgApprovalConfig, DeptMenuConfig, OrgTaxConfig, Company
 from app.models.planning import (
     WOMasterPlan, WOMasterPlanLine, PlanLineType,
     DailyPlan, DailyPlanWorker, DailyPlanTool, DailyPlanMaterial,
@@ -111,4 +111,5 @@ __all__ = [
     "CustomerInvoice",
     "CustomerInvoicePayment",
     "CustomerInvoiceStatus",
+    "Company",
 ]

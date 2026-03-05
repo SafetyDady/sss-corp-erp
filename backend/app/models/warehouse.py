@@ -43,6 +43,17 @@ class Warehouse(Base, TimestampMixin, OrgMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # C11: Company + Department affiliation — warehouse belongs to a Company and is managed by a Department
+    company_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("companies.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    department_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("departments.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Relationships
@@ -53,6 +64,8 @@ class Warehouse(Base, TimestampMixin, OrgMixin):
     __table_args__ = (
         UniqueConstraint("org_id", "code", name="uq_warehouse_org_code"),
         Index("ix_warehouses_org_code", "org_id", "code"),
+        Index("ix_warehouse_company", "company_id"),
+        Index("ix_warehouse_department", "department_id"),
     )
 
     def __repr__(self) -> str:

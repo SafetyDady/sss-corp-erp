@@ -1,7 +1,8 @@
 import { Tabs } from 'antd';
-import { Building2, Layers, Clock, Network, CalendarOff, Clock4, CalendarClock, Truck, Receipt } from 'lucide-react';
+import { Building, Building2, Layers, Clock, Network, CalendarOff, Clock4, CalendarClock, Truck, Receipt } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import { usePermission } from '../../hooks/usePermission';
+import CompanyTab from './CompanyTab';
 import CostCenterTab from './CostCenterTab';
 import CostElementTab from './CostElementTab';
 import OTTypeTab from './OTTypeTab';
@@ -23,6 +24,11 @@ export default function MasterDataPage() {
   const { can } = usePermission();
 
   const items = [
+    can('admin.config.read') && {
+      key: 'companies',
+      label: tabLabel(Building, 'บริษัทในเครือ'),
+      children: <CompanyTab />,
+    },
     can('master.department.read') && {
       key: 'departments',
       label: tabLabel(Network, 'แผนก'),
@@ -74,7 +80,7 @@ export default function MasterDataPage() {
     <div>
       <PageHeader
         title="Master Data"
-        subtitle="ข้อมูลหลัก — แผนก, Cost Center, Cost Element, ประเภท OT, ประเภทลา, ประเภทกะ, ตารางกะ, ซัพพลายเออร์, หัก ณ ที่จ่าย"
+        subtitle="ข้อมูลหลัก — บริษัทในเครือ, แผนก, Cost Center, Cost Element, ประเภท OT, ประเภทลา, ประเภทกะ, ตารางกะ, ซัพพลายเออร์, หัก ณ ที่จ่าย"
       />
       {items.length > 0 ? (
         <Tabs defaultActiveKey={items[0]?.key} items={items} destroyOnHidden />

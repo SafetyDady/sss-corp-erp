@@ -183,13 +183,17 @@ export function formatNumberPrint(value, decimals = 1) {
 
 // ── Reusable Components ──
 
-/** Company header block — centered with org name, address, tax ID, doc title */
-export function CompanyHeader({ orgName, orgAddress, orgTaxId, docTitle, docSubtitle }) {
+/** Company header block — centered with company/org name, address, tax ID, doc title.
+ *  When company* props are provided they take priority over org* (multi-company support). */
+export function CompanyHeader({ orgName, orgAddress, orgTaxId, companyName, companyAddress, companyTaxId, docTitle, docSubtitle }) {
+  const displayName = companyName || orgName || 'SSS Corp';
+  const displayAddress = companyAddress || orgAddress;
+  const displayTaxId = companyTaxId || orgTaxId;
   return (
     <div style={PS.header}>
-      <p style={PS.orgName}>{orgName || 'SSS Corp'}</p>
-      {orgAddress && <p style={PS.orgDetail}>{orgAddress}</p>}
-      {orgTaxId && <p style={PS.orgDetail}>Tax ID: {orgTaxId}</p>}
+      <p style={PS.orgName}>{displayName}</p>
+      {displayAddress && <p style={PS.orgDetail}>{displayAddress}</p>}
+      {displayTaxId && <p style={PS.orgDetail}>Tax ID: {displayTaxId}</p>}
       <p style={PS.title}>{docTitle}</p>
       {docSubtitle && <p style={{ ...PS.orgDetail, marginTop: -8 }}>{docSubtitle}</p>}
     </div>

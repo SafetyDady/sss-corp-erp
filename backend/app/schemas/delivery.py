@@ -60,6 +60,7 @@ class DeliveryOrderCreate(BaseModel):
     shipping_address: Optional[str] = None
     shipping_method: Optional[str] = Field(None, max_length=100)
     note: Optional[str] = None
+    company_id: Optional[UUID] = None  # C11: Multi-Company
     lines: list[DOLineCreate] = Field(min_length=1)
 
 
@@ -100,6 +101,9 @@ class DeliveryOrderResponse(BaseModel):
     creator_name: Optional[str] = None
     is_active: bool
     org_id: UUID
+    company_id: Optional[UUID] = None  # C11: Multi-Company
+    company_code: Optional[str] = None  # C11: Multi-Company enrichment
+    company_name: Optional[str] = None  # C11: Multi-Company enrichment
     lines: Optional[list[DOLineResponse]] = None
     line_count: Optional[int] = None
     created_at: datetime

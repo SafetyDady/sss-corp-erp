@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Modal, Form, Input, InputNumber, Switch, App, Typography } from 'antd';
 import api from '../../services/api';
+import SearchSelect from '../../components/SearchSelect';
 import { COLORS } from '../../utils/constants';
 
 const { Text } = Typography;
@@ -14,6 +15,7 @@ export default function CostCenterFormModal({ open, editItem, onClose, onSuccess
     if (open) {
       if (editItem) {
         form.setFieldsValue({
+          company_id: editItem.company_id || undefined,
           code: editItem.code,
           name: editItem.name,
           description: editItem.description,
@@ -67,6 +69,18 @@ export default function CostCenterFormModal({ open, editItem, onClose, onSuccess
       destroyOnHidden
     >
       <Form form={form} layout="vertical" initialValues={{ overhead_rate: 0 }}>
+        <Form.Item name="company_id" label="บริษัท">
+          <SearchSelect
+            apiUrl="/api/master/companies"
+            labelRender={(item) => `${item.code} — ${item.name}`}
+            extraParams={{ is_active: true }}
+            defaultOptions={editItem?.company_id ? [{ value: editItem.company_id, label: editItem.company_name || editItem.company_id }] : []}
+            allowClear
+            placeholder="เลือกบริษัท"
+            style={{ width: '100%' }}
+          />
+        </Form.Item>
+
         <Form.Item name="code" label="รหัส"
           rules={[{ required: true, message: 'กรุณากรอกรหัส' }]}
           extra={!editItem && <Text type="secondary" style={{ fontSize: 12 }}>จะถูกแปลงเป็นตัวพิมพ์ใหญ่อัตโนมัติ</Text>}

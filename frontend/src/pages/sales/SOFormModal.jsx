@@ -30,6 +30,7 @@ export default function SOFormModal({ open, onClose, onSuccess, editRecord }) {
         if (editRecord) {
           // Edit mode: populate form from editRecord
           form.setFieldsValue({
+            company_id: editRecord.company_id || undefined,
             customer_id: editRecord.customer_id,
             order_date: editRecord.order_date ? dayjs(editRecord.order_date) : null,
             note: editRecord.note || '',
@@ -137,6 +138,17 @@ export default function SOFormModal({ open, onClose, onSuccess, editRecord }) {
       confirmLoading={loading} width={700} destroyOnHidden
     >
       <Form form={form} layout="vertical" onFinish={onFinish}>
+        <Form.Item name="company_id" label="บริษัท">
+          <SearchSelect
+            apiUrl="/api/master/companies"
+            labelRender={(item) => `${item.code} — ${item.name}`}
+            extraParams={{ is_active: true }}
+            defaultOptions={editRecord?.company_id ? [{ value: editRecord.company_id, label: editRecord.company_name || editRecord.company_id }] : []}
+            allowClear
+            placeholder="เลือกบริษัท"
+            style={{ width: '100%' }}
+          />
+        </Form.Item>
         <Form.Item name="customer_id" label={'ลูกค้า'}
           rules={[{ required: true, message: 'กรุณาเลือกลูกค้า' }]}>
           <SearchSelect

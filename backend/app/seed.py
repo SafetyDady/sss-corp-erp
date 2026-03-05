@@ -4,8 +4,9 @@ Run: python -m app.seed
 
 Creates:
   - 1 Organization (SSS Corp)
-  - 3 Cost Centers (ADMIN, PROD, SALES)
-  - 3 Departments (ADMIN, PROD, SALES)
+  - 1 Company (SSS-MAIN — SSS Corp Main)
+  - 3 Cost Centers (ADMIN, PROD, SALES) — all linked to SSS-MAIN company
+  - 3 Departments (ADMIN, PROD, SALES) — all linked to SSS-MAIN company
   - 3 OT Types (weekday 1.5x, weekend 2.0x, holiday 3.0x)
   - 5 Leave Types (ANNUAL, SICK, PERSONAL, MATERNITY, UNPAID)
   - 5 Users (owner, manager, supervisor, staff, viewer)
@@ -31,7 +32,7 @@ from app.core.config import DEFAULT_ORG_ID
 from app.core.security import hash_password
 from app.models import User, Organization
 from app.models.master import CostCenter, OTType, LeaveType, ShiftType, WorkSchedule, ScheduleType, Supplier, WHTType
-from app.models.organization import Department, OrgTaxConfig
+from app.models.organization import Company, Department, OrgTaxConfig
 from app.models.hr import Employee, LeaveBalance, PayType
 from app.models.warehouse import Warehouse, Location
 from app.models.inventory import Product, ProductType
@@ -42,6 +43,9 @@ from app.models.recharge import FixedRechargeBudget, RechargeStatus
 # ============================================================
 # FIXED UUIDs (deterministic, idempotent)
 # ============================================================
+
+# Company
+DEFAULT_COMPANY_ID = UUID("00000000-0000-0000-0000-000000000010")
 
 # Cost Centers
 CC_ADMIN_ID = UUID("00000000-0000-0000-0001-000000000001")
@@ -384,6 +388,24 @@ async def seed():
         else:
             print("  [Org]  SSS Corp (exists)")
 
+        await db.flush()  # Org ID needed for Company FK
+
+        # ----- 1b. Company -----
+        company = await _check_exists(db, Company, id=DEFAULT_COMPANY_ID)
+        if not company:
+            company = Company(
+                id=DEFAULT_COMPANY_ID,
+                code="SSS-MAIN",
+                name="SSS Corp (Main)",
+                org_id=DEFAULT_ORG_ID,
+            )
+            db.add(company)
+            print("  [Co]   SSS-MAIN — SSS Corp (Main)")
+        else:
+            print("  [Co]   SSS-MAIN (exists)")
+
+        await db.flush()  # Company ID needed for CostCenters, Departments, etc.
+
         # ----- 2. Cost Centers -----
         print()
         for cc_data in COST_CENTERS:
@@ -394,11 +416,15 @@ async def seed():
                     code=cc_data["code"],
                     name=cc_data["name"],
                     overhead_rate=cc_data["overhead_rate"],
+                    company_id=DEFAULT_COMPANY_ID,
                     org_id=DEFAULT_ORG_ID,
                 )
                 db.add(cc)
                 print(f"  [CC]   {cc_data['code']} — {cc_data['name']} ({cc_data['overhead_rate']}%)")
             else:
+                # Backfill company_id if missing
+                if not existing.company_id:
+                    existing.company_id = DEFAULT_COMPANY_ID
                 print(f"  [CC]   {cc_data['code']} (exists)")
 
         await db.flush()  # CostCenter IDs needed for Departments
@@ -413,11 +439,15 @@ async def seed():
                     code=dept_data["code"],
                     name=dept_data["name"],
                     cost_center_id=dept_data["cost_center_id"],
+                    company_id=DEFAULT_COMPANY_ID,
                     org_id=DEFAULT_ORG_ID,
                 )
                 db.add(dept)
                 print(f"  [Dept] {dept_data['code']} — {dept_data['name']}")
             else:
+                # Backfill company_id if missing
+                if not existing.company_id:
+                    existing.company_id = DEFAULT_COMPANY_ID
                 print(f"  [Dept] {dept_data['code']} (exists)")
 
         await db.flush()  # Department IDs needed for Employees
@@ -508,11 +538,15 @@ async def seed():
                     supervisor_id=emp_data["supervisor_id"],
                     user_id=user_obj.id if user_obj else None,
                     hire_date=date(2024, 1, 15),
+                    company_id=DEFAULT_COMPANY_ID,
                     org_id=DEFAULT_ORG_ID,
                 )
                 db.add(emp)
                 print(f"  [Emp]  {emp_data['employee_code']} — {emp_data['full_name']} ({emp_data['position']})")
             else:
+                # Backfill company_id if missing
+                if not existing.company_id:
+                    existing.company_id = DEFAULT_COMPANY_ID
                 print(f"  [Emp]  {emp_data['employee_code']} (exists)")
 
         await db.flush()  # Employee IDs needed for dept heads + leave balances
@@ -634,10 +668,13 @@ async def seed():
         for wh_data in WAREHOUSES:
             existing = await _check_exists(db, Warehouse, id=wh_data["id"])
             if not existing:
-                wh = Warehouse(org_id=DEFAULT_ORG_ID, **wh_data)
+                wh = Warehouse(org_id=DEFAULT_ORG_ID, company_id=DEFAULT_COMPANY_ID, **wh_data)
                 db.add(wh)
                 print(f"  [WH]   {wh_data['code']} — {wh_data['name']}")
             else:
+                # Backfill company_id if missing
+                if not existing.company_id:
+                    existing.company_id = DEFAULT_COMPANY_ID
                 print(f"  [WH]   {wh_data['code']} (exists)")
 
         await db.flush()  # Warehouse IDs needed for Locations

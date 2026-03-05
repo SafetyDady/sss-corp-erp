@@ -18,6 +18,7 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
   const [loading, setLoading] = useState(false);
   const [workSchedules, setWorkSchedules] = useState([]);
   const [unlinkedUsers, setUnlinkedUsers] = useState([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState(null);
   const payType = Form.useWatch('pay_type', form);
   const hireDateVal = Form.useWatch('hire_date', form);
 
@@ -56,6 +57,7 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
           daily_working_hours: parseFloat(editItem.daily_working_hours) || 8,
           cost_center_id: editItem.cost_center_id || undefined,
           user_id: editItem.user_id || undefined,
+          company_id: editItem.company_id || undefined,
           department_id: editItem.department_id || undefined,
           supervisor_id: editItem.supervisor_id || undefined,
           work_schedule_id: editItem.work_schedule_id || undefined,
@@ -65,8 +67,10 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
           is_active: editItem.is_active,
           hire_date: editItem.hire_date ? dayjs(editItem.hire_date) : undefined,
         });
+        setSelectedCompanyId(editItem.company_id || null);
       } else {
         form.resetFields();
+        setSelectedCompanyId(null);
       }
     }
   }, [open, editItem]);
@@ -146,6 +150,22 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
 
         <Divider style={{ margin: '12px 0', borderColor: COLORS.border }}>สังกัด</Divider>
 
+        <Form.Item name="company_id" label="บริษัท">
+          <SearchSelect
+            apiUrl="/api/master/companies"
+            labelRender={(item) => `${item.code} — ${item.name}`}
+            extraParams={{ is_active: true }}
+            defaultOptions={editItem?.company_id ? [{ value: editItem.company_id, label: editItem.company_name || editItem.company_id }] : []}
+            allowClear
+            placeholder="เลือกบริษัท"
+            style={{ width: '100%' }}
+            onChange={(val) => {
+              setSelectedCompanyId(val || null);
+              form.setFieldValue('department_id', undefined);
+            }}
+          />
+        </Form.Item>
+
         <Form.Item name="user_id" label="เชื่อมกับ User (Login)"
           extra={<Text type="secondary" style={{ fontSize: 12 }}>เลือก User ที่ยังไม่ได้เชื่อมกับพนักงานคนอื่น — ถ้าว่าง พนักงานคนนี้จะ login ไม่ได้</Text>}
         >
@@ -169,7 +189,7 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
             <SearchSelect
               apiUrl="/api/master/departments"
               labelRender={(item) => `${item.code} — ${item.name}`}
-              extraParams={{ is_active: true }}
+              extraParams={{ is_active: true, ...(selectedCompanyId ? { company_id: selectedCompanyId } : {}) }}
               itemsPath={null}
               defaultOptions={editItem?.department_id ? [{ value: editItem.department_id, label: editItem.department_name || editItem.department_id }] : []}
               allowClear

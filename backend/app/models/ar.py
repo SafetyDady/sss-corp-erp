@@ -108,6 +108,12 @@ class CustomerInvoice(Base, TimestampMixin, OrgMixin):
         default=CustomerInvoiceStatus.DRAFT,
     )
 
+    # C11: Company affiliation — invoice issued by a Company
+    company_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("companies.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     # Phase C3: Delivery Order link (optional — invoice from SO or DO)
     do_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
@@ -166,6 +172,7 @@ class CustomerInvoice(Base, TimestampMixin, OrgMixin):
         Index("ix_ci_so_id", "so_id"),
         Index("ix_ci_customer_id", "customer_id"),
         Index("ix_ci_due_date", "due_date"),
+        Index("ix_ci_company", "company_id"),
     )
 
 

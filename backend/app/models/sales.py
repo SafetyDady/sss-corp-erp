@@ -84,6 +84,12 @@ class SalesOrder(Base, TimestampMixin, OrgMixin):
         nullable=True,
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # C11: Company affiliation — SO issued by a Company
+    company_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("companies.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     lines: Mapped[list["SalesOrderLine"]] = relationship(
         back_populates="sales_order", cascade="all, delete-orphan"
@@ -98,6 +104,7 @@ class SalesOrder(Base, TimestampMixin, OrgMixin):
         CheckConstraint("subtotal_amount >= 0", name="ck_so_subtotal_positive"),
         CheckConstraint("vat_amount >= 0", name="ck_so_vat_amount_positive"),
         CheckConstraint("vat_rate >= 0 AND vat_rate <= 100", name="ck_so_vat_rate_range"),
+        Index("ix_so_company", "company_id"),
     )
 
     def __repr__(self) -> str:
@@ -185,6 +192,12 @@ class DeliveryOrder(Base, TimestampMixin, OrgMixin):
         nullable=False,
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # C11: Company affiliation — DO issued by a Company
+    company_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("companies.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     lines: Mapped[list["DeliveryOrderLine"]] = relationship(
         back_populates="delivery_order", cascade="all, delete-orphan"
@@ -201,6 +214,7 @@ class DeliveryOrder(Base, TimestampMixin, OrgMixin):
         Index("ix_do_org_status", "org_id", "status"),
         Index("ix_do_so_id", "so_id"),
         Index("ix_do_customer_id", "customer_id"),
+        Index("ix_do_company", "company_id"),
     )
 
     def __repr__(self) -> str:

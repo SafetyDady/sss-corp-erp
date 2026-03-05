@@ -29,6 +29,7 @@ class SupplierInvoiceCreate(BaseModel):
     net_payment: Decimal = Field(ge=0)
     cost_center_id: Optional[UUID] = None
     note: Optional[str] = None
+    company_id: Optional[UUID] = None  # C11: Multi-Company
 
 
 class SupplierInvoiceUpdate(BaseModel):
@@ -93,6 +94,9 @@ class SupplierInvoiceResponse(BaseModel):
     approved_at: Optional[datetime] = None
     is_active: bool
     org_id: UUID
+    company_id: Optional[UUID] = None  # C11: Multi-Company
+    company_code: Optional[str] = None  # C11: Multi-Company enrichment
+    company_name: Optional[str] = None  # C11: Multi-Company enrichment
     created_at: datetime
     updated_at: datetime
     payments: Optional[list[InvoicePaymentResponse]] = None

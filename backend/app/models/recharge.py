@@ -164,6 +164,10 @@ class FixedRechargeEntry(Base, TimestampMixin, OrgMixin):
         ForeignKey("users.id", ondelete="RESTRICT"),
         nullable=False,
     )
+    # C11: Inter-company detection — source CC and target dept belong to different companies
+    is_inter_company: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
 
     __table_args__ = (
         UniqueConstraint(

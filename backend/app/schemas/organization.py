@@ -1,6 +1,7 @@
 """
 SSS Corp ERP — Organization Schemas (Pydantic v2)
 Phase 4.1: Organization, Department, OrgWorkConfig, OrgApprovalConfig
+Phase C11: Company (legal entity within Org)
 """
 
 from datetime import datetime
@@ -44,6 +45,7 @@ class DepartmentCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     cost_center_id: UUID
     head_id: Optional[UUID] = None
+    company_id: Optional[UUID] = None  # C11
 
     @field_validator("code")
     @classmethod
@@ -55,6 +57,7 @@ class DepartmentUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
     cost_center_id: Optional[UUID] = None
     head_id: Optional[UUID] = None
+    company_id: Optional[UUID] = None  # C11
     is_active: Optional[bool] = None
 
 
@@ -64,6 +67,9 @@ class DepartmentResponse(BaseModel):
     name: str
     cost_center_id: UUID
     head_id: Optional[UUID] = None
+    company_id: Optional[UUID] = None  # C11
+    company_code: Optional[str] = None  # C11 enrichment
+    company_name: Optional[str] = None  # C11 enrichment
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -194,6 +200,50 @@ class DeptMenuConfigResponse(BaseModel):
     department_id: Optional[UUID] = None
     department_name: Optional[str] = None
     items: list[DeptMenuConfigItem]
+
+
+# ============================================================
+# COMPANY SCHEMAS  (C11 — Multi-Company Foundation)
+# ============================================================
+
+class CompanyCreate(BaseModel):
+    code: str = Field(min_length=1, max_length=50, description="Unique code per org")
+    name: str = Field(min_length=1, max_length=255)
+    tax_id: Optional[str] = Field(default=None, max_length=20)
+    address: Optional[str] = None
+
+    @field_validator("code")
+    @classmethod
+    def normalize_code(cls, v):
+        return v.strip().upper()
+
+
+class CompanyUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    tax_id: Optional[str] = Field(default=None, max_length=20)
+    address: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class CompanyResponse(BaseModel):
+    id: UUID
+    code: str
+    name: str
+    tax_id: Optional[str] = None
+    address: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CompanyListResponse(BaseModel):
+    items: list[CompanyResponse]
+    total: int
+    limit: int
+    offset: int
 
 
 # ============================================================

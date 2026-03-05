@@ -151,6 +151,12 @@ class PurchaseRequisition(Base, TimestampMixin, OrgMixin):
         nullable=False,
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # C11: Company affiliation — PR belongs to a Company
+    company_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("companies.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     lines: Mapped[list["PurchaseRequisitionLine"]] = relationship(
         back_populates="purchase_requisition", cascade="all, delete-orphan"
@@ -159,6 +165,7 @@ class PurchaseRequisition(Base, TimestampMixin, OrgMixin):
     __table_args__ = (
         UniqueConstraint("org_id", "pr_number", name="uq_pr_org_number"),
         Index("ix_pr_org_status", "org_id", "status"),
+        Index("ix_pr_company", "company_id"),
     )
 
     def __repr__(self) -> str:
@@ -293,6 +300,18 @@ class PurchaseOrder(Base, TimestampMixin, OrgMixin):
         nullable=True,
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # C11: Company affiliation — PO belongs to a Company
+    company_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("companies.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    # C11: Delivery destination — which warehouse to receive goods
+    delivery_warehouse_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("warehouses.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     lines: Mapped[list["PurchaseOrderLine"]] = relationship(
         back_populates="purchase_order", cascade="all, delete-orphan"

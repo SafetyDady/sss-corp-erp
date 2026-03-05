@@ -19,6 +19,9 @@ const POPrintView = forwardRef(function POPrintView({ po, products, orgName, org
         orgName={orgName}
         orgAddress={orgAddress}
         orgTaxId={orgTaxId}
+        companyName={po.company_name}
+        companyAddress={po.company_address}
+        companyTaxId={po.company_tax_id}
         docTitle={'ใบสั่งซื้อ / Purchase Order'}
       />
 

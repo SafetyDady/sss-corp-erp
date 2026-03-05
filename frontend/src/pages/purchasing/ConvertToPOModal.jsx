@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Modal, Form, Input, DatePicker, InputNumber, Table, App, Tag, Select, Switch } from 'antd';
 import { ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import api from '../../services/api';
+import SearchSelect from '../../components/SearchSelect';
 import { formatCurrency } from '../../utils/formatters';
 import { getApiErrorMsg } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
@@ -61,6 +62,7 @@ export default function ConvertToPOModal({ open, pr, products, onClose, onSucces
         supplier_id: values.supplier_id || null,
         supplier_name: selectedSupplier?.name || values.supplier_name || '',
         expected_date: values.expected_date?.format('YYYY-MM-DD') || null,
+        delivery_warehouse_id: values.delivery_warehouse_id || null,
         note: values.note || null,
         vat_rate: vatEnabled ? vatRate : 0,
         wht_type_id: whtEnabled ? selectedWhtTypeId || null : null,
@@ -205,6 +207,16 @@ export default function ConvertToPOModal({ open, pr, products, onClose, onSucces
             <DatePicker style={{ width: 180 }} />
           </Form.Item>
         </div>
+        <Form.Item name="delivery_warehouse_id" label="คลังรับของ (Delivery Warehouse)">
+          <SearchSelect
+            apiUrl="/api/warehouse/warehouses"
+            labelRender={(item) => `${item.code} — ${item.name}`}
+            extraParams={{ is_active: true }}
+            allowClear
+            placeholder="เลือกคลังรับของ"
+            style={{ width: '100%' }}
+          />
+        </Form.Item>
         <Form.Item name="note" label="หมายเหตุ">
           <Input.TextArea rows={2} />
         </Form.Item>

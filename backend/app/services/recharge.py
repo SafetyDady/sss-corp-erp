@@ -243,6 +243,10 @@ async def generate_monthly_entries(
         Decimal("0.01"), rounding=ROUND_HALF_UP
     )
 
+    # Load source CC to get company_id for inter-company detection
+    source_cc = await _get_cost_center(db, budget.source_cost_center_id, org_id)
+    source_company_id = source_cc.company_id
+
     # Find source CC's department (to skip — BR#96)
     source_dept_result = await db.execute(
         select(Department.id).where(
@@ -314,6 +318,13 @@ async def generate_monthly_entries(
             )
             running_total += amount
 
+        # C11: Inter-company detection — source CC and target dept belong to different companies
+        is_inter_company = (
+            source_company_id is not None
+            and dept.company_id is not None
+            and source_company_id != dept.company_id
+        )
+
         entry = FixedRechargeEntry(
             budget_id=budget_id,
             period_year=year,
@@ -325,6 +336,7 @@ async def generate_monthly_entries(
             total_headcount=total_headcount,
             allocation_pct=allocation_pct,
             amount=amount,
+            is_inter_company=is_inter_company,
             generated_by=generated_by,
             org_id=org_id,
         )
@@ -350,6 +362,7 @@ async def list_entries(
     budget_id: Optional[UUID] = None,
     year: Optional[int] = None,
     month: Optional[int] = None,
+    is_inter_company: Optional[bool] = None,
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[list[FixedRechargeEntry], int]:
@@ -363,6 +376,8 @@ async def list_entries(
         query = query.where(FixedRechargeEntry.period_year == year)
     if month:
         query = query.where(FixedRechargeEntry.period_month == month)
+    if is_inter_company is not None:
+        query = query.where(FixedRechargeEntry.is_inter_company == is_inter_company)
 
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar() or 0
@@ -551,6 +566,7 @@ async def enrich_entries(
             "allocation_pct": e.allocation_pct,
             "amount": e.amount,
             "note": e.note,
+            "is_inter_company": e.is_inter_company,
             "generated_by": e.generated_by,
             "org_id": e.org_id,
             "created_at": e.created_at,

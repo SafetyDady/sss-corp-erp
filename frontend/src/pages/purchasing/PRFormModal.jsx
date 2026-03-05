@@ -26,6 +26,7 @@ export default function PRFormModal({ open, editRecord, onClose, onSuccess }) {
         // Pre-fill for edit mode
         form.setFieldsValue({
           pr_type: editRecord.pr_type || 'STANDARD',
+          company_id: editRecord.company_id || undefined,
           cost_center_id: editRecord.cost_center_id,
           department_id: editRecord.department_id,
           required_date: editRecord.required_date ? dayjs(editRecord.required_date) : undefined,
@@ -99,6 +100,7 @@ export default function PRFormModal({ open, editRecord, onClose, onSuccess }) {
     try {
       const payload = {
         pr_type: values.pr_type || 'STANDARD',
+        company_id: values.company_id || null,
         cost_center_id: values.cost_center_id,
         department_id: values.department_id || null,
         required_date: values.required_date?.format('YYYY-MM-DD'),
@@ -253,6 +255,18 @@ export default function PRFormModal({ open, editRecord, onClose, onSuccess }) {
             <Radio.Button value="STANDARD">STANDARD (ปกติ)</Radio.Button>
             <Radio.Button value="BLANKET">BLANKET (สัญญาระยะยาว)</Radio.Button>
           </Radio.Group>
+        </Form.Item>
+
+        <Form.Item name="company_id" label="บริษัท">
+          <SearchSelect
+            apiUrl="/api/master/companies"
+            labelRender={(item) => `${item.code} — ${item.name}`}
+            extraParams={{ is_active: true }}
+            defaultOptions={editRecord?.company_id ? [{ value: editRecord.company_id, label: editRecord.company_name || editRecord.company_id }] : []}
+            allowClear
+            placeholder="เลือกบริษัท"
+            style={{ width: '100%' }}
+          />
         </Form.Item>
 
         <Space style={{ width: '100%' }} size={16} wrap>

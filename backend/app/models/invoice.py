@@ -124,6 +124,12 @@ class SupplierInvoice(Base, TimestampMixin, OrgMixin):
         ForeignKey("cost_centers.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # C11: Company affiliation — invoice issued by a Company
+    company_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("companies.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     # Notes
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -183,6 +189,7 @@ class SupplierInvoice(Base, TimestampMixin, OrgMixin):
         Index("ix_invoice_po_id", "po_id"),
         Index("ix_invoice_supplier_id", "supplier_id"),
         Index("ix_invoice_due_date", "due_date"),
+        Index("ix_invoice_company", "company_id"),
     )
 
 
