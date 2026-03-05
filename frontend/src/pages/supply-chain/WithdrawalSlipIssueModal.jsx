@@ -20,7 +20,7 @@ export default function WithdrawalSlipIssueModal({ open, slip, onClose, onSucces
     if (!open) return;
     api.get('/api/warehouse/warehouses', { params: { limit: 100, offset: 0 } })
       .then((r) => setWarehouses(r.data.items || []))
-      .catch(() => {});
+      .catch((err) => console.warn('[WSIssue] load:', err?.response?.status));
   }, [open]);
 
   // Reset state when modal opens with new slip
@@ -52,7 +52,7 @@ export default function WithdrawalSlipIssueModal({ open, slip, onClose, onSucces
     }
     api.get('/api/warehouse/locations', { params: { limit: 100, offset: 0, warehouse_id: warehouseId } })
       .then((r) => setLocationsByWarehouse((prev) => ({ ...prev, [lineId]: r.data.items || [] })))
-      .catch(() => {});
+      .catch((err) => console.warn('[WSIssue] load:', err?.response?.status));
   };
 
   const handleWarehouseChange = (lineId, warehouseId) => {

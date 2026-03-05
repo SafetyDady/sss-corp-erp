@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Modal, Form, Input, Switch, Select, App, Typography } from 'antd';
+import { Modal, Form, Input, Switch, App, Typography } from 'antd';
 import api from '../../services/api';
+import SearchSelect from '../../components/SearchSelect';
 
 const { Text } = Typography;
 
@@ -8,15 +9,9 @@ export default function SupplierFormModal({ open, editItem, onClose, onSuccess }
   const [form] = Form.useForm();
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
-  const [whtTypes, setWhtTypes] = useState([]);
 
   useEffect(() => {
     if (open) {
-      // Fetch WHT types for dropdown
-      api.get('/api/master/wht-types', { params: { limit: 500, offset: 0 } })
-        .then((res) => setWhtTypes((res.data.items || []).filter((w) => w.is_active)))
-        .catch(() => setWhtTypes([]));
-
       if (editItem) {
         form.setFieldsValue({
           code: editItem.code,
@@ -122,13 +117,12 @@ export default function SupplierFormModal({ open, editItem, onClose, onSuccess }
         </Form.Item>
 
         <Form.Item name="default_wht_type_id" label="ประเภทหัก ณ ที่จ่ายเริ่มต้น">
-          <Select
+          <SearchSelect
+            apiUrl="/api/master/wht-types"
+            labelRender={(item) => `${item.code} — ${item.name} (${parseFloat(item.rate).toFixed(2)}%)`}
             allowClear
             placeholder="ไม่หัก ณ ที่จ่าย"
-            options={whtTypes.map((w) => ({
-              value: w.id,
-              label: `${w.code} — ${w.name} (${parseFloat(w.rate).toFixed(2)}%)`,
-            }))}
+            defaultOptions={editItem?.default_wht_type_id ? [{ value: editItem.default_wht_type_id, label: editItem.default_wht_type_name || editItem.default_wht_type_id }] : []}
           />
         </Form.Item>
 

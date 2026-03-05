@@ -3,11 +3,11 @@ import { Modal, Form, InputNumber, Select, App, Input } from 'antd';
 import { Warehouse as WarehouseIcon, MapPin } from 'lucide-react';
 import api from '../../services/api';
 import { COLORS } from '../../utils/constants';
+import SearchSelect from '../../components/SearchSelect';
 
 export default function WOConsumeModal({ open, workOrderId, onClose, onSuccess }) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [locations, setLocations] = useState([]);
   const [selectedWarehouse, setSelectedWarehouse] = useState(undefined);
@@ -15,21 +15,17 @@ export default function WOConsumeModal({ open, workOrderId, onClose, onSuccess }
 
   useEffect(() => {
     if (!open) return;
-    Promise.all([
-      api.get('/api/inventory/products', { params: { limit: 500, offset: 0 } }),
-      api.get('/api/warehouse/warehouses', { params: { limit: 100, offset: 0 } }),
-    ]).then(([prodRes, whRes]) => {
-      // Filter out SERVICE products (only MATERIAL and CONSUMABLE)
-      setProducts((prodRes.data.items || []).filter((p) => p.product_type !== 'SERVICE'));
-      setWarehouses(whRes.data.items || []);
-    }).catch(() => {});
+    api.get('/api/warehouse/warehouses', { params: { limit: 100, offset: 0 } })
+      .then((whRes) => {
+        setWarehouses(whRes.data.items || []);
+      }).catch((err) => console.warn('[WOConsume] load:', err?.response?.status));
   }, [open]);
 
   useEffect(() => {
     if (!selectedWarehouse) { setLocations([]); return; }
     api.get('/api/warehouse/locations', { params: { limit: 100, offset: 0, warehouse_id: selectedWarehouse } })
       .then((r) => setLocations(r.data.items || []))
-      .catch(() => {});
+      .catch((err) => console.warn('[WOConsume] load:', err?.response?.status));
   }, [selectedWarehouse]);
 
   const handleWarehouseChange = (val) => {
@@ -76,11 +72,10 @@ export default function WOConsumeModal({ open, workOrderId, onClose, onSuccess }
       <Form form={form} layout="vertical" onFinish={onFinish}>
         <Form.Item name="product_id" label="สินค้า/วัตถุดิบ"
           rules={[{ required: true, message: 'กรุณาเลือกสินค้า' }]}>
-          <Select
-            showSearch
-            optionFilterProp="label"
+          <SearchSelect
+            apiUrl="/api/inventory/products"
+            labelRender={(item) => `${item.sku} - ${item.name}`}
             placeholder="เลือกสินค้า (เฉพาะ MATERIAL / CONSUMABLE)"
-            options={products.map((p) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
           />
         </Form.Item>
 

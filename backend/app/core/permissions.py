@@ -726,6 +726,42 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     "viewer": _viewer(),
 }
 
+# Default factory functions (for reset)
+_DEFAULT_FACTORIES: dict[str, callable] = {
+    "owner": _owner,
+    "manager": _manager,
+    "supervisor": _supervisor,
+    "staff": _staff,
+    "viewer": _viewer,
+}
+
+
+def get_default_permissions(role: str) -> set[str]:
+    """Get the hardcoded default permissions for a role."""
+    fn = _DEFAULT_FACTORIES.get(role)
+    return fn() if fn else set()
+
+
+async def load_role_overrides(db, org_id):
+    """Load persisted permission overrides from DB and apply to ROLE_PERMISSIONS."""
+    from app.models.organization import RolePermissionOverride
+
+    result = await db.execute(
+        select(RolePermissionOverride).where(RolePermissionOverride.org_id == org_id)
+    )
+    for override in result.scalars().all():
+        if override.role_name in ROLE_PERMISSIONS and override.role_name != "owner":
+            # Only keep valid permissions
+            valid = {p for p in override.permissions_json if p in ALL_PERMISSIONS}
+            if valid or not override.permissions_json:
+                ROLE_PERMISSIONS[override.role_name] = valid
+
+
+async def reset_role_defaults():
+    """Reset all in-memory ROLE_PERMISSIONS to hardcoded defaults."""
+    for role, fn in _DEFAULT_FACTORIES.items():
+        ROLE_PERMISSIONS[role] = fn()
+
 
 # ============================================================
 # PERMISSION CHECK DEPENDENCY

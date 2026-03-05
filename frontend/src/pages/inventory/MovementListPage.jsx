@@ -49,12 +49,12 @@ export default function MovementListPage({ embedded = false }) {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   useEffect(() => {
-    api.get('/api/inventory/products', { params: { limit: 500, offset: 0 } })
+    api.get('/api/inventory/products', { params: { limit: 50, offset: 0 } })
       .then((r) => setProducts(r.data.items))
-      .catch(() => {});
+      .catch((err) => console.warn('[MovementList] load:', err?.response?.status));
     api.get('/api/warehouse/locations', { params: { limit: 200, offset: 0 } })
       .then((r) => setAllLocations(r.data.items || []))
-      .catch(() => {});
+      .catch((err) => console.warn('[MovementList] load:', err?.response?.status));
   }, []);
 
   const productMap = Object.fromEntries(products.map((p) => [p.id, p]));
@@ -179,7 +179,6 @@ export default function MovementListPage({ embedded = false }) {
       />
       <MovementCreateModal
         open={modalOpen}
-        products={products}
         onClose={() => setModalOpen(false)}
         onSuccess={() => { setModalOpen(false); fetchData(); }}
       />

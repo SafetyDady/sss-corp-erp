@@ -47,8 +47,8 @@ export default function EmployeeTab() {
   const fetchLookups = useCallback(async () => {
     try {
       const [deptRes, empRes] = await Promise.all([
-        api.get('/api/master/departments', { params: { limit: 500, offset: 0 } }).catch(() => ({ data: { items: [] } })),
-        api.get('/api/hr/employees', { params: { limit: 500, offset: 0 } }),
+        api.get('/api/master/departments', { params: { limit: 50, offset: 0 } }).catch(() => ({ data: { items: [] } })),
+        api.get('/api/hr/employees', { params: { limit: 50, offset: 0 } }),
       ]);
       const dMap = {};
       (deptRes.data.items || []).forEach((d) => { dMap[d.id] = d; });

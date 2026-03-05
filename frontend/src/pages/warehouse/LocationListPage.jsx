@@ -42,9 +42,9 @@ export default function LocationListPage({ embedded = false }) {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   useEffect(() => {
-    api.get('/api/warehouse/warehouses', { params: { limit: 500, offset: 0 } })
+    api.get('/api/warehouse/warehouses', { params: { limit: 50, offset: 0 } })
       .then((r) => setWarehouses(r.data.items))
-      .catch(() => {});
+      .catch((err) => console.warn('[LocationList] load:', err?.response?.status));
   }, []);
 
   const warehouseMap = Object.fromEntries(warehouses.map((w) => [w.id, w]));

@@ -207,6 +207,40 @@ class DeptMenuConfig(Base, TimestampMixin):
 # ORG TAX CONFIG  (1 per org — C5 Tax Calculation)
 # ============================================================
 
+# ============================================================
+# ROLE PERMISSION OVERRIDE  (A5 — persistent custom permissions)
+# ============================================================
+
+class RolePermissionOverride(Base, TimestampMixin):
+    """
+    Persisted custom permissions per role per org.
+    Overrides the hardcoded defaults in permissions.py.
+    permissions_json = JSON array of permission strings.
+    """
+    __tablename__ = "role_permission_overrides"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    role_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    permissions_json: Mapped[list] = mapped_column(
+        JSON, nullable=False, default=list
+    )
+
+    __table_args__ = (
+        UniqueConstraint("org_id", "role_name", name="uq_role_perm_org_role"),
+        Index("ix_role_perm_org", "org_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<RolePermissionOverride role={self.role_name} org={self.org_id}>"
+
+
 class OrgTaxConfig(Base, TimestampMixin):
     """
     Organization-level tax configuration.

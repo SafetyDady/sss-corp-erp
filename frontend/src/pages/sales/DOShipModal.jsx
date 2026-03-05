@@ -20,7 +20,7 @@ export default function DOShipModal({ open, doData, onClose, onSuccess }) {
     if (!open) return;
     api.get('/api/warehouse/warehouses', { params: { limit: 100, offset: 0 } })
       .then((r) => setWarehouses(r.data.items || []))
-      .catch(() => {});
+      .catch((err) => console.warn('[DOShip] load:', err?.response?.status));
   }, [open]);
 
   // Reset state when modal opens
@@ -52,7 +52,7 @@ export default function DOShipModal({ open, doData, onClose, onSuccess }) {
     }
     api.get('/api/warehouse/locations', { params: { limit: 100, offset: 0, warehouse_id: warehouseId } })
       .then((r) => setLocationsByWarehouse((prev) => ({ ...prev, [lineId]: r.data.items || [] })))
-      .catch(() => {});
+      .catch((err) => console.warn('[DOShip] load:', err?.response?.status));
   };
 
   const handleWarehouseChange = (lineId, warehouseId) => {

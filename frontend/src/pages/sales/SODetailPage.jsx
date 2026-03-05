@@ -28,7 +28,7 @@ export default function SODetailPage() {
     try {
       const [soRes, prodRes] = await Promise.all([
         api.get(`/api/sales/orders/${id}`),
-        api.get('/api/inventory/products', { params: { limit: 500, offset: 0 } }),
+        api.get('/api/inventory/products', { params: { limit: 50, offset: 0 } }),
       ]);
       setSo(soRes.data);
       setProducts(Object.fromEntries(prodRes.data.items.map((p) => [p.id, p])));

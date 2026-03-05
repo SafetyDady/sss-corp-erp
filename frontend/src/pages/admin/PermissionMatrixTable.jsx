@@ -7,16 +7,17 @@
 
 import { useMemo } from 'react';
 import { Table, Checkbox, Tag, Tooltip, Dropdown } from 'antd';
-import { Lock, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { COLORS } from '../../utils/constants';
 import {
   ACTION_META, RESOURCE_META, ACTION_ORDER,
   getModulePermissions, getPermissionLabel,
 } from '../../utils/permissionMeta';
 
-const ROLE_ORDER = ['owner', 'manager', 'supervisor', 'staff', 'viewer'];
+// Owner excluded — always has all permissions, shown as info badge instead
+const ROLE_ORDER = ['manager', 'supervisor', 'staff', 'viewer'];
 const ROLE_LABELS = {
-  owner: 'Owner', manager: 'Manager', supervisor: 'Supervisor', staff: 'Staff', viewer: 'Viewer',
+  manager: 'Manager', supervisor: 'Supervisor', staff: 'Staff', viewer: 'Viewer',
 };
 
 /**
@@ -126,26 +127,13 @@ export default function PermissionMatrixTable({
       },
     ];
 
-    // Role columns
+    // Role columns (owner excluded — always has all permissions)
     for (const role of ROLE_ORDER) {
-      const isOwner = role === 'owner';
-
       cols.push({
         key: role,
-        width: 90,
+        width: 100,
         align: 'center',
         title: () => {
-          if (isOwner) {
-            return (
-              <Tooltip title="Owner มีสิทธิ์ทั้งหมดเสมอ">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                  <Lock size={12} color={COLORS.textMuted} />
-                  <span style={{ fontSize: 12 }}>{ROLE_LABELS[role]}</span>
-                </div>
-              </Tooltip>
-            );
-          }
-
           if (!canEdit) {
             return <span style={{ fontSize: 12 }}>{ROLE_LABELS[role]}</span>;
           }
@@ -170,14 +158,6 @@ export default function PermissionMatrixTable({
           );
         },
         render: (_, record) => {
-          if (isOwner) {
-            return (
-              <Tooltip title="Owner มีสิทธิ์ทั้งหมดเสมอ">
-                <Lock size={14} color={COLORS.textMuted} />
-              </Tooltip>
-            );
-          }
-
           const permSet = getPermSet(role);
           const checked = permSet.has(record.permission);
           const changed = isChanged(role, record.permission);
@@ -203,12 +183,11 @@ export default function PermissionMatrixTable({
           );
         },
         onCell: (record) => {
-          if (isOwner) return {};
           const changed = isChanged(role, record.permission);
           return {
             style: changed
               ? { background: '#f59e0b12' }
-              : {},
+              : { cursor: canEdit ? 'pointer' : 'default' },
           };
         },
       });
@@ -224,7 +203,7 @@ export default function PermissionMatrixTable({
       rowKey="permission"
       size="small"
       pagination={false}
-      scroll={{ x: 340 + 90 * 5 }}
+      scroll={{ x: 340 + 100 * 4 }}
       style={{ background: COLORS.card }}
       rowClassName={(record) => {
         return firstResourceRow[record.permission]

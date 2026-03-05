@@ -26,7 +26,7 @@ export default function LeaveFormModal({ open, onClose, onSuccess }) {
         setEmployees((empRes.data.items || []).filter((e) => e.is_active));
         setApprovers(appRes.data);
         setLeaveTypes((ltRes.data.items || []).filter((lt) => lt.is_active));
-      }).catch(() => {});
+      }).catch((err) => console.warn('[LeaveForm] load:', err?.response?.status));
     }
   }, [open]);
 

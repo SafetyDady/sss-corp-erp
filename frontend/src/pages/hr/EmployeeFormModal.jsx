@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Modal, Form, Input, InputNumber, Switch, Select, App, Divider, Typography, DatePicker } from 'antd';
 import dayjs from 'dayjs';
 import api from '../../services/api';
+import SearchSelect from '../../components/SearchSelect';
 import { COLORS } from '../../utils/constants';
 
 const { Text } = Typography;
@@ -15,9 +16,6 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
   const [form] = Form.useForm();
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
-  const [costCenters, setCostCenters] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [employees, setEmployees] = useState([]);
   const [workSchedules, setWorkSchedules] = useState([]);
   const [unlinkedUsers, setUnlinkedUsers] = useState([]);
   const payType = Form.useWatch('pay_type', form);
@@ -42,18 +40,12 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
   useEffect(() => {
     if (open) {
       Promise.all([
-        api.get('/api/master/cost-centers', { params: { limit: 500, offset: 0 } }),
-        api.get('/api/master/departments', { params: { limit: 500, offset: 0 } }),
-        api.get('/api/hr/employees', { params: { limit: 500, offset: 0 } }),
         api.get('/api/master/work-schedules', { params: { limit: 100, offset: 0 } }).catch(() => ({ data: { items: [] } })),
         api.get('/api/admin/users/unlinked').catch(() => ({ data: [] })),
-      ]).then(([ccRes, deptRes, empRes, wsRes, ulRes]) => {
-        setCostCenters((ccRes.data.items || []).filter((c) => c.is_active));
-        setDepartments((deptRes.data.items || []).filter((d) => d.is_active));
-        setEmployees((empRes.data.items || []).filter((e) => e.is_active));
+      ]).then(([wsRes, ulRes]) => {
         setWorkSchedules((wsRes.data.items || []).filter((w) => w.is_active));
         setUnlinkedUsers(Array.isArray(ulRes.data) ? ulRes.data : []);
-      }).catch(() => {});
+      }).catch((err) => console.warn('[EmpForm] load:', err?.response?.status));
 
       if (editItem) {
         form.setFieldsValue({
@@ -174,17 +166,30 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <Form.Item name="department_id" label="แผนก">
-            <Select allowClear placeholder="เลือกแผนก" showSearch optionFilterProp="label"
-              options={departments.map((d) => ({ value: d.id, label: `${d.code} — ${d.name}` }))} />
+            <SearchSelect
+              apiUrl="/api/master/departments"
+              labelRender={(item) => `${item.code} — ${item.name}`}
+              extraParams={{ is_active: true }}
+              itemsPath={null}
+              defaultOptions={editItem?.department_id ? [{ value: editItem.department_id, label: editItem.department_name || editItem.department_id }] : []}
+              allowClear
+              placeholder="เลือกแผนก"
+              style={{ width: '100%' }}
+            />
           </Form.Item>
 
           <Form.Item name="supervisor_id" label="หัวหน้างาน"
             extra={<Text type="secondary" style={{ fontSize: 12 }}>ผู้อนุมัติ Timesheet/OT เริ่มต้น</Text>}
           >
-            <Select allowClear placeholder="เลือกหัวหน้างาน" showSearch optionFilterProp="label"
-              options={employees
-                .filter((e) => !editItem || e.id !== editItem.id)
-                .map((e) => ({ value: e.id, label: `${e.employee_code} — ${e.full_name}` }))} />
+            <SearchSelect
+              apiUrl="/api/hr/employees"
+              labelRender={(item) => `${item.employee_code} — ${item.full_name}`}
+              extraParams={{ is_active: true }}
+              defaultOptions={editItem?.supervisor_id ? [{ value: editItem.supervisor_id, label: editItem.supervisor_name || editItem.supervisor_id }] : []}
+              allowClear
+              placeholder="เลือกหัวหน้างาน"
+              style={{ width: '100%' }}
+            />
           </Form.Item>
         </div>
 
@@ -241,9 +246,16 @@ export default function EmployeeFormModal({ open, editItem, onClose, onSuccess }
           <Form.Item name="cost_center_id" label="Cost Center"
             extra={<Text type="secondary" style={{ fontSize: 12 }}>Override (ถ้าว่าง ใช้จากแผนก)</Text>}
           >
-            <Select allowClear placeholder="เลือก Cost Center" showSearch
-              optionFilterProp="label"
-              options={costCenters.map((c) => ({ value: c.id, label: `${c.code} — ${c.name}` }))} />
+            <SearchSelect
+              apiUrl="/api/master/cost-centers"
+              labelRender={(item) => `${item.code} — ${item.name}`}
+              extraParams={{ is_active: true }}
+              itemsPath={null}
+              defaultOptions={editItem?.cost_center_id ? [{ value: editItem.cost_center_id, label: editItem.cost_center_name || editItem.cost_center_id }] : []}
+              allowClear
+              placeholder="เลือก Cost Center"
+              style={{ width: '100%' }}
+            />
           </Form.Item>
         </div>
 

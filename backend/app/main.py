@@ -49,6 +49,19 @@ async def lifespan(app: FastAPI):
     if settings.ENVIRONMENT == "development":
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+
+    # Load persisted role permission overrides from DB
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.core.config import DEFAULT_ORG_ID
+        from app.core.permissions import load_role_overrides
+
+        async with AsyncSessionLocal() as db:
+            await load_role_overrides(db, DEFAULT_ORG_ID)
+            logger.info("Role permission overrides loaded from DB")
+    except Exception as e:
+        logger.warning("Could not load role overrides: %s (using defaults)", e)
+
     yield
     # Shutdown
     await engine.dispose()

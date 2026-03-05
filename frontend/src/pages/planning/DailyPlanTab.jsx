@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Table, Button, App, Space, Popconfirm, DatePicker, Select, Tooltip, Typography } from 'antd';
+import { Table, Button, App, Space, Popconfirm, DatePicker, Tooltip, Typography } from 'antd';
 import { Plus, Eye, Trash2 } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
 import EmptyState from '../../components/EmptyState';
 import DailyPlanFormModal from './DailyPlanFormModal';
+import SearchSelect from '../../components/SearchSelect';
 import { formatDate } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
 
@@ -20,15 +21,8 @@ export default function DailyPlanTab() {
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
   const [dateRange, setDateRange] = useState(null);
   const [woFilter, setWoFilter] = useState(undefined);
-  const [workOrders, setWorkOrders] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
-
-  useEffect(() => {
-    api.get('/api/work-orders', { params: { limit: 500, offset: 0 } })
-      .then((res) => setWorkOrders(res.data.items || []))
-      .catch(() => {});
-  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -68,11 +62,6 @@ export default function DailyPlanTab() {
     }
   };
 
-  const getWOLabel = (woId) => {
-    const wo = workOrders.find((w) => w.id === woId);
-    return wo ? wo.wo_number : woId?.slice(0, 8) + '...';
-  };
-
   const columns = [
     {
       title: 'วันที่', dataIndex: 'plan_date', key: 'plan_date', width: 120,
@@ -80,9 +69,9 @@ export default function DailyPlanTab() {
     },
     {
       title: 'Work Order', dataIndex: 'work_order_id', key: 'work_order_id', width: 160,
-      render: (v) => (
+      render: (v, record) => (
         <span style={{ fontFamily: 'monospace', color: COLORS.accent }}>
-          {getWOLabel(v)}
+          {record.wo_number || v?.slice(0, 8) + '...'}
         </span>
       ),
     },
@@ -165,17 +154,16 @@ export default function DailyPlanTab() {
             }}
             style={{ width: 260 }}
           />
-          <Select
+          <SearchSelect
+            apiUrl="/api/work-orders"
+            labelRender={(item) => `${item.wo_number} — ${item.description || ''}`}
             allowClear
             placeholder="กรอง Work Order"
-            showSearch
-            optionFilterProp="label"
             value={woFilter}
             onChange={(v) => {
               setWoFilter(v);
               setPagination((prev) => ({ ...prev, current: 1 }));
             }}
-            options={workOrders.map((w) => ({ value: w.id, label: `${w.wo_number} — ${w.description || ''}` }))}
             style={{ width: 240 }}
           />
         </div>

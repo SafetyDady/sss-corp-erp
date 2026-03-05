@@ -4,13 +4,13 @@ import { Plus, Trash2, Save } from 'lucide-react';
 import api from '../../services/api';
 import { COLORS } from '../../utils/constants';
 import EmployeeContextSelector from '../../components/EmployeeContextSelector';
+import SearchSelect from '../../components/SearchSelect';
 
 const { Text } = Typography;
 
 export default function WOTimeEntryForm() {
   const { message } = App.useApp();
   const [employees, setEmployees] = useState([]);
-  const [workOrders, setWorkOrders] = useState([]);
   const [otTypes, setOtTypes] = useState([]);
   const [approvers, setApprovers] = useState([]);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -22,14 +22,12 @@ export default function WOTimeEntryForm() {
 
   useEffect(() => {
     Promise.all([
-      api.get('/api/work-orders', { params: { limit: 500, offset: 0, status: 'OPEN' } }),
       api.get('/api/master/ot-types', { params: { limit: 50, offset: 0 } }),
       api.get('/api/admin/approvers', { params: { module: 'hr.timesheet' } }),
-    ]).then(([woRes, otRes, appRes]) => {
-      setWorkOrders(woRes.data.items || []);
+    ]).then(([otRes, appRes]) => {
       setOtTypes((otRes.data.items || []).filter((t) => t.is_active));
       setApprovers(appRes.data);
-    }).catch(() => {});
+    }).catch((err) => console.warn('[WOTimeEntry] load:', err?.response?.status));
   }, []);
 
   // Check leave status when employee/date changes
@@ -140,14 +138,14 @@ export default function WOTimeEntryForm() {
     {
       title: 'Work Order', dataIndex: 'work_order_id', width: 260,
       render: (v, record) => (
-        <Select
-          showSearch optionFilterProp="label" value={v} style={{ width: '100%' }}
+        <SearchSelect
+          apiUrl="/api/work-orders"
+          labelRender={(item) => `${item.wo_number} — ${item.description || ''}`}
+          extraParams={{ status: 'OPEN' }}
+          value={v}
+          style={{ width: '100%' }}
           placeholder="เลือก WO"
           onChange={(val) => updateLine(record.key, 'work_order_id', val)}
-          options={workOrders.map((w) => ({
-            value: w.id,
-            label: `${w.wo_number} — ${w.description || ''}`,
-          }))}
         />
       ),
     },

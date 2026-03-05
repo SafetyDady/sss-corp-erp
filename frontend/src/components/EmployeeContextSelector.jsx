@@ -41,7 +41,7 @@ export default function EmployeeContextSelector({
       .then((res) => {
         setDepartments(res.data.items || []);
       })
-      .catch(() => {});
+      .catch((err) => console.warn('[EmpSelector] load:', err?.response?.status));
   }, [isManagerOrOwner]);
 
   // Fetch employees (initial + on search)
@@ -56,7 +56,7 @@ export default function EmployeeContextSelector({
         setEmployees(active);
         if (onEmployeesLoaded) onEmployeesLoaded(active);
       })
-      .catch(() => {});
+      .catch((err) => console.warn('[EmpSelector] load:', err?.response?.status));
   }, [onEmployeesLoaded]);
 
   // Initial fetch

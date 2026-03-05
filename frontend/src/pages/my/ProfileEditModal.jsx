@@ -22,7 +22,7 @@ export default function ProfileEditModal({ open, onClose, onSuccess }) {
         form.setFieldsValue({
           full_name: data.employee_name || data.full_name || '',
         });
-      }).catch(() => {});
+      }).catch((err) => console.warn('[ProfileEdit] load:', err?.response?.status));
     }
   }, [open]);
 

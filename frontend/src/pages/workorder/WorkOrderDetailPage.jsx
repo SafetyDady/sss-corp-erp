@@ -242,10 +242,10 @@ export default function WorkOrderDetailPage() {
         <Package size={18} /> วัสดุที่เบิก
         {wo.status === 'OPEN' && can('inventory.movement.create') && (
           <Space style={{ marginLeft: 'auto' }}>
-            <Button size="small" icon={<PackageMinus size={14} />} onClick={() => setConsumeOpen(true)}>
+            <Button icon={<PackageMinus size={16} />} onClick={() => setConsumeOpen(true)}>
               เบิกวัสดุ
             </Button>
-            <Button size="small" icon={<PackagePlus size={14} />} onClick={() => setReturnOpen(true)}>
+            <Button icon={<PackagePlus size={16} />} onClick={() => setReturnOpen(true)}>
               คืนวัสดุ
             </Button>
           </Space>

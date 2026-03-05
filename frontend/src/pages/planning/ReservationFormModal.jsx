@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Modal, Form, Select, DatePicker, InputNumber, App, Alert } from 'antd';
+import { Modal, Form, DatePicker, InputNumber, App, Alert } from 'antd';
 import api from '../../services/api';
+import SearchSelect from '../../components/SearchSelect';
 
 const { RangePicker } = DatePicker;
 
@@ -9,9 +10,6 @@ export default function ReservationFormModal({ open, type, onClose, onSuccess })
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState('');
-  const [workOrders, setWorkOrders] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [tools, setTools] = useState([]);
 
   const isMaterial = type === 'material';
 
@@ -19,25 +17,6 @@ export default function ReservationFormModal({ open, type, onClose, onSuccess })
     if (open) {
       form.resetFields();
       setSubmitError('');
-
-      const requests = [
-        api.get('/api/work-orders', { params: { limit: 500, offset: 0, status: 'OPEN' } }),
-      ];
-
-      if (isMaterial) {
-        requests.push(api.get('/api/inventory/products', { params: { limit: 500, offset: 0 } }));
-      } else {
-        requests.push(api.get('/api/tools', { params: { limit: 500, offset: 0 } }));
-      }
-
-      Promise.all(requests).then(([woRes, itemRes]) => {
-        setWorkOrders(woRes.data.items || []);
-        if (isMaterial) {
-          setProducts(itemRes.data.items || []);
-        } else {
-          setTools(itemRes.data.items || []);
-        }
-      }).catch(() => {});
     }
   }, [open, type]);
 
@@ -98,14 +77,11 @@ export default function ReservationFormModal({ open, type, onClose, onSuccess })
           label="Work Order (เฉพาะ OPEN)"
           rules={[{ required: true, message: 'กรุณาเลือก Work Order' }]}
         >
-          <Select
+          <SearchSelect
+            apiUrl="/api/work-orders"
+            labelRender={(item) => `${item.wo_number} — ${item.description || ''}`}
+            extraParams={{ status: 'OPEN' }}
             placeholder="เลือก Work Order"
-            showSearch
-            optionFilterProp="label"
-            options={workOrders.map((w) => ({
-              value: w.id,
-              label: `${w.wo_number} — ${w.description || ''}`,
-            }))}
           />
         </Form.Item>
 
@@ -116,14 +92,10 @@ export default function ReservationFormModal({ open, type, onClose, onSuccess })
               label="สินค้า"
               rules={[{ required: true, message: 'กรุณาเลือกสินค้า' }]}
             >
-              <Select
+              <SearchSelect
+                apiUrl="/api/inventory/products"
+                labelRender={(item) => `${item.sku} — ${item.name}`}
                 placeholder="เลือกสินค้า"
-                showSearch
-                optionFilterProp="label"
-                options={products.map((p) => ({
-                  value: p.id,
-                  label: `${p.sku} — ${p.name}`,
-                }))}
               />
             </Form.Item>
 
@@ -150,14 +122,10 @@ export default function ReservationFormModal({ open, type, onClose, onSuccess })
               label="เครื่องมือ"
               rules={[{ required: true, message: 'กรุณาเลือกเครื่องมือ' }]}
             >
-              <Select
+              <SearchSelect
+                apiUrl="/api/tools"
+                labelRender={(item) => `${item.code} — ${item.name}`}
                 placeholder="เลือกเครื่องมือ"
-                showSearch
-                optionFilterProp="label"
-                options={tools.map((t) => ({
-                  value: t.id,
-                  label: `${t.code} — ${t.name}`,
-                }))}
               />
             </Form.Item>
 

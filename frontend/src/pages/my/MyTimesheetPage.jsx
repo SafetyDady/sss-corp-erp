@@ -89,7 +89,7 @@ export default function MyTimesheetPage({ embedded = false }) {
         const items = res.data.items || res.data || [];
         setSchedules(items.filter((w) => w.is_active !== false));
       })
-      .catch(() => {});
+      .catch((err) => console.warn('[MyTimesheet] load:', err?.response?.status));
   }, [can]);
 
   // Reset offset when schedule changes

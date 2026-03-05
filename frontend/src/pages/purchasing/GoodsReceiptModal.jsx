@@ -20,7 +20,7 @@ export default function GoodsReceiptModal({ open, po, products, onClose, onSucce
     if (!open) return;
     api.get('/api/warehouse/warehouses', { params: { limit: 100, offset: 0 } })
       .then((r) => setWarehouses(r.data.items || []))
-      .catch(() => {});
+      .catch((err) => console.warn('[GoodsReceipt] load:', err?.response?.status));
   }, [open]);
 
   // Fetch locations when warehouse changes
@@ -28,7 +28,7 @@ export default function GoodsReceiptModal({ open, po, products, onClose, onSucce
     if (!selectedWarehouseId) { setLocations([]); setSelectedLocationId(undefined); return; }
     api.get('/api/warehouse/locations', { params: { limit: 100, offset: 0, warehouse_id: selectedWarehouseId } })
       .then((r) => setLocations(r.data.items || []))
-      .catch(() => {});
+      .catch((err) => console.warn('[GoodsReceipt] load:', err?.response?.status));
     setSelectedLocationId(undefined);
   }, [selectedWarehouseId]);
 

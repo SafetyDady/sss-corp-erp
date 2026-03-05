@@ -9,7 +9,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button, App, Tabs, Tag, Space, Tooltip, Spin, Input, Badge, Segmented } from 'antd';
 import {
-  Save, RefreshCw, Search, RotateCcw, X,
+  Save, RefreshCw, Search, RotateCcw, X, ShieldCheck, Info,
   Package, Warehouse, FileText, ShoppingCart, DollarSign,
   BarChart3, Database, Settings, UserCheck, Wrench, Users,
   Boxes, HardHat, Server,
@@ -75,19 +75,18 @@ export default function RoleTab() {
   const [activeModule, setActiveModule] = useState(MODULE_GROUPS[0].modules[0]);
   const [searchText, setSearchText] = useState('');
 
+  const [defaults, setDefaults] = useState({});
   const canEdit = can('admin.role.update');
 
   // ── Fetch ──────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [rolesRes, seedRes] = await Promise.all([
-        api.get('/api/admin/roles'),
-        api.post('/api/admin/seed-permissions'),
-      ]);
-      setRolesData(rolesRes.data);
-      setAllPerms(seedRes.data.all_permissions || []);
-      setDescriptions(seedRes.data.descriptions || {});
+      const res = await api.get('/api/admin/roles');
+      setRolesData(res.data.roles || {});
+      setAllPerms(res.data.all_permissions || []);
+      setDescriptions(res.data.descriptions || {});
+      setDefaults(res.data.defaults || {});
       setPendingChanges({});
     } catch {
       message.error('ไม่สามารถโหลดข้อมูลสิทธิ์ได้');
@@ -294,13 +293,27 @@ export default function RoleTab() {
     }
   }, [filteredTree]);
 
-  // ── Role summary ───────────────────────────────────────────
+  // ── Role summary (with diff vs defaults) ───────────────────
   const roleSummary = useMemo(() => {
     return ROLE_ORDER.map((role) => {
       const permSet = getRolePermSet(role);
-      return { role, count: permSet.size };
+      const count = permSet.size;
+      let added = 0;
+      let removed = 0;
+
+      if (role !== 'owner' && defaults[role]) {
+        const defaultSet = new Set(defaults[role]);
+        for (const p of permSet) {
+          if (!defaultSet.has(p)) added++;
+        }
+        for (const p of defaultSet) {
+          if (!permSet.has(p)) removed++;
+        }
+      }
+
+      return { role, count, added, removed };
     });
-  }, [getRolePermSet]);
+  }, [getRolePermSet, defaults]);
 
   // ── Current group's module sub-tabs ────────────────────────
   const currentGroup = MODULE_GROUPS.find((g) => g.key === activeGroup) || MODULE_GROUPS[0];
@@ -406,6 +419,43 @@ export default function RoleTab() {
         </Space>
       </div>
 
+      {/* ── Owner Info + Editable Hint ────────────────── */}
+      <div style={{
+        marginBottom: 12,
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: 12,
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '4px 10px',
+          background: COLORS.surface,
+          borderRadius: 6,
+          border: `1px solid ${COLORS.borderLight}`,
+        }}>
+          <ShieldCheck size={14} color={COLORS.primary} />
+          <span style={{ fontSize: 12, color: COLORS.textSecondary }}>
+            Owner: {allPerms.length}/{allPerms.length} สิทธิ์
+            <span style={{ color: COLORS.textMuted }}> (ทุกสิทธิ์เสมอ — ไม่สามารถแก้ไขได้)</span>
+          </span>
+        </div>
+        {canEdit && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            fontSize: 12,
+            color: COLORS.textMuted,
+          }}>
+            <Info size={12} />
+            <span>คลิกที่ช่องเพื่อเปลี่ยนสิทธิ์ — กดบันทึกเมื่อเสร็จ</span>
+          </div>
+        )}
+      </div>
+
       {/* ── Group Selector (Segmented) ───────────────── */}
       <div style={{ marginBottom: 12 }}>
         <Segmented
@@ -465,7 +515,7 @@ export default function RoleTab() {
         <span style={{ fontSize: 12, color: COLORS.textMuted, fontWeight: 500 }}>
           สิทธิ์รวม:
         </span>
-        {roleSummary.map(({ role, count }) => (
+        {roleSummary.filter(({ role }) => role !== 'owner').map(({ role, count, added, removed }) => (
           <span key={role} style={{ fontSize: 12, color: COLORS.textSecondary }}>
             {ROLE_LABELS[role]}{' '}
             <span style={{
@@ -475,6 +525,13 @@ export default function RoleTab() {
             }}>
               {count}
             </span>
+            {(added > 0 || removed > 0) && (
+              <span style={{ fontSize: 11, marginLeft: 4 }}>
+                {added > 0 && <span style={{ color: '#22c55e' }}>+{added}</span>}
+                {added > 0 && removed > 0 && ' '}
+                {removed > 0 && <span style={{ color: '#ef4444' }}>-{removed}</span>}
+              </span>
+            )}
           </span>
         ))}
       </div>

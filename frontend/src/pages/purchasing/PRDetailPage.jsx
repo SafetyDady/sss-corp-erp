@@ -33,7 +33,7 @@ export default function PRDetailPage() {
     try {
       const [prRes, prodRes] = await Promise.all([
         api.get(`/api/purchasing/pr/${id}`),
-        api.get('/api/inventory/products', { params: { limit: 500, offset: 0 } }),
+        api.get('/api/inventory/products', { params: { limit: 50, offset: 0 } }),
       ]);
       setPr(prRes.data);
       setProducts(Object.fromEntries(prodRes.data.items.map((p) => [p.id, p])));

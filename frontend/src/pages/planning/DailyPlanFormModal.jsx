@@ -1,17 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Modal, Form, Select, DatePicker, Input, InputNumber, Button, Table, App, Space, Alert } from 'antd';
+import { Modal, Form, DatePicker, Input, InputNumber, Button, Table, App, Space, Alert } from 'antd';
 import { Plus, Trash2 } from 'lucide-react';
 import api from '../../services/api';
 import { COLORS } from '../../utils/constants';
+import SearchSelect from '../../components/SearchSelect';
 
 export default function DailyPlanFormModal({ open, editItem, onClose, onSuccess }) {
   const [form] = Form.useForm();
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
-  const [workOrders, setWorkOrders] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [tools, setTools] = useState([]);
-  const [products, setProducts] = useState([]);
   const [workers, setWorkers] = useState([]);
   const [planTools, setPlanTools] = useState([]);
   const [materials, setMaterials] = useState([]);
@@ -26,18 +23,6 @@ export default function DailyPlanFormModal({ open, editItem, onClose, onSuccess 
       setConflicts([]);
       setSubmitError('');
 
-      Promise.all([
-        api.get('/api/work-orders', { params: { limit: 500, offset: 0, status: 'OPEN' } }),
-        api.get('/api/hr/employees', { params: { limit: 500, offset: 0 } }),
-        api.get('/api/tools', { params: { limit: 500, offset: 0 } }),
-        api.get('/api/inventory/products', { params: { limit: 500, offset: 0 } }),
-      ]).then(([woRes, empRes, toolRes, prodRes]) => {
-        setWorkOrders(woRes.data.items || []);
-        setEmployees((empRes.data.items || []).filter((e) => e.is_active));
-        setTools(toolRes.data.items || []);
-        setProducts(prodRes.data.items || []);
-      }).catch(() => {});
-
       if (isEdit) {
         form.setFieldsValue({
           note: editItem.note,
@@ -47,6 +32,7 @@ export default function DailyPlanFormModal({ open, editItem, onClose, onSuccess 
             ? editItem.workers.map((w, i) => ({
                 key: Date.now() + i,
                 employee_id: w.employee_id,
+                employee_label: w.employee_name ? `${w.employee_code || ''} — ${w.employee_name}`.trim() : undefined,
                 planned_hours: w.planned_hours || 8,
               }))
             : []
@@ -56,6 +42,7 @@ export default function DailyPlanFormModal({ open, editItem, onClose, onSuccess 
             ? editItem.tools.map((t, i) => ({
                 key: Date.now() + 100 + i,
                 tool_id: t.tool_id,
+                tool_label: t.tool_name ? `${t.tool_code || ''} — ${t.tool_name}`.trim() : undefined,
               }))
             : []
         );
@@ -64,6 +51,7 @@ export default function DailyPlanFormModal({ open, editItem, onClose, onSuccess 
             ? editItem.materials.map((m, i) => ({
                 key: Date.now() + 200 + i,
                 product_id: m.product_id,
+                product_label: m.product_name ? `${m.product_sku || ''} — ${m.product_name}`.trim() : undefined,
                 quantity: m.planned_qty ?? m.quantity,
               }))
             : []
@@ -150,11 +138,12 @@ export default function DailyPlanFormModal({ open, editItem, onClose, onSuccess 
     {
       title: 'พนักงาน', dataIndex: 'employee_id', width: 280,
       render: (v, record) => (
-        <Select
-          showSearch optionFilterProp="label"
+        <SearchSelect
+          apiUrl="/api/hr/employees"
+          labelRender={(item) => `${item.employee_code} — ${item.full_name}`}
           value={v}
           onChange={(val) => updateWorker(record.key, 'employee_id', val)}
-          options={employees.map((e) => ({ value: e.id, label: `${e.employee_code} — ${e.full_name}` }))}
+          defaultOptions={v ? [{ value: v, label: record.employee_label || v }] : []}
           style={{ width: '100%' }}
           placeholder="เลือกพนักงาน"
         />
@@ -189,11 +178,12 @@ export default function DailyPlanFormModal({ open, editItem, onClose, onSuccess 
     {
       title: 'เครื่องมือ', dataIndex: 'tool_id', width: 400,
       render: (v, record) => (
-        <Select
-          showSearch optionFilterProp="label"
+        <SearchSelect
+          apiUrl="/api/tools"
+          labelRender={(item) => `${item.code} — ${item.name}`}
           value={v}
           onChange={(val) => updatePlanTool(record.key, 'tool_id', val)}
-          options={tools.map((t) => ({ value: t.id, label: `${t.code} — ${t.name}` }))}
+          defaultOptions={v ? [{ value: v, label: record.tool_label || v }] : []}
           style={{ width: '100%' }}
           placeholder="เลือกเครื่องมือ"
         />
@@ -216,11 +206,12 @@ export default function DailyPlanFormModal({ open, editItem, onClose, onSuccess 
     {
       title: 'สินค้า', dataIndex: 'product_id', width: 280,
       render: (v, record) => (
-        <Select
-          showSearch optionFilterProp="label"
+        <SearchSelect
+          apiUrl="/api/inventory/products"
+          labelRender={(item) => `${item.sku} — ${item.name}`}
           value={v}
           onChange={(val) => updateMaterial(record.key, 'product_id', val)}
-          options={products.map((p) => ({ value: p.id, label: `${p.sku} — ${p.name}` }))}
+          defaultOptions={v ? [{ value: v, label: record.product_label || v }] : []}
           style={{ width: '100%' }}
           placeholder="เลือกสินค้า"
         />
@@ -275,8 +266,8 @@ export default function DailyPlanFormModal({ open, editItem, onClose, onSuccess 
           type="warning" showIcon closable
           message="พบแผนงานซ้อนทับ"
           description={conflicts.map((c) => {
-            const emp = employees.find((e) => e.id === c.employee_id);
-            return `${emp ? emp.full_name : c.employee_id?.slice(0, 8)}: ${c.detail}`;
+            const worker = workers.find((w) => w.employee_id === c.employee_id);
+            return `${worker?.employee_label || c.employee_id?.slice(0, 8)}: ${c.detail}`;
           }).join(' | ')}
           style={{ marginBottom: 16, background: COLORS.accentMuted, border: 'none' }}
           onClose={() => setConflicts([])}
@@ -304,19 +295,16 @@ export default function DailyPlanFormModal({ open, editItem, onClose, onSuccess 
           >
             {isEdit ? (
               <Input
-                value={
-                  (() => {
-                    const wo = workOrders.find((w) => w.id === editItem?.work_order_id);
-                    return wo ? `${wo.wo_number} — ${wo.description || ''}` : editItem?.work_order_id?.slice(0, 12);
-                  })()
-                }
+                value={editItem?.wo_number ? `${editItem.wo_number} — ${editItem.description || ''}` : editItem?.work_order_id?.slice(0, 12)}
                 disabled
                 style={{ color: COLORS.textSecondary }}
               />
             ) : (
-              <Select
-                placeholder="เลือก Work Order" showSearch optionFilterProp="label"
-                options={workOrders.map((w) => ({ value: w.id, label: `${w.wo_number} — ${w.description || ''}` }))}
+              <SearchSelect
+                apiUrl="/api/work-orders"
+                labelRender={(item) => `${item.wo_number} — ${item.description || ''}`}
+                extraParams={{ status: 'OPEN' }}
+                placeholder="เลือก Work Order"
               />
             )}
           </Form.Item>

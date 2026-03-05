@@ -39,7 +39,7 @@ export default function DeptMenuConfigTab() {
   useEffect(() => {
     api.get('/api/master/departments', { params: { limit: 100 } })
       .then(({ data }) => setDepartments(data.items || []))
-      .catch(() => {});
+      .catch((err) => console.warn('[DeptMenuConfig] load:', err?.response?.status));
   }, []);
 
   // Fetch menu config for selected department

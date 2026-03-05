@@ -27,12 +27,12 @@ export default function DepartmentTab() {
   const fetchLookups = useCallback(async () => {
     try {
       const promises = [
-        api.get('/api/master/cost-centers', { params: { limit: 500, offset: 0 } }),
+        api.get('/api/master/cost-centers', { params: { limit: 50, offset: 0 } }),
       ];
       // Only fetch employees if user has permission (staff doesn't have hr.employee.read)
       const hasEmpPerm = can('hr.employee.read');
       if (hasEmpPerm) {
-        promises.push(api.get('/api/hr/employees', { params: { limit: 500, offset: 0 } }));
+        promises.push(api.get('/api/hr/employees', { params: { limit: 50, offset: 0 } }));
       }
       const results = await Promise.all(promises);
       const ccMap = {};

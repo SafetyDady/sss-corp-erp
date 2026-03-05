@@ -14,7 +14,7 @@ export default function WorkOrderFormModal({ open, editItem, onClose, onSuccess 
       if (editItem) form.setFieldsValue(editItem);
       api.get('/api/admin/approvers', { params: { module: 'workorder.order' } })
         .then((r) => setApprovers(r.data))
-        .catch(() => {});
+        .catch((err) => console.warn('[WOForm] load:', err?.response?.status));
     }
   }, [open, editItem]);
 

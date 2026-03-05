@@ -3,6 +3,7 @@ import { Modal, Form, Input, InputNumber, Select, App, Radio } from 'antd';
 import { Warehouse as WarehouseIcon, MapPin, ArrowRight } from 'lucide-react';
 import api from '../../services/api';
 import { COLORS } from '../../utils/constants';
+import SearchSelect from '../../components/SearchSelect';
 
 const MOVEMENT_TYPES = [
   { value: 'RECEIVE', label: 'RECEIVE - รับเข้า' },
@@ -13,7 +14,7 @@ const MOVEMENT_TYPES = [
   { value: 'RETURN', label: 'RETURN - คืนวัสดุ (WO)' },
 ];
 
-export default function MovementCreateModal({ open, products, onClose, onSuccess }) {
+export default function MovementCreateModal({ open, onClose, onSuccess }) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [warehouses, setWarehouses] = useState([]);
@@ -41,7 +42,7 @@ export default function MovementCreateModal({ open, products, onClose, onSuccess
       setWorkOrders(woRes.data.items || []);
       setCostCenters(ccRes.data.items || []);
       setCostElements(ceRes.data.items || []);
-    }).catch(() => {});
+    }).catch((err) => console.warn('[MovementCreate] load:', err?.response?.status));
   }, [open]);
 
   // Fetch locations when source warehouse changes
@@ -49,7 +50,7 @@ export default function MovementCreateModal({ open, products, onClose, onSuccess
     if (!selectedWarehouse) { setLocations([]); return; }
     api.get('/api/warehouse/locations', { params: { limit: 100, offset: 0, warehouse_id: selectedWarehouse } })
       .then((r) => setLocations(r.data.items || []))
-      .catch(() => {});
+      .catch((err) => console.warn('[MovementCreate] load:', err?.response?.status));
   }, [selectedWarehouse]);
 
   // Fetch locations when dest warehouse changes (for TRANSFER)
@@ -57,7 +58,7 @@ export default function MovementCreateModal({ open, products, onClose, onSuccess
     if (!destWarehouse) { setDestLocations([]); return; }
     api.get('/api/warehouse/locations', { params: { limit: 100, offset: 0, warehouse_id: destWarehouse } })
       .then((r) => setDestLocations(r.data.items || []))
-      .catch(() => {});
+      .catch((err) => console.warn('[MovementCreate] load:', err?.response?.status));
   }, [destWarehouse]);
 
   const handleWarehouseChange = (val) => {
@@ -81,11 +82,6 @@ export default function MovementCreateModal({ open, products, onClose, onSuccess
     setDestWarehouse(undefined);
     form.setFieldsValue({ dest_warehouse_id: undefined, to_location_id: undefined });
   };
-
-  // Filter products: for CONSUME/RETURN exclude SERVICE
-  const filteredProducts = (moveType === 'CONSUME' || moveType === 'RETURN')
-    ? products.filter((p) => p.product_type !== 'SERVICE')
-    : products;
 
   // Conditional flags
   const showWorkOrder = moveType === 'CONSUME' || moveType === 'RETURN';
@@ -146,10 +142,9 @@ export default function MovementCreateModal({ open, products, onClose, onSuccess
 
         <Form.Item name="product_id" label="สินค้า"
           rules={[{ required: true, message: 'กรุณาเลือกสินค้า' }]}>
-          <Select
-            showSearch
-            optionFilterProp="label"
-            options={filteredProducts.map((p) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
+          <SearchSelect
+            apiUrl="/api/inventory/products"
+            labelRender={(item) => `${item.sku} - ${item.name}`}
             placeholder="เลือกสินค้า"
           />
         </Form.Item>

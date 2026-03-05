@@ -5,12 +5,11 @@ import dayjs from 'dayjs';
 import api from '../../services/api';
 import { formatCurrency } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
+import SearchSelect from '../../components/SearchSelect';
 
 export default function SOFormModal({ open, onClose, onSuccess, editRecord }) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [products, setProducts] = useState([]);
-  const [customers, setCustomers] = useState([]);
   const [lines, setLines] = useState([]);
   const { message } = App.useApp();
 
@@ -23,13 +22,9 @@ export default function SOFormModal({ open, onClose, onSuccess, editRecord }) {
   useEffect(() => {
     if (open) {
       Promise.all([
-        api.get('/api/inventory/products', { params: { limit: 500, offset: 0 } }),
-        api.get('/api/customers', { params: { limit: 500, offset: 0 } }),
         api.get('/api/admin/approvers', { params: { module: 'sales.order' } }),
         api.get('/api/admin/config/tax').catch(() => ({ data: { vat_enabled: true, default_vat_rate: 7 } })),
-      ]).then(([prodRes, custRes, appRes, taxRes]) => {
-        setProducts(prodRes.data.items);
-        setCustomers(custRes.data.items);
+      ]).then(([appRes, taxRes]) => {
         setApprovers(appRes.data);
 
         if (editRecord) {
@@ -65,7 +60,7 @@ export default function SOFormModal({ open, onClose, onSuccess, editRecord }) {
           setVatEnabled(taxCfg.vat_enabled);
           setVatRate(Number(taxCfg.default_vat_rate) || 7);
         }
-      }).catch(() => {});
+      }).catch((err) => console.warn('[SOForm] load:', err?.response?.status));
     }
   }, [open, editRecord]);
 
@@ -111,11 +106,13 @@ export default function SOFormModal({ open, onClose, onSuccess, editRecord }) {
     {
       title: 'สินค้า', dataIndex: 'product_id', width: 250,
       render: (v, record) => (
-        <Select
-          showSearch optionFilterProp="label" value={v}
+        <SearchSelect
+          apiUrl="/api/inventory/products"
+          labelRender={(item) => `${item.sku} - ${item.name}`}
+          value={v}
           onChange={(val) => updateLine(record.key, 'product_id', val)}
-          options={products.map((p) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
-          style={{ width: '100%' }} placeholder={'เลือกสินค้า'}
+          style={{ width: '100%' }}
+          placeholder={'เลือกสินค้า'}
         />
       ),
     },
@@ -142,10 +139,11 @@ export default function SOFormModal({ open, onClose, onSuccess, editRecord }) {
       <Form form={form} layout="vertical" onFinish={onFinish}>
         <Form.Item name="customer_id" label={'ลูกค้า'}
           rules={[{ required: true, message: 'กรุณาเลือกลูกค้า' }]}>
-          <Select
-            showSearch optionFilterProp="label"
-            options={customers.map((c) => ({ value: c.id, label: c.name }))}
+          <SearchSelect
+            apiUrl="/api/customers"
+            labelField="name"
             placeholder={'เลือกลูกค้า'}
+            defaultOptions={editRecord?.customer_id ? [{ value: editRecord.customer_id, label: editRecord.customer_name || editRecord.customer_id }] : []}
           />
         </Form.Item>
         <Form.Item name="order_date" label={'วันที่สั่ง'}>

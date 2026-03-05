@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Modal, Form, Input, Switch, Select, App, Typography } from 'antd';
+import { Modal, Form, Input, Switch, App, Typography } from 'antd';
 import api from '../../services/api';
+import SearchSelect from '../../components/SearchSelect';
 import { COLORS } from '../../utils/constants';
 
 const { Text } = Typography;
@@ -9,19 +10,9 @@ export default function DepartmentFormModal({ open, editItem, onClose, onSuccess
   const [form] = Form.useForm();
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
-  const [costCenters, setCostCenters] = useState([]);
-  const [employees, setEmployees] = useState([]);
 
   useEffect(() => {
     if (open) {
-      Promise.all([
-        api.get('/api/master/cost-centers', { params: { limit: 500, offset: 0 } }),
-        api.get('/api/hr/employees', { params: { limit: 500, offset: 0 } }),
-      ]).then(([ccRes, empRes]) => {
-        setCostCenters((ccRes.data.items || []).filter((c) => c.is_active));
-        setEmployees((empRes.data.items || []).filter((e) => e.is_active));
-      }).catch(() => {});
-
       if (editItem) {
         form.setFieldsValue({
           code: editItem.code,
@@ -99,16 +90,28 @@ export default function DepartmentFormModal({ open, editItem, onClose, onSuccess
           rules={[{ required: true, message: 'กรุณาเลือก Cost Center' }]}
           extra={<Text type="secondary" style={{ fontSize: 12 }}>1 แผนก : 1 Cost Center เท่านั้น</Text>}
         >
-          <Select placeholder="เลือก Cost Center" showSearch optionFilterProp="label"
-            options={costCenters.map((c) => ({ value: c.id, label: `${c.code} — ${c.name}` }))}
+          <SearchSelect
+            apiUrl="/api/master/cost-centers"
+            labelRender={(item) => `${item.code} — ${item.name}`}
+            extraParams={{ is_active: true }}
+            itemsPath={null}
+            defaultOptions={editItem?.cost_center_id ? [{ value: editItem.cost_center_id, label: editItem.cost_center_name || editItem.cost_center_id }] : []}
+            placeholder="เลือก Cost Center"
+            style={{ width: '100%' }}
           />
         </Form.Item>
 
         <Form.Item name="head_id" label="หัวหน้าแผนก"
           extra={<Text type="secondary" style={{ fontSize: 12 }}>ใช้เป็นผู้อนุมัติ Fallback สำหรับ Timesheet/OT</Text>}
         >
-          <Select allowClear placeholder="เลือกหัวหน้าแผนก" showSearch optionFilterProp="label"
-            options={employees.map((e) => ({ value: e.id, label: `${e.employee_code} — ${e.full_name}` }))}
+          <SearchSelect
+            apiUrl="/api/hr/employees"
+            labelRender={(item) => `${item.employee_code} — ${item.full_name}`}
+            extraParams={{ is_active: true }}
+            defaultOptions={editItem?.head_id ? [{ value: editItem.head_id, label: editItem.head_name || editItem.head_id }] : []}
+            allowClear
+            placeholder="เลือกหัวหน้าแผนก"
+            style={{ width: '100%' }}
           />
         </Form.Item>
 

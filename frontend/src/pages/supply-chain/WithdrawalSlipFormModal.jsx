@@ -4,6 +4,7 @@ import { Plus, Trash2, Warehouse as WarehouseIcon, MapPin } from 'lucide-react';
 import api from '../../services/api';
 import { getApiErrorMsg } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
+import SearchSelect from '../../components/SearchSelect';
 
 export default function WithdrawalSlipFormModal({ open, editRecord, onClose, onSuccess }) {
   const [form] = Form.useForm();
@@ -13,11 +14,9 @@ export default function WithdrawalSlipFormModal({ open, editRecord, onClose, onS
   const { message } = App.useApp();
 
   // Reference data
-  const [products, setProducts] = useState([]);
   const [workOrders, setWorkOrders] = useState([]);
   const [costCenters, setCostCenters] = useState([]);
   const [costElements, setCostElements] = useState([]);
-  const [employees, setEmployees] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   // Per-line location state: { [lineKey]: { warehouse_id, locations: [] } }
   const [lineLocations, setLineLocations] = useState({});
@@ -56,23 +55,18 @@ export default function WithdrawalSlipFormModal({ open, editRecord, onClose, onS
       setLines([{ key: Date.now(), product_id: undefined, quantity: 1, location_id: undefined, note: '' }]);
     }
 
-    // Fetch all reference data in parallel
+    // Fetch reference data in parallel
     Promise.all([
-      api.get('/api/inventory/products', { params: { limit: 500, offset: 0 } }),
       api.get('/api/work-orders', { params: { limit: 200, offset: 0, status: 'OPEN' } }),
       api.get('/api/master/cost-centers', { params: { limit: 200, offset: 0 } }),
       api.get('/api/master/cost-elements', { params: { limit: 200, offset: 0 } }),
-      api.get('/api/hr/employees', { params: { limit: 500, offset: 0 } }),
       api.get('/api/warehouse/warehouses', { params: { limit: 100, offset: 0 } }),
-    ]).then(([prodRes, woRes, ccRes, ceRes, empRes, whRes]) => {
-      // Only MATERIAL + CONSUMABLE (exclude SERVICE)
-      setProducts((prodRes.data.items || []).filter((p) => p.product_type !== 'SERVICE'));
+    ]).then(([woRes, ccRes, ceRes, whRes]) => {
       setWorkOrders(woRes.data.items || []);
       setCostCenters(ccRes.data.items || []);
       setCostElements(ceRes.data.items || []);
-      setEmployees(empRes.data.items || []);
       setWarehouses(whRes.data.items || []);
-    }).catch(() => {});
+    }).catch((err) => console.warn('[WSForm] load:', err?.response?.status));
   }, [open, editRecord]);
 
   // Fetch locations for a specific line's warehouse
@@ -91,7 +85,7 @@ export default function WithdrawalSlipFormModal({ open, editRecord, onClose, onS
           [lineKey]: { warehouse_id: warehouseId, locations: r.data.items || [] },
         }));
       })
-      .catch(() => {});
+      .catch((err) => console.warn('[WSForm] load:', err?.response?.status));
   };
 
   const handleWarehouseChangeForLine = (lineKey, warehouseId) => {
@@ -187,15 +181,11 @@ export default function WithdrawalSlipFormModal({ open, editRecord, onClose, onS
     {
       title: 'สินค้า', dataIndex: 'product_id', width: 240,
       render: (v, record) => (
-        <Select
-          showSearch
-          optionFilterProp="label"
+        <SearchSelect
+          apiUrl="/api/inventory/products"
+          labelRender={(item) => `${item.sku} - ${item.name}`}
           value={v}
           onChange={(val) => updateLine(record.key, 'product_id', val)}
-          options={products.map((p) => ({
-            value: p.id,
-            label: `${p.sku} - ${p.name}`,
-          }))}
           style={{ width: '100%' }}
           size="small"
           placeholder="เลือกสินค้า"
@@ -375,16 +365,13 @@ export default function WithdrawalSlipFormModal({ open, editRecord, onClose, onS
         {/* Requester + Reference */}
         <Space style={{ width: '100%' }} size={16} wrap>
           <Form.Item name="requested_by" label="ผู้เบิก">
-            <Select
-              showSearch
-              optionFilterProp="label"
+            <SearchSelect
+              apiUrl="/api/hr/employees"
+              labelRender={(item) => `${item.employee_code} - ${item.first_name} ${item.last_name}`}
               allowClear
               placeholder="เลือกพนักงาน"
               style={{ width: 280 }}
-              options={employees.map((emp) => ({
-                value: emp.id,
-                label: `${emp.employee_code} - ${emp.first_name} ${emp.last_name}`,
-              }))}
+              defaultOptions={editRecord?.requested_by ? [{ value: editRecord.requested_by, label: editRecord.requested_by_name || editRecord.requested_by }] : []}
             />
           </Form.Item>
           <Form.Item name="reference" label="เอกสารอ้างอิง">

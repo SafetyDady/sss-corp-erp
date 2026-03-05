@@ -12,6 +12,7 @@ import api from '../../services/api';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
+import SearchSelect from '../../components/SearchSelect';
 import { COLORS } from '../../utils/constants';
 
 const { Text } = Typography;
@@ -31,7 +32,6 @@ export default function MyDailyReportPage({ embedded = false }) {
   const [saving, setSaving] = useState(false);
 
   // Lookup data
-  const [workOrders, setWorkOrders] = useState([]);
   const [otTypes, setOtTypes] = useState([]);
 
   // Form lines
@@ -39,21 +39,11 @@ export default function MyDailyReportPage({ embedded = false }) {
   const [otLines, setOtLines] = useState([]);
   const [note, setNote] = useState('');
 
-  // Load lookups
+  // Load lookups (OT types only — WOs use SearchSelect)
   useEffect(() => {
-    const loadLookups = async () => {
-      try {
-        const [woRes, otRes] = await Promise.all([
-          api.get('/api/work-orders', { params: { limit: 500, offset: 0 } }).catch(() => ({ data: { items: [] } })),
-          api.get('/api/master/ot-types', { params: { limit: 100, offset: 0 } }).catch(() => ({ data: { items: [] } })),
-        ]);
-        setWorkOrders(woRes.data.items || []);
-        setOtTypes(otRes.data.items || []);
-      } catch {
-        // silently fail
-      }
-    };
-    loadLookups();
+    api.get('/api/master/ot-types', { params: { limit: 100, offset: 0 } })
+      .then((res) => setOtTypes(res.data.items || []))
+      .catch(() => {});
   }, []);
 
   // Load report for selected date
@@ -266,10 +256,6 @@ export default function MyDailyReportPage({ embedded = false }) {
     );
   }
 
-  const woOptions = workOrders.map((wo) => ({
-    value: wo.id,
-    label: `${wo.wo_number} — ${wo.description || ''}`.trim(),
-  }));
   const otTypeOptions = otTypes.map((ot) => ({
     value: ot.id,
     label: ot.name,
@@ -386,14 +372,14 @@ export default function MyDailyReportPage({ embedded = false }) {
               />
             </Col>
             <Col flex="auto">
-              <Select
-                options={woOptions}
+              <SearchSelect
+                apiUrl="/api/work-orders"
+                labelRender={(item) => `${item.wo_number} — ${item.description || ''}`}
+                extraParams={{ status: 'OPEN' }}
                 value={line.work_order_id}
                 onChange={(v) => updateRegularLine(idx, 'work_order_id', v)}
                 placeholder="Work Order (ถ้ามี)"
                 allowClear
-                showSearch
-                optionFilterProp="label"
                 style={{ width: '100%' }}
                 disabled={isReadOnly}
               />
@@ -455,14 +441,14 @@ export default function MyDailyReportPage({ embedded = false }) {
               />
             </Col>
             <Col flex="auto">
-              <Select
-                options={woOptions}
+              <SearchSelect
+                apiUrl="/api/work-orders"
+                labelRender={(item) => `${item.wo_number} — ${item.description || ''}`}
+                extraParams={{ status: 'OPEN' }}
                 value={line.work_order_id}
                 onChange={(v) => updateOtLine(idx, 'work_order_id', v)}
                 placeholder="Work Order (ถ้ามี)"
                 allowClear
-                showSearch
-                optionFilterProp="label"
                 style={{ width: '100%' }}
                 disabled={isReadOnly}
               />

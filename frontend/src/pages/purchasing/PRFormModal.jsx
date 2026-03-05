@@ -4,11 +4,11 @@ import { Plus, Trash2 } from 'lucide-react';
 import dayjs from 'dayjs';
 import api from '../../services/api';
 import { getApiErrorMsg } from '../../utils/formatters';
+import SearchSelect from '../../components/SearchSelect';
 
 export default function PRFormModal({ open, editRecord, onClose, onSuccess }) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [products, setProducts] = useState([]);
   const [costCenters, setCostCenters] = useState([]);
   const [costElements, setCostElements] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -61,18 +61,16 @@ export default function PRFormModal({ open, editRecord, onClose, onSuccess }) {
 
       // Fetch reference data
       Promise.all([
-        api.get('/api/inventory/products', { params: { limit: 500, offset: 0 } }),
         api.get('/api/master/cost-centers', { params: { limit: 100, offset: 0 } }),
         api.get('/api/master/cost-elements', { params: { limit: 100, offset: 0 } }),
         api.get('/api/master/departments', { params: { limit: 100, offset: 0 } }),
         api.get('/api/admin/approvers', { params: { module: 'purchasing.pr' } }),
-      ]).then(([prodRes, ccRes, ceRes, deptRes, appRes]) => {
-        setProducts(prodRes.data.items || []);
+      ]).then(([ccRes, ceRes, deptRes, appRes]) => {
         setCostCenters(ccRes.data.items || ccRes.data || []);
         setCostElements(ceRes.data.items || ceRes.data || []);
         setDepartments(deptRes.data.items || deptRes.data || []);
         setApprovers(appRes.data || []);
-      }).catch(() => {});
+      }).catch((err) => console.warn('[PRForm] load:', err?.response?.status));
     }
   }, [open, editRecord]);
 
@@ -145,9 +143,6 @@ export default function PRFormModal({ open, editRecord, onClose, onSuccess }) {
   const removeLine = (key) => setLines(lines.filter((l) => l.key !== key));
   const updateLine = (key, field, value) => setLines(lines.map((l) => l.key === key ? { ...l, [field]: value } : l));
 
-  const goodsProducts = products.filter((p) => p.product_type === 'MATERIAL' || p.product_type === 'CONSUMABLE');
-  const serviceProducts = products.filter((p) => p.product_type === 'SERVICE');
-
   const lineColumns = [
     {
       title: 'ประเภท', dataIndex: 'item_type', width: 110,
@@ -168,13 +163,13 @@ export default function PRFormModal({ open, editRecord, onClose, onSuccess }) {
     {
       title: 'สินค้า/บริการ', dataIndex: 'product_id', width: 220,
       render: (v, record) => (
-        <Select
-          showSearch optionFilterProp="label" allowClear
+        <SearchSelect
+          apiUrl="/api/inventory/products"
+          labelRender={(item) => `${item.sku} - ${item.name}`}
+          extraParams={record.item_type === 'SERVICE' ? { product_type: 'SERVICE' } : {}}
           value={v}
           onChange={(val) => updateLine(record.key, 'product_id', val)}
-          options={(record.item_type === 'GOODS' ? goodsProducts : serviceProducts).map((p) => ({
-            value: p.id, label: `${p.sku} - ${p.name}`,
-          }))}
+          allowClear
           style={{ width: '100%' }}
           size="small"
           placeholder={record.item_type === 'GOODS' ? 'เลือกสินค้า' : 'เลือกบริการ (ถ้ามี)'}

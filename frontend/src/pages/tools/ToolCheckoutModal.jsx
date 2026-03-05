@@ -21,7 +21,7 @@ export default function ToolCheckoutModal({ open, tool, onClose, onSuccess }) {
       ]).then(([empRes, woRes]) => {
         setEmployees((empRes.data.items || []).filter((e) => e.is_active));
         setWorkOrders((woRes.data.items || []).filter((w) => w.status === 'OPEN'));
-      }).catch(() => {});
+      }).catch((err) => console.warn('[ToolCheckout] load:', err?.response?.status));
     }
   }, [open, tool]);
 

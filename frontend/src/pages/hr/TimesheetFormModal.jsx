@@ -29,7 +29,7 @@ export default function TimesheetFormModal({ open, onClose, onSuccess }) {
         setWorkOrders(woRes.data.items || []);
         setOtTypes((otRes.data.items || []).filter((t) => t.is_active));
         setApprovers(appRes.data);
-      }).catch(() => {});
+      }).catch((err) => console.warn('[TimesheetForm] load:', err?.response?.status));
     }
   }, [open]);
 

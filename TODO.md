@@ -1906,17 +1906,20 @@
 | Phase 14 — AI Performance Monitoring | ~8 files | ~5 files | 1 | 📋 Planned |
 | **Total (Done)** | **~104 files** | **~114 files** | **13** | **8/14 ✅** |
 
-**Permissions:** 89 → 105 → 108 → 118 → 123 → 127 → 133 (Phase 4: +16, Phase 5: +3, Phase 4.9: +10, PR/PO: +5, Supplier: +4, Withdrawal: +6)
-**Business Rules:** 35 → 46 → 55 → 68 → 79 → 88 (Phase 4: +11, Phase 5: +9, PR/PO: +13, Stock-Location: +6, Stock Withdrawal: +11, Withdrawal Slip: +9)
-**Routes:** 17 → 20+ → 25+ → 26+ → 28+ → 29+ (Phase 7.9: +2 PR routes, Phase 11.10B: +1 withdrawal detail route)
-**New Components (Phase 6):** ScopeBadge, EmployeeContextSelector, SupervisorDashboard
-**New Components (Phase 7):** ApprovalPage, TimesheetApprovalTab, LeaveApprovalTab, POApprovalTab, SOApprovalTab
-**New Components (Phase 7.9):** PurchasingPage, PRTab, POTab, PRFormModal, PRDetailPage, ConvertToPOModal, GoodsReceiptModal, PRApprovalTab
-**Sidebar (Phase 7):** 3-group layout: ME / อนุมัติ / ระบบงาน (was 2-group)
-**Bug Fix (Phase 7):** Leave reject API fixed — now accepts `{action: "approve"|"reject"}` body
-**Code Review Fixes:** 5 issues from Manus AI review (BUG-1 GR body, ISSUE-1 cycle_start, ISSUE-2 useEffect, ISSUE-3 PO scope, ISSUE-4 PR reject reason)
-**Shift UX:** Pattern offset selector (Select dropdown with multi-day preview) + date format 1Mar
-**New Components (Phase 11.10B):** WithdrawalSlipTab, WithdrawalSlipFormModal, WithdrawalSlipDetailPage, WithdrawalSlipIssueModal, WithdrawalSlipPrintView
+**Permissions:** 89 → 105 → 108 → 118 → 123 → 127 → 133 → 139 → 149 → 155 → 161
+- Phase 4: +16, Phase 5: +3, Phase 4.9: +10, PR/PO: +5, Supplier: +4, Withdrawal: +6
+- C9 Recharge: +6, C1 AP Invoice: +6, C5.2 WHT: 0, C2 AR Invoice: +6, C3 DO: +6
+**Business Rules:** 35 → 46 → 55 → 68 → 79 → 88 → 98 → 112 → 120 → 128 → 136
+- Phase 4: +11, Phase 5: +9, PR/PO: +13, Stock-Location: +6, Stock Withdrawal: +11, Withdrawal Slip: +9
+- C9: +10, C5.2: +14, C1: +8, C2: +8, C3: +8
+
+**Completed Post Go-Live Features:**
+- ✅ C9 — Internal Recharge (Fixed Budget monthly allocation, headcount-based)
+- ✅ C5.2 — WHT on PO (OrgTaxConfig, auto-calc taxes on ConvertToPO)
+- ✅ C1 — Supplier Invoice / AP (DRAFT→PENDING→APPROVED→PAID, WHT at payment)
+- ✅ C2 — Customer Invoice / AR (DRAFT→PENDING→APPROVED→PAID, no WHT)
+- ✅ SO Flow Upgrade (DRAFT→SUBMITTED→APPROVED, reject→DRAFT, cancel, edit lines)
+- ✅ C3 — Delivery Order + AR Invoice Print (DRAFT→SHIPPED, auto ISSUE movements, partial delivery, DOPrintView + ARInvoicePrintView)
 
 **Planned Phases (8-14):**
 - Phase 8: Dashboard KPI + Charts + Manager/Staff/Finance dashboards
@@ -1929,4 +1932,4 @@
 
 ---
 
-*Last updated: 2026-03-02 — Stock Withdrawal Slip / ใบเบิกของ (Part B complete), Phase 8-14 planned (133 permissions, 88 BRs, ~230 files)*
+*Last updated: 2026-03-05 — C3 Delivery Order + AR Invoice Print complete (161 permissions, 136 BRs, ~250+ files)*

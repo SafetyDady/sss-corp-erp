@@ -31,14 +31,14 @@ export default function WOReturnModal({ open, workOrderId, materials, onClose, o
     if (!open) return;
     api.get('/api/warehouse/warehouses', { params: { limit: 100, offset: 0 } })
       .then((r) => setWarehouses(r.data.items || []))
-      .catch(() => {});
+      .catch((err) => console.warn('[WOReturn] load:', err?.response?.status));
   }, [open]);
 
   useEffect(() => {
     if (!selectedWarehouse) { setLocations([]); return; }
     api.get('/api/warehouse/locations', { params: { limit: 100, offset: 0, warehouse_id: selectedWarehouse } })
       .then((r) => setLocations(r.data.items || []))
-      .catch(() => {});
+      .catch((err) => console.warn('[WOReturn] load:', err?.response?.status));
   }, [selectedWarehouse]);
 
   const handleWarehouseChange = (val) => {

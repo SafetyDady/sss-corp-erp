@@ -24,9 +24,9 @@ export default function ConvertToPOModal({ open, pr, products, onClose, onSucces
       setSuppliersLoading(true);
       setSelectedWhtTypeId(null);
       Promise.all([
-        api.get('/api/master/suppliers', { params: { limit: 500, offset: 0 } }),
+        api.get('/api/master/suppliers', { params: { limit: 50, offset: 0 } }),
         api.get('/api/admin/config/tax').catch(() => ({ data: { vat_enabled: true, default_vat_rate: 7, wht_enabled: false } })),
-        api.get('/api/master/wht-types', { params: { limit: 500, offset: 0 } }).catch(() => ({ data: { items: [] } })),
+        api.get('/api/master/wht-types', { params: { limit: 50, offset: 0 } }).catch(() => ({ data: { items: [] } })),
       ]).then(([suppRes, taxRes, whtRes]) => {
         setSuppliers(suppRes.data.items || []);
         const taxCfg = taxRes.data;

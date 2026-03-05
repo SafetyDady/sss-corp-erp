@@ -17,7 +17,7 @@ export default function RosterGenerateModal({ open, onClose, onSuccess }) {
     if (open) {
       form.resetFields();
       Promise.all([
-        api.get('/api/hr/employees', { params: { limit: 500, offset: 0 } }),
+        api.get('/api/hr/employees', { params: { limit: 50, offset: 0 } }),
         api.get('/api/master/work-schedules', { params: { limit: 100, offset: 0 } }),
       ]).then(([empRes, wsRes]) => {
         const activeEmps = (empRes.data.items || []).filter(
@@ -25,7 +25,7 @@ export default function RosterGenerateModal({ open, onClose, onSuccess }) {
         );
         setEmployees(activeEmps);
         setSchedules((wsRes.data.items || []).filter((w) => w.is_active));
-      }).catch(() => {});
+      }).catch((err) => console.warn('[RosterGen] load:', err?.response?.status));
     }
   }, [open]);
 

@@ -34,9 +34,9 @@ export default function UserTab() {
 
   // Fetch department list for dropdown
   useEffect(() => {
-    api.get('/api/master/departments', { params: { limit: 500 } })
+    api.get('/api/master/departments', { params: { limit: 50 } })
       .then(({ data }) => setDepartments(data.items || []))
-      .catch(() => {});
+      .catch((err) => console.warn('[UserTab] load:', err?.response?.status));
   }, []);
 
   const fetchData = useCallback(async () => {

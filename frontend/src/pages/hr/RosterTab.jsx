@@ -43,7 +43,7 @@ export default function RosterTab() {
   useEffect(() => {
     api.get('/api/master/shift-types', { params: { limit: 100 } })
       .then((res) => setShiftTypes(res.data.items || []))
-      .catch(() => {});
+      .catch((err) => console.warn('[RosterTab] load:', err?.response?.status));
   }, []);
 
   const fetchData = useCallback(async () => {

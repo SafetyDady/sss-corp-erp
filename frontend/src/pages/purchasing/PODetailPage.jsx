@@ -34,7 +34,7 @@ export default function PODetailPage() {
     try {
       const [poRes, prodRes] = await Promise.all([
         api.get(`/api/purchasing/po/${id}`),
-        api.get('/api/inventory/products', { params: { limit: 500, offset: 0 } }),
+        api.get('/api/inventory/products', { params: { limit: 50, offset: 0 } }),
       ]);
       setPo(poRes.data);
       setProducts(Object.fromEntries(prodRes.data.items.map((p) => [p.id, p])));

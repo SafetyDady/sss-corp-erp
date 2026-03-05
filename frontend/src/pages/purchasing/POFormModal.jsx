@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { Modal, Form, Input, InputNumber, DatePicker, Select, Button, Table, App, Space } from 'antd';
 import { Plus, Trash2 } from 'lucide-react';
 import api from '../../services/api';
+import SearchSelect from '../../components/SearchSelect';
 
 export default function POFormModal({ open, onClose, onSuccess }) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [products, setProducts] = useState([]);
   const [approvers, setApprovers] = useState([]);
   const [lines, setLines] = useState([]);
   const { message } = App.useApp();
@@ -15,13 +15,10 @@ export default function POFormModal({ open, onClose, onSuccess }) {
     if (open) {
       form.resetFields();
       setLines([{ key: Date.now(), product_id: undefined, quantity: 1, unit_cost: 0 }]);
-      Promise.all([
-        api.get('/api/inventory/products', { params: { limit: 500, offset: 0 } }),
-        api.get('/api/admin/approvers', { params: { module: 'purchasing.po' } }),
-      ]).then(([prodRes, appRes]) => {
-        setProducts(prodRes.data.items);
-        setApprovers(appRes.data);
-      }).catch(() => {});
+      api.get('/api/admin/approvers', { params: { module: 'purchasing.po' } })
+        .then((appRes) => {
+          setApprovers(appRes.data);
+        }).catch((err) => console.warn('[POForm] load:', err?.response?.status));
     }
   }, [open]);
 
@@ -55,12 +52,11 @@ export default function POFormModal({ open, onClose, onSuccess }) {
     {
       title: '\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32', dataIndex: 'product_id', width: 250,
       render: (v, record) => (
-        <Select
-          showSearch
-          optionFilterProp="label"
+        <SearchSelect
+          apiUrl="/api/inventory/products"
+          labelRender={(item) => `${item.sku} - ${item.name}`}
           value={v}
           onChange={(val) => updateLine(record.key, 'product_id', val)}
-          options={products.map((p) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
           style={{ width: '100%' }}
           placeholder={'\u0E40\u0E25\u0E37\u0E2D\u0E01\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32'}
         />

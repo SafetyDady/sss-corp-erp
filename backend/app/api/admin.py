@@ -25,7 +25,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import DEFAULT_ORG_ID
 from app.core.database import get_db
-from app.core.permissions import ALL_PERMISSIONS, PERMISSION_DESCRIPTIONS, ROLE_PERMISSIONS, require
+from app.core.permissions import (
+    ALL_PERMISSIONS,
+    PERMISSION_DESCRIPTIONS,
+    ROLE_PERMISSIONS,
+    get_default_permissions,
+    reset_role_defaults,
+    require,
+)
 from app.core.security import get_token_payload
 from app.models.user import User
 from app.models.hr import Employee
@@ -118,10 +125,20 @@ class UserListResponse(BaseModel):
     dependencies=[Depends(require("admin.role.read"))],
 )
 async def api_list_roles():
-    """List all roles with their current permissions."""
+    """List all roles with their current permissions, defaults, and permission metadata."""
     return {
-        role: sorted(list(perms))
-        for role, perms in ROLE_PERMISSIONS.items()
+        "roles": {
+            role: sorted(list(perms))
+            for role, perms in ROLE_PERMISSIONS.items()
+        },
+        "defaults": {
+            role: sorted(list(get_default_permissions(role)))
+            for role in ROLE_PERMISSIONS
+            if role != "owner"
+        },
+        "all_permissions": ALL_PERMISSIONS,
+        "descriptions": PERMISSION_DESCRIPTIONS,
+        "total": len(ALL_PERMISSIONS),
     }
 
 
@@ -132,8 +149,10 @@ async def api_list_roles():
 async def api_update_role_permissions(
     role_name: str,
     body: RolePermissionUpdate,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
-    """Update permissions for a role. BR#32: all must be in master list."""
+    """Update permissions for a role. BR#32: all must be in master list. Persists to DB."""
     if role_name not in VALID_ROLES:
         raise HTTPException(status_code=404, detail=f"Unknown role: {role_name}")
 
@@ -162,7 +181,31 @@ async def api_update_role_permissions(
                 detail=f"Invalid action '{parts[2]}' in permission {perm} (BR#33)",
             )
 
-    # Update in-memory (runtime-only — persisting would require a DB table)
+    # Persist to DB (upsert)
+    from app.models.organization import RolePermissionOverride
+
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    result = await db.execute(
+        select(RolePermissionOverride).where(
+            RolePermissionOverride.org_id == org_id,
+            RolePermissionOverride.role_name == role_name,
+        )
+    )
+    override = result.scalar_one_or_none()
+    if override:
+        override.permissions_json = sorted(body.permissions)
+    else:
+        import uuid as uuid_mod
+        override = RolePermissionOverride(
+            id=uuid_mod.uuid4(),
+            org_id=org_id,
+            role_name=role_name,
+            permissions_json=sorted(body.permissions),
+        )
+        db.add(override)
+    await db.commit()
+
+    # Update in-memory (for current process)
     ROLE_PERMISSIONS[role_name] = set(body.permissions)
 
     return {"role": role_name, "permissions": sorted(body.permissions)}
@@ -392,12 +435,27 @@ async def api_audit_log(
     "/seed-permissions",
     dependencies=[Depends(require("admin.role.update"))],
 )
-async def api_seed_permissions():
-    """Return the full permission list (for UI sync)."""
+async def api_seed_permissions(
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Reset all role permissions to hardcoded defaults. Clears DB overrides."""
+    from sqlalchemy import delete as sql_delete
+    from app.models.organization import RolePermissionOverride
+
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+
+    # Clear all DB overrides for this org (reset to hardcoded defaults)
+    await db.execute(
+        sql_delete(RolePermissionOverride).where(RolePermissionOverride.org_id == org_id)
+    )
+    await db.commit()
+
+    # Reset in-memory to hardcoded defaults
+    await reset_role_defaults()
+
     return {
-        "all_permissions": ALL_PERMISSIONS,
-        "descriptions": PERMISSION_DESCRIPTIONS,
-        "total": len(ALL_PERMISSIONS),
+        "message": "Permissions reset to defaults",
         "roles": {
             role: sorted(list(perms))
             for role, perms in ROLE_PERMISSIONS.items()
