@@ -23,7 +23,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ar import CustomerInvoice, CustomerInvoicePayment, CustomerInvoiceStatus
-from app.models.sales import SalesOrder, SOStatus
+from app.models.sales import DeliveryOrder, DOStatus, SalesOrder, SOStatus
 from app.models.user import User
 
 
@@ -98,7 +98,23 @@ async def create_ar_invoice(
     user_id: UUID,
     data: dict,
 ) -> CustomerInvoice:
-    """Create a new customer invoice linked to a SO. (BR#121, BR#122)"""
+    """Create a new customer invoice linked to a SO (and optionally DO). (BR#121, BR#122)"""
+    # Phase C3: If do_id provided, validate DO and auto-inherit so_id
+    do_id = data.get("do_id")
+    if do_id:
+        do_result = await db.execute(
+            select(DeliveryOrder).where(
+                DeliveryOrder.id == do_id,
+                DeliveryOrder.org_id == org_id,
+                DeliveryOrder.is_active == True,
+            )
+        )
+        do = do_result.scalars().first()
+        if not do:
+            raise HTTPException(status_code=404, detail="Delivery order not found")
+        # Auto-inherit so_id from DO
+        data["so_id"] = do.so_id
+
     so = await _get_so(db, data["so_id"], org_id)
 
     # BR#121: SO must be APPROVED
@@ -125,6 +141,7 @@ async def create_ar_invoice(
         org_id=org_id,
         invoice_number=invoice_number,
         so_id=so.id,
+        do_id=do_id,  # Phase C3
         customer_id=so.customer_id,
         invoice_date=data["invoice_date"],
         due_date=data["due_date"],
@@ -470,6 +487,8 @@ async def enrich_ar_invoices(
             "invoice_number": inv.invoice_number,
             "so_id": inv.so_id,
             "so_number": inv.sales_order.so_number if inv.sales_order else None,
+            "do_id": inv.do_id,
+            "do_number": inv.delivery_order.do_number if inv.delivery_order else None,
             "customer_id": inv.customer_id,
             "customer_name": inv.customer.name if inv.customer else None,
             "customer_code": inv.customer.code if inv.customer else None,

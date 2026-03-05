@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Descriptions, Button, Space, App, Spin, Table, Popconfirm, Alert } from 'antd';
-import { ArrowLeft, Send, CheckCircle, XCircle, DollarSign, Ban, AlertTriangle } from 'lucide-react';
+import { Card, Descriptions, Button, Space, App, Spin, Table, Popconfirm, Alert, Modal } from 'antd';
+import { ArrowLeft, Send, CheckCircle, XCircle, DollarSign, Ban, AlertTriangle, Printer } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
 import ARPaymentModal from './ARPaymentModal';
+import ARInvoicePrintView from './ARInvoicePrintView';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
 
@@ -19,6 +20,7 @@ export default function ARDetailPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [paymentModal, setPaymentModal] = useState(false);
+  const [printModalOpen, setPrintModalOpen] = useState(false);
 
   const fetchInvoice = useCallback(async () => {
     setLoading(true);
@@ -116,6 +118,15 @@ export default function ARDetailPage() {
               <Button icon={<Ban size={14} />} danger loading={actionLoading}>ยกเลิก</Button>
             </Popconfirm>
           )}
+          <Button
+            icon={<Printer size={14} />}
+            onClick={() => {
+              setPrintModalOpen(true);
+              setTimeout(() => { window.print(); }, 400);
+            }}
+          >
+            พิมพ์
+          </Button>
         </Space>
       </div>
 
@@ -124,6 +135,7 @@ export default function ARDetailPage() {
         <Descriptions column={{ xs: 1, sm: 2 }} bordered size="small">
           <Descriptions.Item label="เลขใบแจ้งหนี้">{inv.invoice_number}</Descriptions.Item>
           <Descriptions.Item label="SO">{inv.so_number || '-'}</Descriptions.Item>
+          {inv.do_number && <Descriptions.Item label="DO">{inv.do_number}</Descriptions.Item>}
           <Descriptions.Item label="ลูกค้า">{inv.customer_name || '-'} {inv.customer_code && `(${inv.customer_code})`}</Descriptions.Item>
           <Descriptions.Item label="วันที่ใบแจ้งหนี้">{formatDate(inv.invoice_date)}</Descriptions.Item>
           <Descriptions.Item label="ครบกำหนดชำระ">
@@ -206,6 +218,28 @@ export default function ARDetailPage() {
         onSuccess={() => { setPaymentModal(false); fetchInvoice(); }}
         invoice={inv}
       />
+
+      {/* Print Modal */}
+      <Modal
+        open={printModalOpen}
+        onCancel={() => setPrintModalOpen(false)}
+        footer={[
+          <Button key="close" onClick={() => setPrintModalOpen(false)}>ปิด</Button>,
+          <Button
+            key="print"
+            type="primary"
+            icon={<Printer size={14} />}
+            onClick={() => window.print()}
+          >
+            พิมพ์
+          </Button>,
+        ]}
+        title="ใบแจ้งหนี้ / Invoice"
+        width={700}
+        destroyOnHidden
+      >
+        <ARInvoicePrintView invoice={inv} />
+      </Modal>
     </div>
   );
 }

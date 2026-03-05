@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-05 v21 (SO Flow Upgrade: submit/reject/cancel/edit lines)
+> อัปเดตล่าสุด: 2026-03-05 v22 (C3: Delivery Order + AR Invoice Print)
 
 ---
 
@@ -10,7 +10,7 @@
 
 **SSS Corp ERP** — ระบบ ERP สำหรับธุรกิจ Manufacturing/Trading ขนาดเล็ก-กลาง
 - Multi-tenant (Shared DB + org_id)
-- **11 Modules, 155 Permissions, 5 Roles**
+- **11 Modules, 161 Permissions, 5 Roles**
 - Job Costing: Material + ManHour + Tools Recharge + Admin Overhead
 - อ้างอิงเพิ่มเติม: `UI_GUIDELINES.md` (theme/icons), `BUSINESS_POLICY.md` (business rules)
 
@@ -233,7 +233,7 @@ sss-corp-erp/
 | purchasing.po.approve | ✅ | ✅ | ✅ | ❌ | ❌ |
 | purchasing.po.export | ✅ | ✅ | ✅ | ❌ | ✅ |
 
-### Sales (6 permissions)
+### Sales (12 permissions)
 
 | Permission | owner | manager | supervisor | staff | viewer |
 |-----------|:-----:|:-------:|:----------:|:-----:|:------:|
@@ -243,6 +243,12 @@ sss-corp-erp/
 | sales.order.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
 | sales.order.approve | ✅ | ✅ | ✅ | ❌ | ❌ |
 | sales.order.export | ✅ | ✅ | ✅ | ❌ | ✅ |
+| sales.delivery.create | ✅ | ✅ | ✅ | ✅ | ❌ |
+| sales.delivery.read | ✅ | ✅ | ✅ | ✅ | ✅ |
+| sales.delivery.update | ✅ | ✅ | ✅ | ❌ | ❌ |
+| sales.delivery.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
+| sales.delivery.approve | ✅ | ✅ | ✅ | ❌ | ❌ |
+| sales.delivery.export | ✅ | ✅ | ✅ | ❌ | ✅ |
 
 ### Finance (20 permissions)
 
@@ -373,11 +379,11 @@ sss-corp-erp/
 
 | Role | Count | Description |
 |------|-------|-------------|
-| owner | 155 | ALL permissions |
-| manager | ~95 | ไม่มี admin.*, ไม่มี *.delete + planning create/update + recharge CRUD/execute + invoice CRUD/approve + AR CRUD/approve |
-| supervisor | ~69 | read + approve + limited create + planning read + recharge read + invoice read + AR read |
-| staff | ~39 | read + own create (timesheet, leave, movement, dailyreport, roster, PR, withdrawal) |
-| viewer | ~29 | read + selected export only + recharge read + invoice read + AR read |
+| owner | 161 | ALL permissions |
+| manager | ~99 | ไม่มี admin.*, ไม่มี *.delete + planning create/update + recharge CRUD/execute + invoice CRUD/approve + AR CRUD/approve + delivery create/update/approve |
+| supervisor | ~73 | read + approve + limited create + planning read + recharge read + invoice read + AR read + delivery create/update/approve |
+| staff | ~41 | read + own create (timesheet, leave, movement, dailyreport, roster, PR, withdrawal, delivery) |
+| viewer | ~31 | read + selected export only + recharge read + invoice read + AR read + delivery read/export |
 
 ### Permission Usage Pattern
 ```python
@@ -527,7 +533,7 @@ Manager จองเครื่องมือ → POST /api/planning/reservati
 
 ---
 
-## Business Rules (Complete — 128 Rules)
+## Business Rules (Complete — 136 Rules)
 
 | # | Module | Feature | Rule | Enforcement |
 |---|--------|---------|------|-------------|
@@ -659,6 +665,14 @@ Manager จองเครื่องมือ → POST /api/planning/reservati
 | 126 | finance | AR | Auto PAID เมื่อ received_amount >= total_amount | Service calc |
 | 127 | finance | AR | Overdue = APPROVED + due_date < today | Computed |
 | 128 | finance | AR | AR ไม่มี WHT — ยอดจ่ายตรง = total_amount (ต่างจาก AP) | Schema |
+| 129 | sales | DO | DO ต้อง link กับ SO ที่ status=APPROVED | Service check |
+| 130 | sales | DO | DO status flow: DRAFT → SHIPPED (+CANCELLED) | State machine |
+| 131 | sales | DO | Ship creates ISSUE movement per line (auto ตัด stock) | Service logic |
+| 132 | sales | DO | Partial delivery: SUM(shipped_qty per so_line) ≤ SO line.quantity | Service check |
+| 133 | sales | DO | Delete ได้เฉพาะ DRAFT | Permission + Service |
+| 134 | sales | DO | Edit ได้เฉพาะ DRAFT | Service check |
+| 135 | sales | DO | Ship ต้องมี shipped_qty > 0 อย่างน้อย 1 line | Service check |
+| 136 | sales | DO | AR Invoice สร้างจาก DO ได้ (optional do_id) — auto-inherit so_id จาก DO | Service logic |
 
 ---
 
@@ -793,6 +807,18 @@ DELETE /api/sales/orders/{id}              sales.order.delete   (DRAFT only)
 POST   /api/sales/orders/{id}/submit       sales.order.create   (DRAFT→SUBMITTED)
 POST   /api/sales/orders/{id}/approve      sales.order.approve  (body: {action: "approve"|"reject", reason?})
 POST   /api/sales/orders/{id}/cancel       sales.order.update   (DRAFT/SUBMITTED→CANCELLED)
+```
+
+### Sales — Delivery Order / DO (C3)
+```
+GET    /api/sales/delivery                     sales.delivery.read     (?search, status, limit, offset)
+POST   /api/sales/delivery                     sales.delivery.create
+GET    /api/sales/delivery/remaining/{so_id}   sales.delivery.read     → remaining qty per SO line
+GET    /api/sales/delivery/{id}                sales.delivery.read
+PUT    /api/sales/delivery/{id}                sales.delivery.update   (DRAFT only)
+DELETE /api/sales/delivery/{id}                sales.delivery.delete   (DRAFT only)
+POST   /api/sales/delivery/{id}/ship           sales.delivery.approve  (DRAFT→SHIPPED, creates ISSUE movements)
+POST   /api/sales/delivery/{id}/cancel         sales.delivery.update   (DRAFT→CANCELLED)
 ```
 
 ### Finance
@@ -1284,6 +1310,19 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **C2.7** Frontend — ARTab + ARFormModal + ARDetailPage + ARPaymentModal
 - [x] **C2.8** Wiring — FinancePage AR tab + App.jsx route /finance/ar/:id
 
+### C3 — Delivery Order (DO) + AR Invoice Print ✅
+- [x] **C3.1** Migration — j0k1l2m3n4o5 (delivery_orders + delivery_order_lines tables + customer_invoices.do_id FK)
+- [x] **C3.2** Models — DOStatus, DeliveryOrder, DeliveryOrderLine in sales.py + do_id column on CustomerInvoice
+- [x] **C3.3** Schemas — DOLineCreate, DeliveryOrderCreate/Update/Response, DOShipRequest, RemainingQty in delivery.py + ar.py do_id
+- [x] **C3.4** Service — delivery.py: CRUD + ship (auto ISSUE movements) + cancel + remaining_qty + enrichment
+- [x] **C3.5** API Routes — 8 endpoints under /api/sales/delivery/* + remaining/{so_id}
+- [x] **C3.6** Permissions — 6 new (sales.delivery.*: create/read/update/delete/approve/export) → 155→161
+- [x] **C3.7** AR Service Update — do_id validation + do_number enrichment
+- [x] **C3.8** Frontend — SalesPage (tabbed SO+DO) + SOTab + DOTab + DOFormModal
+- [x] **C3.9** Frontend — DODetailPage + DOShipModal (per-line ship with location picker)
+- [x] **C3.10** Frontend — DOPrintView + ARInvoicePrintView + ARDetailPage print button
+- [x] **C3.11** Wiring — App.jsx routes + StatusBadge SHIPPED + permissionMeta + SODetailPage DO button
+
 ### Phase 8 — Dashboard & Analytics 📊 (Planned)
 - [ ] **8.1** KPI Dashboard — real-time stat cards (ยอดขาย, ต้นทุน WO, สถานะ stock, pending approvals)
 - [ ] **8.2** Charts — Recharts/Ant Charts (WO Cost Trend, Inventory Turnover, Revenue)
@@ -1405,6 +1444,10 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 37. ❌ อย่าสร้าง AR Invoice จาก SO ที่ไม่ใช่ APPROVED — ต้อง validate SO status ก่อน (BR#121)
 38. ❌ อย่าให้ SUM(AR invoices) เกิน SO total_amount — partial billing ได้แต่ต้องไม่เกิน (BR#122)
 39. ❌ AR ไม่มี WHT — ยอดจ่ายตรง = total_amount, ห้ามเพิ่ม WHT fields (BR#128)
+40. ❌ อย่าสร้าง DO จาก SO ที่ไม่ใช่ APPROVED — ต้อง validate SO status ก่อน (BR#129)
+41. ❌ อย่าให้ DO ship ตัด stock เกิน SO line qty — partial delivery ต้องเช็ค remaining (BR#132)
+42. ❌ อย่าแก้ไข DO ที่ SHIPPED แล้ว — corrections ผ่าน movement REVERSAL (BR#130)
+43. ❌ อย่าลืม DO ship ต้อง reuse `create_movement()` สำหรับ ISSUE — ไม่ duplicate stock logic (BR#131)
 
 ---
 
@@ -1417,7 +1460,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `BUSINESS_POLICY.md` | Business rules (source of truth) |
 | `TODO.md` | Implementation tracker + checklist |
 | `SmartERP_Master_Document_v2.xlsx` | Original design spec |
-| `backend/app/core/permissions.py` | RBAC permissions + role mapping + PERMISSION_DESCRIPTIONS (155 Thai descriptions) |
+| `backend/app/core/permissions.py` | RBAC permissions + role mapping + PERMISSION_DESCRIPTIONS (161 Thai descriptions) |
 | `backend/app/core/security.py` | JWT token creation/validation |
 | `backend/app/core/config.py` | Environment settings + DEFAULT_ORG_ID |
 | `frontend/src/stores/authStore.js` | Auth state + token management |
@@ -1505,9 +1548,20 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `backend/app/services/ar.py` | AR business logic: CRUD + submit + approve + receive_payment + cancel + AR summary (C2) |
 | `backend/app/api/ar.py` | AR 10 API endpoints: /api/finance/ar/* (C2) |
 | `frontend/src/pages/finance/ARTab.jsx` | AR tab: stat cards + invoice table + filters + create button (C2) |
-| `frontend/src/pages/finance/ARFormModal.jsx` | AR invoice create/edit modal — SO picker + auto-fill amounts (C2) |
-| `frontend/src/pages/finance/ARDetailPage.jsx` | AR invoice detail: actions + amounts + payment history (C2) |
+| `frontend/src/pages/finance/ARFormModal.jsx` | AR invoice create/edit modal — SO picker + DO picker (optional) + auto-fill amounts (C2+C3) |
+| `frontend/src/pages/finance/ARDetailPage.jsx` | AR invoice detail: actions + amounts + payment history + print button (C2+C3) |
 | `frontend/src/pages/finance/ARPaymentModal.jsx` | AR payment recording: amount + method (no WHT) (C2) |
+| `frontend/src/pages/finance/ARInvoicePrintView.jsx` | AR invoice print view: company header + amounts + payment history + signatures (C3) |
+| `backend/app/schemas/delivery.py` | Delivery Order Pydantic schemas: Create, Update, Ship, Response, RemainingQty (C3) |
+| `backend/app/services/delivery.py` | Delivery Order business logic: CRUD + ship (ISSUE movements) + cancel + remaining_qty + enrichment (C3) |
+| `backend/app/api/delivery.py` | Delivery Order 8 API endpoints: /api/sales/delivery/* (C3) |
+| `frontend/src/pages/sales/SalesPage.jsx` | Tabbed container (SO+DO tabs) + stat cards (C3) |
+| `frontend/src/pages/sales/SOTab.jsx` | SO list extracted from SOListPage — embedded tab (C3) |
+| `frontend/src/pages/sales/DOTab.jsx` | DO list tab: filters + table + create button (C3) |
+| `frontend/src/pages/sales/DOFormModal.jsx` | Create DO from SO — SO picker + remaining lines + qty input (C3) |
+| `frontend/src/pages/sales/DODetailPage.jsx` | DO detail: info + lines + ship/cancel/delete/print actions (C3) |
+| `frontend/src/pages/sales/DOShipModal.jsx` | Ship confirmation: per-line shipped_qty + warehouse/location picker (C3) |
+| `frontend/src/pages/sales/DOPrintView.jsx` | DO print view: company header + lines table + signatures (C3) |
 | `SYSTEM_OVERVIEW_V3.md` | PRD ฉบับสมบูรณ์ — 4 ส่วน (A:ระบบปัจจุบัน, B:แผน, C:ช่องว่าง, D:ลำดับ) + UX assessment ต่อ module |
 | `SYSTEM_OVERVIEW_V3.docx` | Word export สำหรับ Owner review ด้วย Track Changes |
 | `convert_to_docx.py` | Python script แปลง MD → Word (.docx) ด้วย python-docx |
@@ -1533,4 +1587,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v21 (Phase 0-7.9 complete + Phase 10 partial + Phase 11 partial + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete, Phase 8-14 planned)*
+*End of CLAUDE.md — SSS Corp ERP v22 (Phase 0-7.9 complete + Phase 10 partial + Phase 11 partial + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete, Phase 8-14 planned)*

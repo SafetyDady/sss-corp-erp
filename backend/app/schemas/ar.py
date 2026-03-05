@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 class CustomerInvoiceCreate(BaseModel):
     so_id: UUID
+    do_id: Optional[UUID] = None  # Phase C3: optional link to Delivery Order
     invoice_number: Optional[str] = Field(None, min_length=1, max_length=50)
     invoice_date: date
     due_date: date
@@ -59,6 +60,8 @@ class CustomerInvoiceResponse(BaseModel):
     invoice_number: str
     so_id: UUID
     so_number: Optional[str] = None
+    do_id: Optional[UUID] = None  # Phase C3
+    do_number: Optional[str] = None  # Phase C3
     customer_id: Optional[UUID] = None
     customer_name: Optional[str] = None
     customer_code: Optional[str] = None

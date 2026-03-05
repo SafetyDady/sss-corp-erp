@@ -67,6 +67,7 @@ export const RESOURCE_META = {
   recharge:    'Internal Recharge',
   invoice:     'ใบวางบิล (Invoice)',
   ar:          'ลูกหนี้ (AR)',
+  delivery:    'ใบส่งของ (DO)',
 };
 
 // ============================================================

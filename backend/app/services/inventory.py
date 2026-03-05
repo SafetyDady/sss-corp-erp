@@ -235,6 +235,7 @@ async def create_movement(
     to_location_id: Optional[UUID] = None,
     adjust_type: Optional[str] = None,
     bin_id: Optional[UUID] = None,
+    skip_cc_validation: bool = False,
 ) -> StockMovement:
     """
     Create a stock movement and update on_hand.
@@ -291,7 +292,8 @@ async def create_movement(
 
     # ISSUE validation
     if mt == MovementType.ISSUE:
-        await _validate_cost_center(db, cost_center_id, org_id)
+        if not skip_cc_validation:
+            await _validate_cost_center(db, cost_center_id, org_id)
         if cost_element_id:
             await _validate_cost_element(db, cost_element_id, org_id)
 

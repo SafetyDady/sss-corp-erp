@@ -9,6 +9,7 @@ from app.api.tools import tools_router
 from app.api.customer import customer_router
 from app.api.purchasing import purchasing_router
 from app.api.sales import sales_router
+from app.api.delivery import delivery_router
 from app.api.finance import finance_router
 from app.api.admin import admin_router
 from app.api.planning import master_plan_router, planning_router
@@ -32,6 +33,7 @@ all_routers = [
     customer_router,
     purchasing_router,
     sales_router,
+    delivery_router,
     finance_router,
     admin_router,
     master_plan_router,

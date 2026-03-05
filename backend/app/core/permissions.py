@@ -85,13 +85,20 @@ ALL_PERMISSIONS: list[str] = [
     "purchasing.po.approve",
     "purchasing.po.export",
 
-    # --- sales (6) ---
+    # --- sales (6 + 6 = 12) ---
     "sales.order.create",
     "sales.order.read",
     "sales.order.update",
     "sales.order.delete",
     "sales.order.approve",
     "sales.order.export",
+    # Phase C3: Delivery Order
+    "sales.delivery.create",
+    "sales.delivery.read",
+    "sales.delivery.update",
+    "sales.delivery.delete",
+    "sales.delivery.approve",  # ship (cut stock)
+    "sales.delivery.export",   # print
 
     # --- finance (2 + 6 = 8) ---
     "finance.report.read",
@@ -216,8 +223,8 @@ ALL_PERMISSIONS: list[str] = [
     "hr.roster.read",
 ]
 
-assert len(ALL_PERMISSIONS) == 155, f"Expected 155 permissions, got {len(ALL_PERMISSIONS)}"
-assert len(set(ALL_PERMISSIONS)) == 155, "Duplicate permissions found!"
+assert len(ALL_PERMISSIONS) == 161, f"Expected 161 permissions, got {len(ALL_PERMISSIONS)}"
+assert len(set(ALL_PERMISSIONS)) == 161, "Duplicate permissions found!"
 
 
 # ============================================================
@@ -280,13 +287,20 @@ PERMISSION_DESCRIPTIONS: dict[str, str] = {
     "purchasing.po.delete": "ลบใบสั่งซื้อ (Owner เท่านั้น)",
     "purchasing.po.approve": "อนุมัติใบสั่งซื้อ",
     "purchasing.po.export": "ส่งออกข้อมูลใบสั่งซื้อ",
-    # --- sales (6) ---
+    # --- sales (12) ---
     "sales.order.create": "สร้างใบสั่งขาย (SO) ใหม่",
     "sales.order.read": "ดูรายการใบสั่งขายและรายละเอียด",
     "sales.order.update": "แก้ไขข้อมูลใบสั่งขาย",
     "sales.order.delete": "ลบใบสั่งขาย (Owner เท่านั้น)",
     "sales.order.approve": "อนุมัติใบสั่งขาย",
     "sales.order.export": "ส่งออกข้อมูลใบสั่งขาย",
+    # Phase C3: Delivery Order
+    "sales.delivery.create": "สร้างใบส่งของ (DO) จาก SO ที่อนุมัติแล้ว",
+    "sales.delivery.read": "ดูรายการใบส่งของและรายละเอียด",
+    "sales.delivery.update": "แก้ไขใบส่งของ (DRAFT เท่านั้น)",
+    "sales.delivery.delete": "ลบใบส่งของ DRAFT (Owner เท่านั้น)",
+    "sales.delivery.approve": "ยืนยันจัดส่ง (Ship — ตัดสต็อก)",
+    "sales.delivery.export": "พิมพ์ใบส่งของ",
     # --- finance (8) ---
     "finance.report.read": "ดูรายงานการเงิน (สรุปรายได้/ต้นทุน)",
     "finance.report.export": "ส่งออกรายงานการเงินเป็น CSV (Owner เท่านั้น)",
@@ -411,7 +425,7 @@ assert set(PERMISSION_DESCRIPTIONS.keys()) == set(ALL_PERMISSIONS), \
 # Legend:  ✅ = granted  ❌ = denied
 
 def _owner() -> set[str]:
-    """Owner: ALL 155 permissions."""
+    """Owner: ALL 161 permissions."""
     return set(ALL_PERMISSIONS)
 
 
@@ -440,6 +454,7 @@ def _manager() -> set[str]:
         "purchasing.pr.delete",
         "purchasing.po.delete",
         "sales.order.delete",
+        "sales.delivery.delete",
         "master.costcenter.delete",
         "master.costelement.delete",
         "master.ottype.delete",
@@ -520,6 +535,12 @@ def _supervisor() -> set[str]:
         "sales.order.update",
         "sales.order.approve",
         "sales.order.export",
+        # Delivery Order (C3)
+        "sales.delivery.create",
+        "sales.delivery.read",
+        "sales.delivery.update",
+        "sales.delivery.approve",
+        "sales.delivery.export",
         # Finance
         "finance.report.read",
         "finance.recharge.read",
@@ -608,6 +629,9 @@ def _staff() -> set[str]:
         # Sales
         "sales.order.create",
         "sales.order.read",
+        # Delivery Order (C3)
+        "sales.delivery.create",
+        "sales.delivery.read",
         # Finance
         "finance.report.read",
         # Master Data
@@ -664,6 +688,9 @@ def _viewer() -> set[str]:
         # Sales
         "sales.order.read",
         "sales.order.export",
+        # Delivery Order (C3)
+        "sales.delivery.read",
+        "sales.delivery.export",
         # Finance
         "finance.report.read",
         "finance.recharge.read",

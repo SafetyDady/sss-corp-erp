@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Table, Button, App, Space, Descriptions, Spin, Popconfirm, Modal, Input, Alert } from 'antd';
-import { ArrowLeft, Check, X, Send, Pencil, Ban } from 'lucide-react';
+import { ArrowLeft, Check, X, Send, Pencil, Ban, Truck } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
 import PageHeader from '../../components/PageHeader';
@@ -157,6 +157,16 @@ export default function SODetailPage() {
               <Popconfirm title={'ยกเลิก SO?'} onConfirm={handleCancel}>
                 <Button icon={<Ban size={14} />} loading={actionLoading}>{'ยกเลิก'}</Button>
               </Popconfirm>
+            )}
+            {so.status === 'APPROVED' && can('sales.delivery.create') && (
+              <Button
+                type="primary"
+                icon={<Truck size={14} />}
+                onClick={() => navigate('/sales?tab=do')}
+                style={{ background: COLORS.success }}
+              >
+                {'สร้างใบส่งของ'}
+              </Button>
             )}
             {canDelete && (
               <Popconfirm title={'ลบ SO นี้?'} onConfirm={handleDelete} okButtonProps={{ danger: true }}>

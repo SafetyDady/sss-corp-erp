@@ -29,8 +29,9 @@ const WorkOrderDetailPage = lazy(() => import('./pages/workorder/WorkOrderDetail
 const PurchasingPage = lazy(() => import('./pages/purchasing/PurchasingPage'));
 const PRDetailPage = lazy(() => import('./pages/purchasing/PRDetailPage'));
 const PODetailPage = lazy(() => import('./pages/purchasing/PODetailPage'));
-const SOListPage = lazy(() => import('./pages/sales/SOListPage'));
+const SalesPage = lazy(() => import('./pages/sales/SalesPage'));
 const SODetailPage = lazy(() => import('./pages/sales/SODetailPage'));
+const DODetailPage = lazy(() => import('./pages/sales/DODetailPage'));
 const HRPage = lazy(() => import('./pages/hr/HRPage'));
 const ToolListPage = lazy(() => import('./pages/tools/ToolListPage'));
 const MasterDataPage = lazy(() => import('./pages/master/MasterDataPage'));
@@ -63,7 +64,7 @@ const SYSTEM_MENU_ITEMS = [
   { key: '/supply-chain', icon: <Boxes size={18} />, label: 'Supply Chain', permission: 'inventory.product.read' },
   { key: '/work-orders', icon: <FileText size={18} />, label: 'Work Orders', permission: 'workorder.order.read' },
   { key: '/purchasing', icon: <ShoppingCart size={18} />, label: 'Purchasing', permission: '_purchasing_check' },
-  { key: '/sales', icon: <DollarSign size={18} />, label: 'Sales', permission: 'sales.order.read' },
+  { key: '/sales', icon: <DollarSign size={18} />, label: 'Sales', permission: '_sales_check' },
   { key: '/hr', icon: <Users size={18} />, label: 'HR', permission: 'hr.employee.read' },
   { key: '/customers', icon: <UserCheck size={18} />, label: 'Customers', permission: 'customer.customer.read' },
   { key: '/planning', icon: <CalendarRange size={18} />, label: 'Planning', permission: 'workorder.plan.read' },
@@ -119,6 +120,8 @@ function AppLayout() {
     // 1) Permission check first
     if (item.permission === '_purchasing_check') {
       if (!can('purchasing.pr.read') && !can('purchasing.po.read')) return false;
+    } else if (item.permission === '_sales_check') {
+      if (!can('sales.order.read') && !can('sales.delivery.read')) return false;
     } else if (item.permission && !can(item.permission)) {
       return false;
     }
@@ -269,7 +272,8 @@ function AppLayout() {
               <Route path="/purchasing" element={<PurchasingPage />} />
               <Route path="/purchasing/pr/:id" element={<PRDetailPage />} />
               <Route path="/purchasing/po/:id" element={<PODetailPage />} />
-              <Route path="/sales" element={<SOListPage />} />
+              <Route path="/sales" element={<SalesPage />} />
+              <Route path="/sales/delivery/:id" element={<DODetailPage />} />
               <Route path="/sales/:id" element={<SODetailPage />} />
               <Route path="/hr" element={<HRPage />} />
               <Route path="/master" element={<MasterDataPage />} />

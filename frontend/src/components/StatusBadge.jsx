@@ -49,6 +49,7 @@ const STATUS_CONFIG = {
   PAID: { color: '#3b82f6' },
   OVERDUE: { color: '#ef4444' },
   PRODUCE: { color: '#10b981' },
+  SHIPPED: { color: '#10b981' },
 };
 
 export default function StatusBadge({ status }) {

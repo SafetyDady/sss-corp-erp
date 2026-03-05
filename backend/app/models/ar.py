@@ -108,6 +108,13 @@ class CustomerInvoice(Base, TimestampMixin, OrgMixin):
         default=CustomerInvoiceStatus.DRAFT,
     )
 
+    # Phase C3: Delivery Order link (optional — invoice from SO or DO)
+    do_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("delivery_orders.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     # Notes
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -130,6 +137,7 @@ class CustomerInvoice(Base, TimestampMixin, OrgMixin):
     # Relationships
     sales_order = relationship("SalesOrder", lazy="joined")
     customer = relationship("Customer", lazy="joined")
+    delivery_order = relationship("DeliveryOrder", lazy="joined")
     payments = relationship(
         "CustomerInvoicePayment",
         back_populates="invoice",

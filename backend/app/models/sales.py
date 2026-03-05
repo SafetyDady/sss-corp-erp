@@ -135,3 +135,121 @@ class SalesOrderLine(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<SOLine so={self.so_id} product={self.product_id} qty={self.quantity}>"
+
+
+# ============================================================
+# Delivery Order (Phase C3)
+# ============================================================
+
+class DOStatus(str, enum.Enum):
+    DRAFT = "DRAFT"
+    SHIPPED = "SHIPPED"
+    CANCELLED = "CANCELLED"
+
+
+class DeliveryOrder(Base, TimestampMixin, OrgMixin):
+    __tablename__ = "delivery_orders"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    do_number: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    so_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("sales_orders.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    customer_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("customers.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    delivery_date: Mapped[date] = mapped_column(Date, nullable=False)
+    shipping_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    shipping_method: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[DOStatus] = mapped_column(
+        Enum(DOStatus, name="do_status_enum"),
+        nullable=False,
+        default=DOStatus.DRAFT,
+    )
+    shipped_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    shipped_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    lines: Mapped[list["DeliveryOrderLine"]] = relationship(
+        back_populates="delivery_order", cascade="all, delete-orphan"
+    )
+    sales_order: Mapped["SalesOrder"] = relationship(
+        foreign_keys=[so_id], lazy="joined"
+    )
+    customer: Mapped["Customer"] = relationship(
+        foreign_keys=[customer_id], lazy="joined"
+    )
+
+    __table_args__ = (
+        UniqueConstraint("org_id", "do_number", name="uq_do_org_number"),
+        Index("ix_do_org_status", "org_id", "status"),
+        Index("ix_do_so_id", "so_id"),
+        Index("ix_do_customer_id", "customer_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<DO {self.do_number} [{self.status.value}]>"
+
+
+class DeliveryOrderLine(Base, TimestampMixin):
+    __tablename__ = "delivery_order_lines"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    do_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("delivery_orders.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    so_line_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("sales_order_lines.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("products.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    line_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    ordered_qty: Mapped[int] = mapped_column(Integer, nullable=False)
+    shipped_qty: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    location_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("locations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    movement_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("stock_movements.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    delivery_order: Mapped["DeliveryOrder"] = relationship(back_populates="lines")
+
+    __table_args__ = (
+        CheckConstraint("ordered_qty > 0", name="ck_do_line_ordered_qty_positive"),
+        CheckConstraint("shipped_qty >= 0", name="ck_do_line_shipped_qty_non_negative"),
+        Index("ix_do_lines_do_id", "do_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<DOLine do={self.do_id} product={self.product_id} ordered={self.ordered_qty}>"

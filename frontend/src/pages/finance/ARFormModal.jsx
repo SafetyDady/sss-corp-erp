@@ -11,6 +11,7 @@ export default function ARFormModal({ open, onClose, onSuccess, editData }) {
   const [loading, setLoading] = useState(false);
   const [approvedSOs, setApprovedSOs] = useState([]);
   const [selectedSO, setSelectedSO] = useState(null);
+  const [dosForSO, setDosForSO] = useState([]);
 
   useEffect(() => {
     if (open) {
@@ -46,7 +47,12 @@ export default function ARFormModal({ open, onClose, onSuccess, editData }) {
         vat_rate: Number(so.vat_rate) || 0,
         vat_amount: Number(so.vat_amount) || 0,
         total_amount: Number(so.total_amount) || 0,
+        do_id: undefined,
       });
+      // Fetch DOs for this SO
+      api.get('/api/sales/delivery', { params: { so_id: soId, status: 'SHIPPED', limit: 50 } })
+        .then((r) => setDosForSO(r.data?.items || []))
+        .catch(() => setDosForSO([]));
     }
   };
 
@@ -111,6 +117,22 @@ export default function ARFormModal({ open, onClose, onSuccess, editData }) {
             <Descriptions.Item label="ลูกค้า">{selectedSO.customer_name || '-'}</Descriptions.Item>
             <Descriptions.Item label="ยอดรวม SO">{formatCurrency(selectedSO.total_amount)}</Descriptions.Item>
           </Descriptions>
+        )}
+
+        {/* DO Picker (optional) */}
+        {!editData && selectedSO && dosForSO.length > 0 && (
+          <Form.Item name="do_id" label="เชื่อมกับใบส่งของ (ถ้ามี)">
+            <Select
+              allowClear
+              showSearch
+              placeholder="ไม่เลือก — ออกจาก SO โดยตรง"
+              optionFilterProp="label"
+              options={dosForSO.map((d) => ({
+                value: d.id,
+                label: `${d.do_number} — ${d.delivery_date || ''} (${d.status})`,
+              }))}
+            />
+          </Form.Item>
         )}
 
         <Form.Item name="invoice_number" label="เลขใบแจ้งหนี้">
