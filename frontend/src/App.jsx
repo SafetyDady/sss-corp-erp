@@ -37,6 +37,7 @@ const MasterDataPage = lazy(() => import('./pages/master/MasterDataPage'));
 const CustomerListPage = lazy(() => import('./pages/customer/CustomerListPage'));
 const FinancePage = lazy(() => import('./pages/finance/FinancePage'));
 const InvoiceDetailPage = lazy(() => import('./pages/finance/InvoiceDetailPage'));
+const ARDetailPage = lazy(() => import('./pages/finance/ARDetailPage'));
 const AdminPage = lazy(() => import('./pages/admin/AdminPage'));
 const PlanningPage = lazy(() => import('./pages/planning/PlanningPage'));
 const SetupWizardPage = lazy(() => import('./pages/setup/SetupWizardPage'));
@@ -275,6 +276,7 @@ function AppLayout() {
               <Route path="/customers" element={<CustomerListPage />} />
               <Route path="/finance" element={<FinancePage />} />
               <Route path="/finance/invoices/:id" element={<InvoiceDetailPage />} />
+              <Route path="/finance/ar/:id" element={<ARDetailPage />} />
               <Route path="/planning" element={<PlanningPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="*" element={<Navigate to="/" />} />

@@ -85,6 +85,9 @@ class SalesOrder(Base, TimestampMixin, OrgMixin):
     lines: Mapped[list["SalesOrderLine"]] = relationship(
         back_populates="sales_order", cascade="all, delete-orphan"
     )
+    customer: Mapped["Customer"] = relationship(
+        foreign_keys=[customer_id], lazy="joined"
+    )
 
     __table_args__ = (
         UniqueConstraint("org_id", "so_number", name="uq_so_org_number"),

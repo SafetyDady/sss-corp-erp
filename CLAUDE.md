@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-04 v18 (C9: Internal Recharge — Fixed Budget + Monthly Allocation)
+> อัปเดตล่าสุด: 2026-03-04 v20 (C2: Customer Invoice AR)
 
 ---
 
@@ -10,7 +10,7 @@
 
 **SSS Corp ERP** — ระบบ ERP สำหรับธุรกิจ Manufacturing/Trading ขนาดเล็ก-กลาง
 - Multi-tenant (Shared DB + org_id)
-- **11 Modules, 139 Permissions, 5 Roles**
+- **11 Modules, 155 Permissions, 5 Roles**
 - Job Costing: Material + ManHour + Tools Recharge + Admin Overhead
 - อ้างอิงเพิ่มเติม: `UI_GUIDELINES.md` (theme/icons), `BUSINESS_POLICY.md` (business rules)
 
@@ -244,7 +244,7 @@ sss-corp-erp/
 | sales.order.approve | ✅ | ✅ | ✅ | ❌ | ❌ |
 | sales.order.export | ✅ | ✅ | ✅ | ❌ | ✅ |
 
-### Finance (8 permissions)
+### Finance (20 permissions)
 
 | Permission | owner | manager | supervisor | staff | viewer |
 |-----------|:-----:|:-------:|:----------:|:-----:|:------:|
@@ -256,6 +256,18 @@ sss-corp-erp/
 | finance.recharge.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
 | finance.recharge.execute | ✅ | ✅ | ❌ | ❌ | ❌ |
 | finance.recharge.export | ✅ | ❌ | ❌ | ❌ | ❌ |
+| finance.invoice.create | ✅ | ✅ | ❌ | ❌ | ❌ |
+| finance.invoice.read | ✅ | ✅ | ✅ | ❌ | ✅ |
+| finance.invoice.update | ✅ | ✅ | ❌ | ❌ | ❌ |
+| finance.invoice.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
+| finance.invoice.approve | ✅ | ✅ | ❌ | ❌ | ❌ |
+| finance.invoice.export | ✅ | ❌ | ❌ | ❌ | ❌ |
+| finance.ar.create | ✅ | ✅ | ❌ | ❌ | ❌ |
+| finance.ar.read | ✅ | ✅ | ✅ | ❌ | ✅ |
+| finance.ar.update | ✅ | ✅ | ❌ | ❌ | ❌ |
+| finance.ar.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
+| finance.ar.approve | ✅ | ✅ | ❌ | ❌ | ❌ |
+| finance.ar.export | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 ### Master Data (32 permissions)
 
@@ -361,11 +373,11 @@ sss-corp-erp/
 
 | Role | Count | Description |
 |------|-------|-------------|
-| owner | 139 | ALL permissions |
-| manager | ~85 | ไม่มี admin.*, ไม่มี *.delete + planning create/update + recharge CRUD/execute |
-| supervisor | ~66 | read + approve + limited create + planning read + recharge read |
+| owner | 155 | ALL permissions |
+| manager | ~95 | ไม่มี admin.*, ไม่มี *.delete + planning create/update + recharge CRUD/execute + invoice CRUD/approve + AR CRUD/approve |
+| supervisor | ~69 | read + approve + limited create + planning read + recharge read + invoice read + AR read |
 | staff | ~39 | read + own create (timesheet, leave, movement, dailyreport, roster, PR, withdrawal) |
-| viewer | ~27 | read + selected export only + recharge read |
+| viewer | ~29 | read + selected export only + recharge read + invoice read + AR read |
 
 ### Permission Usage Pattern
 ```python
@@ -515,7 +527,7 @@ Manager จองเครื่องมือ → POST /api/planning/reservati
 
 ---
 
-## Business Rules (Complete — 98 Rules)
+## Business Rules (Complete — 128 Rules)
 
 | # | Module | Feature | Rule | Enforcement |
 |---|--------|---------|------|-------------|
@@ -617,6 +629,36 @@ Manager จองเครื่องมือ → POST /api/planning/reservati
 | 96 | finance | Recharge | Skip source CC's own department | Service logic |
 | 97 | finance | Recharge | Rounding adjustment ensures sum = monthly_budget | Service calc |
 | 98 | finance | Recharge | amount Numeric(12,2), budget Numeric(14,2) | DB constraint |
+| 99 | purchasing | PO | WHT rate stored on PO (wht_rate %, default from tax config) | Schema + Service |
+| 100 | purchasing | PO | net_payment = total - wht_amount (auto calc) | Service calc |
+| 101 | purchasing | PO | wht_amount = subtotal * wht_rate / 100 | Service calc |
+| 102 | purchasing | PO | vat_amount = subtotal * vat_rate / 100 | Service calc |
+| 103 | purchasing | PO | total = subtotal + vat_amount | Service calc |
+| 104 | purchasing | PO | Tax fields: subtotal, vat_rate, vat_amount, wht_rate, wht_amount, total, net_payment | DB columns |
+| 105 | purchasing | POLine | Line-level: unit_price, qty, line_total (auto calc) | Service calc |
+| 106 | purchasing | PO | PO.subtotal = SUM(line_total) of all lines | Service calc |
+| 107 | purchasing | PO | ConvertToPO auto-calc taxes from org tax config | Service logic |
+| 108 | admin | Config | OrgTaxConfig: default_vat_rate (7.0), default_wht_rate (3.0) | OrgConfig model |
+| 109 | admin | Config | Tax config per org — admin can adjust rates | admin.config.update |
+| 110 | purchasing | PO | GR preserves tax fields — no recalc on receive | Service logic |
+| 111 | purchasing | PO | Export includes tax breakdown columns | Export service |
+| 112 | purchasing | PR | ConvertToPO modal shows tax preview before confirm | Frontend UX |
+| 113 | finance | Invoice | SupplierInvoice ต้อง link กับ PO ที่ status=RECEIVED | Service check |
+| 114 | finance | Invoice | SUM(invoices.net_payment) ≤ PO.net_payment per PO | Service check |
+| 115 | finance | Invoice | Status flow: DRAFT → PENDING → APPROVED → PAID (+ CANCELLED) | State machine |
+| 116 | finance | Invoice | Delete only DRAFT (soft-delete) | Permission + Service |
+| 117 | finance | Invoice | Edit only DRAFT/PENDING | Service check |
+| 118 | finance | Invoice | WHT deducted at payment time (not invoice creation) | Service logic |
+| 119 | finance | Invoice | Auto PAID when paid_amount >= net_payment | Service calc |
+| 120 | finance | Invoice | Overdue = status APPROVED + due_date < today | Computed |
+| 121 | finance | AR | CustomerInvoice ต้อง link กับ SO ที่ status=APPROVED | Service check |
+| 122 | finance | AR | SUM(invoices.total_amount) ≤ SO.total_amount per SO | Service check |
+| 123 | finance | AR | 1 SO มี multiple invoices ได้ (partial/installment billing) | No unique on so_id |
+| 124 | finance | AR | Delete ได้เฉพาะ DRAFT | Permission + Service |
+| 125 | finance | AR | Edit ได้เฉพาะ DRAFT/PENDING | Service check |
+| 126 | finance | AR | Auto PAID เมื่อ received_amount >= total_amount | Service calc |
+| 127 | finance | AR | Overdue = APPROVED + due_date < today | Computed |
+| 128 | finance | AR | AR ไม่มี WHT — ยอดจ่ายตรง = total_amount (ต่างจาก AP) | Schema |
 
 ---
 
@@ -756,6 +798,34 @@ POST   /api/sales/orders/{id}/approve       sales.order.approve
 GET    /api/finance/reports                 finance.report.read
 GET    /api/finance/reports/export          finance.report.export
 GET    /api/finance/reports/cost-center-summary  finance.report.read
+```
+
+### Finance — Supplier Invoice / AP (C1)
+```
+GET    /api/finance/invoices                     finance.invoice.read    (?status, supplier_id, search, overdue, limit, offset)
+POST   /api/finance/invoices                     finance.invoice.create
+GET    /api/finance/invoices/summary             finance.invoice.read    → APSummaryResponse
+GET    /api/finance/invoices/{id}                finance.invoice.read
+PUT    /api/finance/invoices/{id}                finance.invoice.update  (DRAFT/PENDING only)
+DELETE /api/finance/invoices/{id}                finance.invoice.delete  (DRAFT only, soft-delete)
+POST   /api/finance/invoices/{id}/submit         finance.invoice.create  (DRAFT→PENDING)
+POST   /api/finance/invoices/{id}/approve        finance.invoice.approve (body: {action, reason})
+POST   /api/finance/invoices/{id}/pay            finance.invoice.approve (body: InvoicePaymentCreate)
+POST   /api/finance/invoices/{id}/cancel         finance.invoice.update  (DRAFT/PENDING→CANCELLED)
+```
+
+### Finance — Customer Invoice / AR (C2)
+```
+GET    /api/finance/ar                           finance.ar.read         (?status, customer_id, search, overdue, limit, offset)
+POST   /api/finance/ar                           finance.ar.create
+GET    /api/finance/ar/summary                   finance.ar.read         → ARSummaryResponse
+GET    /api/finance/ar/{id}                      finance.ar.read
+PUT    /api/finance/ar/{id}                      finance.ar.update       (DRAFT/PENDING only)
+DELETE /api/finance/ar/{id}                      finance.ar.delete       (DRAFT only)
+POST   /api/finance/ar/{id}/submit               finance.ar.create       (DRAFT→PENDING)
+POST   /api/finance/ar/{id}/approve              finance.ar.approve      (body: {action, reason})
+POST   /api/finance/ar/{id}/receive              finance.ar.approve      (body: CustomerPaymentCreate)
+POST   /api/finance/ar/{id}/cancel               finance.ar.update       (DRAFT/PENDING→CANCELLED)
 ```
 
 ### Finance — Internal Recharge (C9)
@@ -1184,6 +1254,34 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **C9.7** FinancePage — Permission-gated "Internal Recharge" tab + permissionMeta update
 - [x] **C9.8** Seed — Sample ACTIVE budget (CC-ADMIN, 1,200,000 THB/year)
 
+### C5.2 — WHT (Withholding Tax) on PO ✅
+- [x] **C5.2.1** OrgTaxConfig — default_vat_rate (7.0%) + default_wht_rate (3.0%) in OrgConfig model
+- [x] **C5.2.2** Tax Config API — GET/PUT /api/admin/config/tax (admin.config.read/update)
+- [x] **C5.2.3** PO Tax Fields — subtotal, vat_rate, vat_amount, wht_rate, wht_amount, total, net_payment on PO + PO Lines
+- [x] **C5.2.4** Migration — f6g7h8i9j0k1 (tax columns on PO + POLine + OrgConfig)
+- [x] **C5.2.5** ConvertToPO — auto-calc taxes from org config, preview in modal
+- [x] **C5.2.6** Frontend — TaxConfigTab in AdminPage + ConvertToPOModal tax fields + PODetailPage tax breakdown
+
+### C1 — Supplier Invoice + Payment (AP) ✅
+- [x] **C1.1** Models — SupplierInvoice + InvoicePayment + InvoiceStatus enum (DRAFT→PENDING→APPROVED→PAID, CANCELLED)
+- [x] **C1.2** Migration — g7h8i9j0k1l2 (supplier_invoices + invoice_payments tables)
+- [x] **C1.3** Permissions — 6 new (finance.invoice.*: create/read/update/delete/approve/export) → 143→149
+- [x] **C1.4** Schemas — InvoiceCreate/Update/Response + PaymentCreate/Response + APSummary
+- [x] **C1.5** Service — CRUD + submit + approve/reject + record_payment (auto-PAID) + cancel + AP summary
+- [x] **C1.6** API Routes — 10 endpoints under /api/finance/invoices/*
+- [x] **C1.7** Frontend — APTab + InvoiceFormModal + InvoiceDetailPage + PaymentModal
+- [x] **C1.8** Wiring — FinancePage AP tab + App.jsx route /finance/invoices/:id
+
+### C2 — Customer Invoice (AR — Accounts Receivable) ✅
+- [x] **C2.1** Models — CustomerInvoice + CustomerInvoicePayment + CustomerInvoiceStatus enum (DRAFT→PENDING→APPROVED→PAID, CANCELLED)
+- [x] **C2.2** Migration — h8i9j0k1l2m3 (customer_invoices + customer_invoice_payments tables)
+- [x] **C2.3** Permissions — 6 new (finance.ar.*: create/read/update/delete/approve/export) → 149→155
+- [x] **C2.4** Schemas — CustomerInvoiceCreate/Update/Response + CustomerPaymentCreate/Response + ARSummary
+- [x] **C2.5** Service — CRUD + submit + approve/reject + receive_payment (auto-PAID) + cancel + AR summary + enrichment
+- [x] **C2.6** API Routes — 10 endpoints under /api/finance/ar/*
+- [x] **C2.7** Frontend — ARTab + ARFormModal + ARDetailPage + ARPaymentModal
+- [x] **C2.8** Wiring — FinancePage AR tab + App.jsx route /finance/ar/:id
+
 ### Phase 8 — Dashboard & Analytics 📊 (Planned)
 - [ ] **8.1** KPI Dashboard — real-time stat cards (ยอดขาย, ต้นทุน WO, สถานะ stock, pending approvals)
 - [ ] **8.2** Charts — Recharts/Ant Charts (WO Cost Trend, Inventory Turnover, Revenue)
@@ -1300,6 +1398,11 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 32. ❌ อย่าแก้ Budget ที่ไม่ใช่ DRAFT — ต้องเช็ค status ก่อน edit/delete (BR#90-91)
 33. ❌ อย่า generate recharge เดือนซ้ำ — 409 Conflict (BR#94)
 34. ❌ อย่าลืม skip source CC's own department ตอน generate recharge — ห้าม allocate ให้ตัวเอง (BR#96)
+35. ❌ อย่าสร้าง Invoice จาก PO ที่ไม่ใช่ RECEIVED — ต้อง validate PO status ก่อน (BR#113)
+36. ❌ อย่าให้ SUM(invoices) เกิน PO net_payment — partial billing ได้แต่ต้องไม่เกิน (BR#114)
+37. ❌ อย่าสร้าง AR Invoice จาก SO ที่ไม่ใช่ APPROVED — ต้อง validate SO status ก่อน (BR#121)
+38. ❌ อย่าให้ SUM(AR invoices) เกิน SO total_amount — partial billing ได้แต่ต้องไม่เกิน (BR#122)
+39. ❌ AR ไม่มี WHT — ยอดจ่ายตรง = total_amount, ห้ามเพิ่ม WHT fields (BR#128)
 
 ---
 
@@ -1312,7 +1415,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `BUSINESS_POLICY.md` | Business rules (source of truth) |
 | `TODO.md` | Implementation tracker + checklist |
 | `SmartERP_Master_Document_v2.xlsx` | Original design spec |
-| `backend/app/core/permissions.py` | RBAC permissions + role mapping + PERMISSION_DESCRIPTIONS (139 Thai descriptions) |
+| `backend/app/core/permissions.py` | RBAC permissions + role mapping + PERMISSION_DESCRIPTIONS (155 Thai descriptions) |
 | `backend/app/core/security.py` | JWT token creation/validation |
 | `backend/app/core/config.py` | Environment settings + DEFAULT_ORG_ID |
 | `frontend/src/stores/authStore.js` | Auth state + token management |
@@ -1387,6 +1490,22 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/finance/RechargeBudgetFormModal.jsx` | Budget create/edit modal (C9) |
 | `frontend/src/pages/finance/GenerateRechargeModal.jsx` | Generate monthly entries modal (C9) |
 | `frontend/src/pages/finance/RechargeEntryTable.jsx` | Recharge entries display table with summary (C9) |
+| `backend/app/models/invoice.py` | Supplier Invoice + Payment models: SupplierInvoice, InvoicePayment, InvoiceStatus (C1) |
+| `backend/app/schemas/invoice.py` | Invoice Pydantic schemas: Create, Update, Response, Payment, APSummary (C1) |
+| `backend/app/services/invoice.py` | Invoice business logic: CRUD + submit + approve + pay + cancel + AP summary (C1) |
+| `backend/app/api/invoice.py` | Invoice 10 API endpoints: /api/finance/invoices/* (C1) |
+| `frontend/src/pages/finance/APTab.jsx` | AP tab: stat cards + invoice table + filters + create button (C1) |
+| `frontend/src/pages/finance/InvoiceFormModal.jsx` | Invoice create/edit modal — PO picker + auto-fill amounts (C1) |
+| `frontend/src/pages/finance/InvoiceDetailPage.jsx` | Invoice detail: actions + amounts + payment history (C1) |
+| `frontend/src/pages/finance/PaymentModal.jsx` | Payment recording: amount + WHT deduction + method (C1) |
+| `backend/app/models/ar.py` | Customer Invoice + Payment models: CustomerInvoice, CustomerInvoicePayment, CustomerInvoiceStatus (C2) |
+| `backend/app/schemas/ar.py` | AR Pydantic schemas: Create, Update, Response, Payment, ARSummary (C2) |
+| `backend/app/services/ar.py` | AR business logic: CRUD + submit + approve + receive_payment + cancel + AR summary (C2) |
+| `backend/app/api/ar.py` | AR 10 API endpoints: /api/finance/ar/* (C2) |
+| `frontend/src/pages/finance/ARTab.jsx` | AR tab: stat cards + invoice table + filters + create button (C2) |
+| `frontend/src/pages/finance/ARFormModal.jsx` | AR invoice create/edit modal — SO picker + auto-fill amounts (C2) |
+| `frontend/src/pages/finance/ARDetailPage.jsx` | AR invoice detail: actions + amounts + payment history (C2) |
+| `frontend/src/pages/finance/ARPaymentModal.jsx` | AR payment recording: amount + method (no WHT) (C2) |
 | `SYSTEM_OVERVIEW_V3.md` | PRD ฉบับสมบูรณ์ — 4 ส่วน (A:ระบบปัจจุบัน, B:แผน, C:ช่องว่าง, D:ลำดับ) + UX assessment ต่อ module |
 | `SYSTEM_OVERVIEW_V3.docx` | Word export สำหรับ Owner review ด้วย Track Changes |
 | `convert_to_docx.py` | Python script แปลง MD → Word (.docx) ด้วย python-docx |
@@ -1412,4 +1531,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v18 (Phase 0-7.9 complete + Phase 10 partial + Phase 11 partial + C9 Internal Recharge complete + Go-Live Gate G1-G7 complete, Phase 8-14 planned)*
+*End of CLAUDE.md — SSS Corp ERP v20 (Phase 0-7.9 complete + Phase 10 partial + Phase 11 partial + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR complete + Go-Live Gate G1-G7 complete, Phase 8-14 planned)*

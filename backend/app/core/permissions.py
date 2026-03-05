@@ -110,6 +110,13 @@ ALL_PERMISSIONS: list[str] = [
     "finance.invoice.delete",
     "finance.invoice.approve",
     "finance.invoice.export",
+    # Phase C2: Customer Invoice (AR)
+    "finance.ar.create",
+    "finance.ar.read",
+    "finance.ar.update",
+    "finance.ar.delete",
+    "finance.ar.approve",
+    "finance.ar.export",
 
     # --- master data (32: costcenter 4 + costelement 4 + ottype 4 + department 4 + leavetype 4 + shifttype 4 + schedule 4 + supplier 4) ---
     "master.costcenter.create",
@@ -209,8 +216,8 @@ ALL_PERMISSIONS: list[str] = [
     "hr.roster.read",
 ]
 
-assert len(ALL_PERMISSIONS) == 149, f"Expected 149 permissions, got {len(ALL_PERMISSIONS)}"
-assert len(set(ALL_PERMISSIONS)) == 149, "Duplicate permissions found!"
+assert len(ALL_PERMISSIONS) == 155, f"Expected 155 permissions, got {len(ALL_PERMISSIONS)}"
+assert len(set(ALL_PERMISSIONS)) == 155, "Duplicate permissions found!"
 
 
 # ============================================================
@@ -297,6 +304,13 @@ PERMISSION_DESCRIPTIONS: dict[str, str] = {
     "finance.invoice.delete": "ลบใบวางบิล DRAFT (Owner เท่านั้น)",
     "finance.invoice.approve": "อนุมัติ/ปฏิเสธใบวางบิลและบันทึกการจ่ายเงิน",
     "finance.invoice.export": "ส่งออกข้อมูลใบวางบิล (Owner เท่านั้น)",
+    # Phase C2: Customer Invoice (AR)
+    "finance.ar.create": "สร้างใบแจ้งหนี้ลูกค้าจาก SO ที่อนุมัติแล้ว",
+    "finance.ar.read": "ดูรายการใบแจ้งหนี้ลูกค้าและสถานะการรับเงิน",
+    "finance.ar.update": "แก้ไขใบแจ้งหนี้ลูกค้า (DRAFT/PENDING เท่านั้น)",
+    "finance.ar.delete": "ลบใบแจ้งหนี้ลูกค้า DRAFT (Owner เท่านั้น)",
+    "finance.ar.approve": "อนุมัติ/ปฏิเสธใบแจ้งหนี้ลูกค้าและบันทึกการรับเงิน",
+    "finance.ar.export": "ส่งออกข้อมูลใบแจ้งหนี้ลูกค้า (Owner เท่านั้น)",
     # --- master (20) ---
     "master.costcenter.create": "สร้าง Cost Center ใหม่",
     "master.costcenter.read": "ดูรายการ Cost Center",
@@ -397,7 +411,7 @@ assert set(PERMISSION_DESCRIPTIONS.keys()) == set(ALL_PERMISSIONS), \
 # Legend:  ✅ = granted  ❌ = denied
 
 def _owner() -> set[str]:
-    """Owner: ALL 149 permissions."""
+    """Owner: ALL 155 permissions."""
     return set(ALL_PERMISSIONS)
 
 
@@ -444,6 +458,8 @@ def _manager() -> set[str]:
         "finance.recharge.export",
         "finance.invoice.delete",
         "finance.invoice.export",
+        "finance.ar.delete",
+        "finance.ar.export",
     }
     return result
 
@@ -508,6 +524,7 @@ def _supervisor() -> set[str]:
         "finance.report.read",
         "finance.recharge.read",
         "finance.invoice.read",
+        "finance.ar.read",
         # Master Data
         "master.costcenter.create",
         "master.costcenter.read",
@@ -651,6 +668,7 @@ def _viewer() -> set[str]:
         "finance.report.read",
         "finance.recharge.read",
         "finance.invoice.read",
+        "finance.ar.read",
         # Master Data
         "master.costcenter.read",
         "master.costelement.read",

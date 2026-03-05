@@ -17,6 +17,7 @@ from app.api.daily_report import daily_report_router
 from app.api.withdrawal import withdrawal_router
 from app.api.recharge import recharge_router
 from app.api.invoice import invoice_router
+from app.api.ar import ar_router
 
 all_routers = [
     auth_router,
@@ -40,4 +41,5 @@ all_routers = [
     withdrawal_router,
     recharge_router,
     invoice_router,
+    ar_router,
 ]

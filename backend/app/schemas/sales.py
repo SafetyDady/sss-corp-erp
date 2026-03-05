@@ -9,7 +9,7 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class SOStatus(str, Enum):
@@ -57,6 +57,8 @@ class SalesOrderResponse(BaseModel):
     id: UUID
     so_number: str
     customer_id: UUID
+    customer_name: Optional[str] = None
+    customer_code: Optional[str] = None
     status: SOStatus
     order_date: date
     subtotal_amount: Decimal
@@ -74,6 +76,23 @@ class SalesOrderResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def extract_customer(cls, data):
+        """Extract customer_name/code from customer relationship."""
+        if hasattr(data, "customer") and data.customer is not None:
+            # SQLAlchemy ORM object — copy to a mutable dict
+            obj = {}
+            for col in data.__table__.columns:
+                obj[col.key] = getattr(data, col.key, None)
+            # Add relationship fields
+            obj["customer_name"] = data.customer.name
+            obj["customer_code"] = data.customer.code
+            # Add lines relationship
+            obj["lines"] = data.lines if hasattr(data, "lines") else []
+            return obj
+        return data
 
 
 class SalesOrderListResponse(BaseModel):

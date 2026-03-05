@@ -3,6 +3,7 @@ import { Card, Row, Col, Table, Button, App, DatePicker, Space, Tooltip, Spin, D
 import { Download, RefreshCw, DollarSign, TrendingUp, Layers, Banknote, BookOpen, ArrowDownLeft, ArrowUpRight, Repeat2 } from 'lucide-react';
 import InternalRechargeTab from './InternalRechargeTab';
 import APTab from './APTab';
+import ARTab from './ARTab';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
 import PageHeader from '../../components/PageHeader';
@@ -258,18 +259,13 @@ export default function FinancePage() {
                 ),
                 children: <APTab />,
               }] : []),
-              {
+              ...(can('finance.ar.read') ? [{
                 key: 'ar',
                 label: (
                   <span><ArrowUpRight size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />AR</span>
                 ),
-                children: (
-                  <EmptyState
-                    message="Accounts Receivable"
-                    hint="AR module อยู่ระหว่างพัฒนา — ติดตามยอดค้างรับจาก SO"
-                  />
-                ),
-              },
+                children: <ARTab />,
+              }] : []),
             ]}
           />
         </>
