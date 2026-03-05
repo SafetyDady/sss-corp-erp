@@ -1,6 +1,6 @@
 """
 SSS Corp ERP — Sales Schemas (Pydantic v2)
-SalesOrder + Lines
+SalesOrder + Lines + Submit/Approve/Reject/Cancel
 """
 
 from datetime import date, datetime
@@ -50,7 +50,17 @@ class SalesOrderCreate(BaseModel):
 
 
 class SalesOrderUpdate(BaseModel):
+    customer_id: Optional[UUID] = None
+    order_date: Optional[date] = None
     note: Optional[str] = None
+    requested_approver_id: Optional[UUID] = None
+    vat_rate: Optional[Decimal] = Field(default=None, ge=0, le=100, decimal_places=2)
+    lines: Optional[list[SOLineCreate]] = None
+
+
+class SOApproveRequest(BaseModel):
+    action: str = Field(pattern=r"^(approve|reject)$")
+    reason: Optional[str] = None
 
 
 class SalesOrderResponse(BaseModel):
@@ -67,7 +77,11 @@ class SalesOrderResponse(BaseModel):
     total_amount: Decimal
     note: Optional[str] = None
     created_by: UUID
+    creator_name: Optional[str] = None
     approved_by: Optional[UUID] = None
+    approver_name: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    rejected_reason: Optional[str] = None
     requested_approver_id: Optional[UUID] = None
     is_active: bool
     lines: list[SOLineResponse] = []

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Table, Button, App, Space, Tooltip } from 'antd';
-import { Check, Eye } from 'lucide-react';
+import { Table, Button, App, Space, Tooltip, Modal, Input } from 'antd';
+import { Check, X, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
@@ -18,6 +18,9 @@ export default function SOApprovalTab({ onAction }) {
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectTargetId, setRejectTargetId] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -44,8 +47,35 @@ export default function SOApprovalTab({ onAction }) {
   const handleApprove = async (id) => {
     setActionLoading(id);
     try {
-      await api.post(`/api/sales/orders/${id}/approve`);
+      await api.post(`/api/sales/orders/${id}/approve`, { action: 'approve' });
       message.success('อนุมัติใบสั่งขายสำเร็จ');
+      fetchData();
+      onAction?.();
+    } catch (err) {
+      message.error(err.response?.data?.detail || 'เกิดข้อผิดพลาด');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const openRejectModal = (id) => {
+    setRejectTargetId(id);
+    setRejectReason('');
+    setRejectModalOpen(true);
+  };
+
+  const handleReject = async () => {
+    if (!rejectTargetId) return;
+    setActionLoading(rejectTargetId);
+    try {
+      await api.post(`/api/sales/orders/${rejectTargetId}/approve`, {
+        action: 'reject',
+        reason: rejectReason || undefined,
+      });
+      message.success('ปฏิเสธใบสั่งขายสำเร็จ');
+      setRejectModalOpen(false);
+      setRejectTargetId(null);
+      setRejectReason('');
       fetchData();
       onAction?.();
     } catch (err) {
@@ -65,13 +95,13 @@ export default function SOApprovalTab({ onAction }) {
     },
     {
       title: 'ลูกค้า',
-      dataIndex: 'customer_id',
-      key: 'customer_id',
+      dataIndex: 'customer_name',
+      key: 'customer_name',
       ellipsis: true,
       render: (v, r) =>
-        r.customer_name || (
+        v || (
           <span style={{ fontSize: 12, fontFamily: 'monospace', color: COLORS.textSecondary }}>
-            {v?.slice(0, 8)}...
+            {r.customer_id?.slice(0, 8)}...
           </span>
         ),
     },
@@ -102,21 +132,32 @@ export default function SOApprovalTab({ onAction }) {
     {
       title: '',
       key: 'actions',
-      width: 100,
+      width: 130,
       align: 'right',
       render: (_, record) => (
         <Space size={4}>
           {record.status === 'SUBMITTED' && can('sales.order.approve') && (
-            <Tooltip title="อนุมัติ">
-              <Button
-                type="text"
-                size="small"
-                icon={<Check size={14} />}
-                loading={actionLoading === record.id}
-                onClick={() => handleApprove(record.id)}
-                style={{ color: COLORS.success }}
-              />
-            </Tooltip>
+            <>
+              <Tooltip title="อนุมัติ">
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<Check size={14} />}
+                  loading={actionLoading === record.id}
+                  onClick={() => handleApprove(record.id)}
+                  style={{ color: COLORS.success }}
+                />
+              </Tooltip>
+              <Tooltip title="ปฏิเสธ">
+                <Button
+                  type="text"
+                  size="small"
+                  danger
+                  icon={<X size={14} />}
+                  onClick={() => openRejectModal(record.id)}
+                />
+              </Tooltip>
+            </>
           )}
           <Tooltip title="ดูรายละเอียด">
             <Button
@@ -156,6 +197,27 @@ export default function SOApprovalTab({ onAction }) {
         }}
         size="middle"
       />
+
+      {/* Reject Modal */}
+      <Modal
+        title="ปฏิเสธใบสั่งขาย"
+        open={rejectModalOpen}
+        onCancel={() => { setRejectModalOpen(false); setRejectTargetId(null); setRejectReason(''); }}
+        onOk={handleReject}
+        confirmLoading={!!actionLoading}
+        okText="ปฏิเสธ"
+        okButtonProps={{ danger: true }}
+      >
+        <p style={{ color: COLORS.textMuted, marginBottom: 12 }}>
+          SO จะถูกส่งกลับเป็น DRAFT เพื่อให้แก้ไขและส่งอนุมัติใหม่ได้
+        </p>
+        <Input.TextArea
+          rows={3}
+          placeholder="ระบุเหตุผล (ถ้ามี)"
+          value={rejectReason}
+          onChange={(e) => setRejectReason(e.target.value)}
+        />
+      </Modal>
     </div>
   );
 }

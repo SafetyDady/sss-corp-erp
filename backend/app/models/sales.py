@@ -5,13 +5,14 @@ Phase 3: SalesOrder + SalesOrderLine
 
 import enum
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Date,
+    DateTime,
     Enum,
     ForeignKey,
     Index,
@@ -74,6 +75,8 @@ class SalesOrder(Base, TimestampMixin, OrgMixin):
         nullable=False,
     )
     approved_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rejected_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Phase 4.2: Approval flow — requested approver
     requested_approver_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),

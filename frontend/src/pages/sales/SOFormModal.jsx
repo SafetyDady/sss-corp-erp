@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Modal, Form, Input, InputNumber, DatePicker, Select, Button, Table, App, Switch } from 'antd';
 import { Plus, Trash2 } from 'lucide-react';
+import dayjs from 'dayjs';
 import api from '../../services/api';
 import { formatCurrency } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
 
-export default function SOFormModal({ open, onClose, onSuccess }) {
+export default function SOFormModal({ open, onClose, onSuccess, editRecord }) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState([]);
@@ -17,10 +18,10 @@ export default function SOFormModal({ open, onClose, onSuccess }) {
   const [vatEnabled, setVatEnabled] = useState(true);
   const [vatRate, setVatRate] = useState(7);
 
+  const isEdit = !!editRecord;
+
   useEffect(() => {
     if (open) {
-      form.resetFields();
-      setLines([{ key: Date.now(), product_id: undefined, quantity: 1, unit_price: 0 }]);
       Promise.all([
         api.get('/api/inventory/products', { params: { limit: 500, offset: 0 } }),
         api.get('/api/customers', { params: { limit: 500, offset: 0 } }),
@@ -30,12 +31,43 @@ export default function SOFormModal({ open, onClose, onSuccess }) {
         setProducts(prodRes.data.items);
         setCustomers(custRes.data.items);
         setApprovers(appRes.data);
-        const taxCfg = taxRes.data;
-        setVatEnabled(taxCfg.vat_enabled);
-        setVatRate(Number(taxCfg.default_vat_rate) || 7);
+
+        if (editRecord) {
+          // Edit mode: populate form from editRecord
+          form.setFieldsValue({
+            customer_id: editRecord.customer_id,
+            order_date: editRecord.order_date ? dayjs(editRecord.order_date) : null,
+            note: editRecord.note || '',
+            requested_approver_id: editRecord.requested_approver_id || undefined,
+          });
+          // Populate lines
+          const editLines = (editRecord.lines || []).map((l, i) => ({
+            key: `edit-${i}-${Date.now()}`,
+            product_id: l.product_id,
+            quantity: l.quantity,
+            unit_price: Number(l.unit_price),
+          }));
+          setLines(editLines.length > 0 ? editLines : [{ key: Date.now(), product_id: undefined, quantity: 1, unit_price: 0 }]);
+          // Restore VAT from editRecord
+          const editVatRate = Number(editRecord.vat_rate) || 0;
+          if (editVatRate > 0) {
+            setVatEnabled(true);
+            setVatRate(editVatRate);
+          } else {
+            setVatEnabled(false);
+            setVatRate(0);
+          }
+        } else {
+          // Create mode: reset
+          form.resetFields();
+          setLines([{ key: Date.now(), product_id: undefined, quantity: 1, unit_price: 0 }]);
+          const taxCfg = taxRes.data;
+          setVatEnabled(taxCfg.vat_enabled);
+          setVatRate(Number(taxCfg.default_vat_rate) || 7);
+        }
       }).catch(() => {});
     }
-  }, [open]);
+  }, [open, editRecord]);
 
   const subtotal = lines.reduce((sum, l) => sum + (l.quantity || 0) * (l.unit_price || 0), 0);
   const effectiveRate = vatEnabled ? vatRate : 0;
@@ -44,21 +76,28 @@ export default function SOFormModal({ open, onClose, onSuccess }) {
 
   const onFinish = async (values) => {
     if (lines.length === 0 || lines.some((l) => !l.product_id)) {
-      message.error('\u0E01\u0E23\u0E38\u0E13\u0E32\u0E40\u0E1E\u0E34\u0E48\u0E21\u0E23\u0E32\u0E22\u0E01\u0E32\u0E23\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32');
+      message.error('กรุณาเพิ่มรายการสินค้า');
       return;
     }
     setLoading(true);
     try {
-      await api.post('/api/sales/orders', {
+      const payload = {
         ...values,
         order_date: values.order_date?.format('YYYY-MM-DD'),
         vat_rate: vatEnabled ? vatRate : 0,
         lines: lines.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
-      });
-      message.success('\u0E1A\u0E31\u0E19\u0E17\u0E36\u0E01\u0E2A\u0E33\u0E40\u0E23\u0E47\u0E08');
+      };
+
+      if (isEdit) {
+        await api.put(`/api/sales/orders/${editRecord.id}`, payload);
+        message.success('แก้ไขสำเร็จ');
+      } else {
+        await api.post('/api/sales/orders', payload);
+        message.success('บันทึกสำเร็จ');
+      }
       onSuccess();
     } catch (err) {
-      message.error(err.response?.data?.detail || '\u0E40\u0E01\u0E34\u0E14\u0E02\u0E49\u0E2D\u0E1C\u0E34\u0E14\u0E1E\u0E25\u0E32\u0E14');
+      message.error(err.response?.data?.detail || 'เกิดข้อผิดพลาด');
     } finally {
       setLoading(false);
     }
@@ -70,22 +109,22 @@ export default function SOFormModal({ open, onClose, onSuccess }) {
 
   const lineColumns = [
     {
-      title: '\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32', dataIndex: 'product_id', width: 250,
+      title: 'สินค้า', dataIndex: 'product_id', width: 250,
       render: (v, record) => (
         <Select
           showSearch optionFilterProp="label" value={v}
           onChange={(val) => updateLine(record.key, 'product_id', val)}
           options={products.map((p) => ({ value: p.id, label: `${p.sku} - ${p.name}` }))}
-          style={{ width: '100%' }} placeholder={'\u0E40\u0E25\u0E37\u0E2D\u0E01\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32'}
+          style={{ width: '100%' }} placeholder={'เลือกสินค้า'}
         />
       ),
     },
     {
-      title: '\u0E08\u0E33\u0E19\u0E27\u0E19', dataIndex: 'quantity', width: 100,
+      title: 'จำนวน', dataIndex: 'quantity', width: 100,
       render: (v, record) => <InputNumber min={1} value={v} onChange={(val) => updateLine(record.key, 'quantity', val)} style={{ width: '100%' }} />,
     },
     {
-      title: '\u0E23\u0E32\u0E04\u0E32/\u0E2B\u0E19\u0E48\u0E27\u0E22', dataIndex: 'unit_price', width: 120,
+      title: 'ราคา/หน่วย', dataIndex: 'unit_price', width: 120,
       render: (v, record) => <InputNumber min={0} step={0.01} value={v} onChange={(val) => updateLine(record.key, 'unit_price', val)} style={{ width: '100%' }} />,
     },
     {
@@ -96,37 +135,37 @@ export default function SOFormModal({ open, onClose, onSuccess }) {
 
   return (
     <Modal
-      title={'\u0E2A\u0E23\u0E49\u0E32\u0E07\u0E43\u0E1A\u0E2A\u0E31\u0E48\u0E07\u0E02\u0E32\u0E22'}
+      title={isEdit ? 'แก้ไขใบสั่งขาย' : 'สร้างใบสั่งขาย'}
       open={open} onCancel={onClose} onOk={() => form.submit()}
       confirmLoading={loading} width={700} destroyOnHidden
     >
       <Form form={form} layout="vertical" onFinish={onFinish}>
-        <Form.Item name="customer_id" label={'\u0E25\u0E39\u0E01\u0E04\u0E49\u0E32'}
-          rules={[{ required: true, message: '\u0E01\u0E23\u0E38\u0E13\u0E32\u0E40\u0E25\u0E37\u0E2D\u0E01\u0E25\u0E39\u0E01\u0E04\u0E49\u0E32' }]}>
+        <Form.Item name="customer_id" label={'ลูกค้า'}
+          rules={[{ required: true, message: 'กรุณาเลือกลูกค้า' }]}>
           <Select
             showSearch optionFilterProp="label"
             options={customers.map((c) => ({ value: c.id, label: c.name }))}
-            placeholder={'\u0E40\u0E25\u0E37\u0E2D\u0E01\u0E25\u0E39\u0E01\u0E04\u0E49\u0E32'}
+            placeholder={'เลือกลูกค้า'}
           />
         </Form.Item>
-        <Form.Item name="order_date" label={'\u0E27\u0E31\u0E19\u0E17\u0E35\u0E48\u0E2A\u0E31\u0E48\u0E07'}>
+        <Form.Item name="order_date" label={'วันที่สั่ง'}>
           <DatePicker style={{ width: 200 }} />
         </Form.Item>
-        <Form.Item name="note" label={'\u0E2B\u0E21\u0E32\u0E22\u0E40\u0E2B\u0E15\u0E38'}>
+        <Form.Item name="note" label={'หมายเหตุ'}>
           <Input.TextArea rows={2} />
         </Form.Item>
-        <Form.Item name="requested_approver_id" label={'\u0E1C\u0E39\u0E49\u0E2D\u0E19\u0E38\u0E21\u0E31\u0E15\u0E34'}>
+        <Form.Item name="requested_approver_id" label={'ผู้อนุมัติ'}>
           <Select
             showSearch optionFilterProp="label" allowClear
-            placeholder={'\u0E40\u0E25\u0E37\u0E2D\u0E01\u0E1C\u0E39\u0E49\u0E2D\u0E19\u0E38\u0E21\u0E31\u0E15\u0E34'}
+            placeholder={'เลือกผู้อนุมัติ'}
             options={approvers.map((a) => ({ value: a.id, label: a.full_name }))}
           />
         </Form.Item>
       </Form>
       <div style={{ marginTop: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-          <span style={{ fontWeight: 600 }}>{'\u0E23\u0E32\u0E22\u0E01\u0E32\u0E23\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32'}</span>
-          <Button size="small" icon={<Plus size={12} />} onClick={addLine}>{'\u0E40\u0E1E\u0E34\u0E48\u0E21\u0E23\u0E32\u0E22\u0E01\u0E32\u0E23'}</Button>
+          <span style={{ fontWeight: 600 }}>{'รายการสินค้า'}</span>
+          <Button size="small" icon={<Plus size={12} />} onClick={addLine}>{'เพิ่มรายการ'}</Button>
         </div>
         <Table dataSource={lines} columns={lineColumns} rowKey="key" pagination={false} size="small" />
       </div>
@@ -149,19 +188,19 @@ export default function SOFormModal({ open, onClose, onSuccess }) {
         {vatEnabled && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
             <div style={{ color: COLORS.textMuted, fontSize: 13 }}>
-              {'\u0E22\u0E2D\u0E14\u0E23\u0E27\u0E21\u0E01\u0E48\u0E2D\u0E19 VAT'}: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(subtotal)}</span>
+              {'ยอดรวมก่อน VAT'}: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(subtotal)}</span>
             </div>
             <div style={{ color: COLORS.textMuted, fontSize: 13 }}>
               VAT {vatRate}%: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(vatAmount)}</span>
             </div>
             <div style={{ color: COLORS.accent, fontWeight: 600, fontSize: 14 }}>
-              {'\u0E22\u0E2D\u0E14\u0E23\u0E27\u0E21\u0E17\u0E31\u0E49\u0E07\u0E2A\u0E34\u0E49\u0E19'}: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(grandTotal)}</span>
+              {'ยอดรวมทั้งสิ้น'}: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(grandTotal)}</span>
             </div>
           </div>
         )}
         {!vatEnabled && (
           <div style={{ textAlign: 'right', color: COLORS.accent, fontWeight: 600, fontSize: 14 }}>
-            {'\u0E22\u0E2D\u0E14\u0E23\u0E27\u0E21'}: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(subtotal)}</span>
+            {'ยอดรวม'}: <span style={{ fontFamily: 'monospace' }}>{formatCurrency(subtotal)}</span>
           </div>
         )}
       </div>

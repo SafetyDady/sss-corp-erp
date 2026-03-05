@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-04 v20 (C2: Customer Invoice AR)
+> อัปเดตล่าสุด: 2026-03-05 v21 (SO Flow Upgrade: submit/reject/cancel/edit lines)
 
 ---
 
@@ -788,9 +788,11 @@ POST   /api/purchasing/po/{id}/receive      purchasing.po.update    (GOODS→sto
 GET    /api/sales/orders                    sales.order.read
 POST   /api/sales/orders                    sales.order.create
 GET    /api/sales/orders/{id}              sales.order.read
-PUT    /api/sales/orders/{id}              sales.order.update
-DELETE /api/sales/orders/{id}              sales.order.delete
-POST   /api/sales/orders/{id}/approve       sales.order.approve
+PUT    /api/sales/orders/{id}              sales.order.update   (DRAFT/SUBMITTED, supports line replacement)
+DELETE /api/sales/orders/{id}              sales.order.delete   (DRAFT only)
+POST   /api/sales/orders/{id}/submit       sales.order.create   (DRAFT→SUBMITTED)
+POST   /api/sales/orders/{id}/approve      sales.order.approve  (body: {action: "approve"|"reject", reason?})
+POST   /api/sales/orders/{id}/cancel       sales.order.update   (DRAFT/SUBMITTED→CANCELLED)
 ```
 
 ### Finance
@@ -1531,4 +1533,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v20 (Phase 0-7.9 complete + Phase 10 partial + Phase 11 partial + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR complete + Go-Live Gate G1-G7 complete, Phase 8-14 planned)*
+*End of CLAUDE.md — SSS Corp ERP v21 (Phase 0-7.9 complete + Phase 10 partial + Phase 11 partial + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete, Phase 8-14 planned)*

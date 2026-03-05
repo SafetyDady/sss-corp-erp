@@ -1,6 +1,6 @@
 """
 SSS Corp ERP — Sales Service (Business Logic)
-Phase 3: Sales Order CRUD + approve
+Phase 3 + SO Flow Upgrade: CRUD + submit + approve/reject + cancel + edit lines
 """
 
 from datetime import datetime, timezone
@@ -9,11 +9,12 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.sales import SOStatus, SalesOrder, SalesOrderLine
+from app.models.user import User
 from app.services.organization import get_or_create_tax_config
 
 
@@ -29,6 +30,10 @@ async def _next_so_number(db: AsyncSession, org_id: UUID) -> str:
     count = (result.scalar() or 0) + 1
     return f"{prefix}{count:04d}"
 
+
+# ============================================================
+# CRUD
+# ============================================================
 
 async def create_sales_order(
     db: AsyncSession,
@@ -141,8 +146,9 @@ async def update_sales_order(
     so_id: UUID,
     *,
     update_data: dict,
+    org_id: Optional[UUID] = None,
 ) -> SalesOrder:
-    so = await get_sales_order(db, so_id)
+    so = await get_sales_order(db, so_id, org_id=org_id)
 
     if so.status not in (SOStatus.DRAFT, SOStatus.SUBMITTED):
         raise HTTPException(
@@ -150,16 +156,66 @@ async def update_sales_order(
             detail=f"Cannot edit SO in {so.status.value} status",
         )
 
+    # Handle line replacement
+    new_lines = update_data.pop("lines", None)
+
+    # Update simple fields
     for field, value in update_data.items():
         if value is not None:
             setattr(so, field, value)
+
+    # Replace lines if provided
+    if new_lines is not None:
+        if len(new_lines) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="SO must have at least one line",
+            )
+
+        # Delete old lines
+        await db.execute(
+            delete(SalesOrderLine).where(SalesOrderLine.so_id == so.id)
+        )
+
+        # Create new lines
+        for l in new_lines:
+            line_data = l if isinstance(l, dict) else l.model_dump()
+            line = SalesOrderLine(
+                so_id=so.id,
+                product_id=line_data["product_id"],
+                quantity=line_data["quantity"],
+                unit_price=line_data["unit_price"],
+            )
+            db.add(line)
+
+        # Recalc amounts
+        subtotal = sum(
+            Decimal(str(ld["quantity"] if isinstance(ld, dict) else ld.quantity))
+            * (ld["unit_price"] if isinstance(ld, dict) else ld.unit_price)
+            for ld in new_lines
+        )
+        vat_rate = update_data.get("vat_rate")
+        if vat_rate is None:
+            vat_rate = so.vat_rate
+        vat_amount = (subtotal * Decimal(str(vat_rate)) / Decimal("100")).quantize(Decimal("0.01"))
+        so.subtotal_amount = subtotal
+        so.vat_rate = vat_rate
+        so.vat_amount = vat_amount
+        so.total_amount = subtotal + vat_amount
+    elif "vat_rate" in update_data and update_data.get("vat_rate") is not None:
+        # VAT rate changed without lines — recalc from existing subtotal
+        vat_rate = Decimal(str(update_data["vat_rate"]))
+        vat_amount = (so.subtotal_amount * vat_rate / Decimal("100")).quantize(Decimal("0.01"))
+        so.vat_rate = vat_rate
+        so.vat_amount = vat_amount
+        so.total_amount = so.subtotal_amount + vat_amount
 
     await db.commit()
     return await get_sales_order(db, so_id)
 
 
-async def delete_sales_order(db: AsyncSession, so_id: UUID) -> None:
-    so = await get_sales_order(db, so_id)
+async def delete_sales_order(db: AsyncSession, so_id: UUID, *, org_id: Optional[UUID] = None) -> None:
+    so = await get_sales_order(db, so_id, org_id=org_id)
     if so.status != SOStatus.DRAFT:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -169,21 +225,171 @@ async def delete_sales_order(db: AsyncSession, so_id: UUID) -> None:
     await db.commit()
 
 
+# ============================================================
+# Submit (DRAFT → SUBMITTED)
+# ============================================================
+
+async def submit_sales_order(
+    db: AsyncSession,
+    so_id: UUID,
+    *,
+    org_id: Optional[UUID] = None,
+) -> SalesOrder:
+    so = await get_sales_order(db, so_id, org_id=org_id)
+
+    if so.status != SOStatus.DRAFT:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Cannot submit SO in {so.status.value} status (DRAFT required)",
+        )
+
+    if not so.lines or len(so.lines) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="SO must have at least one line to submit",
+        )
+
+    so.status = SOStatus.SUBMITTED
+    # Clear rejected_reason when re-submitting
+    so.rejected_reason = None
+    await db.commit()
+    return await get_sales_order(db, so_id)
+
+
+# ============================================================
+# Approve / Reject
+# ============================================================
+
 async def approve_sales_order(
     db: AsyncSession,
     so_id: UUID,
     *,
     approved_by: UUID,
+    action: str = "approve",
+    reason: Optional[str] = None,
+    org_id: Optional[UUID] = None,
 ) -> SalesOrder:
-    so = await get_sales_order(db, so_id)
+    so = await get_sales_order(db, so_id, org_id=org_id)
 
     if so.status not in (SOStatus.DRAFT, SOStatus.SUBMITTED):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Cannot approve SO in {so.status.value} status",
+            detail=f"Cannot approve/reject SO in {so.status.value} status",
         )
 
-    so.status = SOStatus.APPROVED
-    so.approved_by = approved_by
+    if action == "approve":
+        so.status = SOStatus.APPROVED
+        so.approved_by = approved_by
+        so.approved_at = datetime.now(timezone.utc)
+        so.rejected_reason = None
+    elif action == "reject":
+        if so.status != SOStatus.SUBMITTED:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Can only reject SUBMITTED sales orders",
+            )
+        so.status = SOStatus.DRAFT
+        so.rejected_reason = reason
+        so.approved_by = None
+        so.approved_at = None
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="action must be 'approve' or 'reject'",
+        )
+
     await db.commit()
     return await get_sales_order(db, so_id)
+
+
+# ============================================================
+# Cancel (DRAFT/SUBMITTED → CANCELLED)
+# ============================================================
+
+async def cancel_sales_order(
+    db: AsyncSession,
+    so_id: UUID,
+    *,
+    org_id: Optional[UUID] = None,
+) -> SalesOrder:
+    so = await get_sales_order(db, so_id, org_id=org_id)
+
+    if so.status not in (SOStatus.DRAFT, SOStatus.SUBMITTED):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Cannot cancel SO in {so.status.value} status",
+        )
+
+    so.status = SOStatus.CANCELLED
+    await db.commit()
+    return await get_sales_order(db, so_id)
+
+
+# ============================================================
+# Enrichment  (add names from related tables)
+# ============================================================
+
+async def enrich_sales_orders(
+    db: AsyncSession,
+    orders: list[SalesOrder],
+) -> list[dict]:
+    """Enrich SO list with creator_name, approver_name, customer_name."""
+    if not orders:
+        return []
+
+    # Collect user IDs
+    user_ids = set()
+    for so in orders:
+        user_ids.add(so.created_by)
+        if so.approved_by:
+            user_ids.add(so.approved_by)
+
+    # Fetch user names
+    user_map = {}
+    if user_ids:
+        result = await db.execute(
+            select(User.id, User.full_name).where(User.id.in_(user_ids))
+        )
+        user_map = {row.id: row.full_name for row in result.all()}
+
+    enriched = []
+    for so in orders:
+        d = {
+            "id": so.id,
+            "so_number": so.so_number,
+            "customer_id": so.customer_id,
+            "customer_name": so.customer.name if so.customer else None,
+            "customer_code": so.customer.code if so.customer else None,
+            "status": so.status.value if hasattr(so.status, "value") else so.status,
+            "order_date": so.order_date,
+            "subtotal_amount": so.subtotal_amount,
+            "vat_rate": so.vat_rate,
+            "vat_amount": so.vat_amount,
+            "total_amount": so.total_amount,
+            "note": so.note,
+            "created_by": so.created_by,
+            "creator_name": user_map.get(so.created_by),
+            "approved_by": so.approved_by,
+            "approver_name": user_map.get(so.approved_by) if so.approved_by else None,
+            "approved_at": so.approved_at,
+            "rejected_reason": so.rejected_reason,
+            "requested_approver_id": so.requested_approver_id,
+            "is_active": so.is_active,
+            "lines": [
+                {
+                    "id": line.id,
+                    "so_id": line.so_id,
+                    "product_id": line.product_id,
+                    "quantity": line.quantity,
+                    "unit_price": line.unit_price,
+                    "created_at": line.created_at,
+                    "updated_at": line.updated_at,
+                }
+                for line in (so.lines or [])
+            ],
+            "created_at": so.created_at,
+            "updated_at": so.updated_at,
+        }
+        enriched.append(d)
+
+    return enriched

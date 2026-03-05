@@ -1,14 +1,16 @@
 """
 SSS Corp ERP — Sales API Routes
-Phase 3: Sales Order CRUD + approve
+SO Flow Upgrade: CRUD + submit + approve/reject + cancel
 
-Endpoints (from CLAUDE.md):
+Endpoints:
   GET    /api/sales/orders                    sales.order.read
   POST   /api/sales/orders                    sales.order.create
   GET    /api/sales/orders/{id}               sales.order.read
-  PUT    /api/sales/orders/{id}               sales.order.update
-  DELETE /api/sales/orders/{id}               sales.order.delete
-  POST   /api/sales/orders/{id}/approve       sales.order.approve
+  PUT    /api/sales/orders/{id}               sales.order.update   (DRAFT/SUBMITTED)
+  DELETE /api/sales/orders/{id}               sales.order.delete   (DRAFT only)
+  POST   /api/sales/orders/{id}/submit        sales.order.create   (DRAFT→SUBMITTED)
+  POST   /api/sales/orders/{id}/approve       sales.order.approve  (body: {action, reason})
+  POST   /api/sales/orders/{id}/cancel        sales.order.update   (DRAFT/SUBMITTED→CANCELLED)
 """
 
 from typing import Optional
@@ -22,6 +24,7 @@ from app.core.database import get_db
 from app.core.permissions import require
 from app.core.security import get_token_payload
 from app.schemas.sales import (
+    SOApproveRequest,
     SalesOrderCreate,
     SalesOrderListResponse,
     SalesOrderResponse,
@@ -30,10 +33,13 @@ from app.schemas.sales import (
 from app.services.organization import check_approval_bypass
 from app.services.sales import (
     approve_sales_order,
+    cancel_sales_order,
     create_sales_order,
     delete_sales_order,
+    enrich_sales_orders,
     get_sales_order,
     list_sales_orders,
+    submit_sales_order,
     update_sales_order,
 )
 
@@ -60,7 +66,8 @@ async def api_list_orders(
     items, total = await list_sales_orders(
         db, limit=limit, offset=offset, search=search, so_status=status, org_id=org_id
     )
-    return SalesOrderListResponse(items=items, total=total, limit=limit, offset=offset)
+    enriched = await enrich_sales_orders(db, items)
+    return SalesOrderListResponse(items=enriched, total=total, limit=limit, offset=offset)
 
 
 @sales_router.post(
@@ -88,10 +95,8 @@ async def api_create_order(
         requested_approver_id=body.requested_approver_id,
         vat_rate=body.vat_rate,
     )
-    # Phase 4.2: Auto-approve if bypass is on
-    if await check_approval_bypass(db, org_id, "sales.order"):
-        so = await approve_sales_order(db, so.id, approved_by=user_id)
-    return so
+    enriched = await enrich_sales_orders(db, [so])
+    return enriched[0]
 
 
 @sales_router.get(
@@ -105,7 +110,9 @@ async def api_get_order(
     token: dict = Depends(get_token_payload),
 ):
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
-    return await get_sales_order(db, so_id, org_id=org_id)
+    so = await get_sales_order(db, so_id, org_id=org_id)
+    enriched = await enrich_sales_orders(db, [so])
+    return enriched[0]
 
 
 @sales_router.put(
@@ -117,9 +124,19 @@ async def api_update_order(
     so_id: UUID,
     body: SalesOrderUpdate,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
-    return await update_sales_order(db, so_id, update_data=update_data)
+    # Convert lines from Pydantic models to dicts
+    if "lines" in update_data and update_data["lines"] is not None:
+        update_data["lines"] = [
+            l.model_dump() if hasattr(l, "model_dump") else l
+            for l in body.lines
+        ]
+    so = await update_sales_order(db, so_id, update_data=update_data, org_id=org_id)
+    enriched = await enrich_sales_orders(db, [so])
+    return enriched[0]
 
 
 @sales_router.delete(
@@ -130,8 +147,32 @@ async def api_update_order(
 async def api_delete_order(
     so_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
-    await delete_sales_order(db, so_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    await delete_sales_order(db, so_id, org_id=org_id)
+
+
+@sales_router.post(
+    "/orders/{so_id}/submit",
+    response_model=SalesOrderResponse,
+    dependencies=[Depends(require("sales.order.create"))],
+)
+async def api_submit_order(
+    so_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    user_id = UUID(token["sub"])
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    so = await submit_sales_order(db, so_id, org_id=org_id)
+
+    # Phase 4.2: Auto-approve if bypass is on
+    if await check_approval_bypass(db, org_id, "sales.order"):
+        so = await approve_sales_order(db, so_id, approved_by=user_id, org_id=org_id)
+
+    enriched = await enrich_sales_orders(db, [so])
+    return enriched[0]
 
 
 @sales_router.post(
@@ -141,8 +182,35 @@ async def api_delete_order(
 )
 async def api_approve_order(
     so_id: UUID,
+    body: SOApproveRequest,
     token: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
     user_id = UUID(token["sub"])
-    return await approve_sales_order(db, so_id, approved_by=user_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    so = await approve_sales_order(
+        db,
+        so_id,
+        approved_by=user_id,
+        action=body.action,
+        reason=body.reason,
+        org_id=org_id,
+    )
+    enriched = await enrich_sales_orders(db, [so])
+    return enriched[0]
+
+
+@sales_router.post(
+    "/orders/{so_id}/cancel",
+    response_model=SalesOrderResponse,
+    dependencies=[Depends(require("sales.order.update"))],
+)
+async def api_cancel_order(
+    so_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    so = await cancel_sales_order(db, so_id, org_id=org_id)
+    enriched = await enrich_sales_orders(db, [so])
+    return enriched[0]
