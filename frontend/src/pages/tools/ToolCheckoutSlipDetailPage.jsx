@@ -118,15 +118,15 @@ export default function ToolCheckoutSlipDetailPage() {
     },
     {
       title: 'สถานะ', key: 'returned', width: 100, align: 'center',
-      render: (_, record) => (
-        record.is_returned ? (
-          <Tag color="green" style={{ fontSize: 11 }}>คืนแล้ว</Tag>
-        ) : record.checkout_id ? (
-          <Tag color="orange" style={{ fontSize: 11 }}>กำลังใช้</Tag>
-        ) : (
-          <Tag style={{ fontSize: 11 }}>รอจ่าย</Tag>
-        )
-      ),
+      render: (_, record) => {
+        if (record.is_returned) return <Tag color="green" style={{ fontSize: 11 }}>คืนแล้ว</Tag>;
+        if (record.checkout_id) return <Tag color="orange" style={{ fontSize: 11 }}>กำลังใช้</Tag>;
+        // Un-issued line: show "ไม่ได้จ่าย" if slip is closed, else "รอจ่าย"
+        const closed = ['RETURNED', 'CANCELLED', 'CHECKED_OUT', 'PARTIAL_RETURN'].includes(slip?.status);
+        return closed
+          ? <Tag color="default" style={{ fontSize: 11 }}>ไม่ได้จ่าย</Tag>
+          : <Tag style={{ fontSize: 11 }}>รอจ่าย</Tag>;
+      },
     },
     {
       title: 'คืนเมื่อ', key: 'returned_at', width: 140,
