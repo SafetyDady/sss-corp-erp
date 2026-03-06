@@ -12,7 +12,13 @@ import ToolCheckoutModal from './ToolCheckoutModal';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
 
-export default function ToolListPage({ embedded = false }) {
+/**
+ * ToolListPage — reusable in 3 contexts:
+ * - default: full management (CRUD + checkout/checkin)
+ * - embedded: no PageHeader
+ * - myCheckoutsMode: simplified view for staff — checkout/checkin only, no CRUD
+ */
+export default function ToolListPage({ embedded = false, myCheckoutsMode = false }) {
   const { can } = usePermission();
   const { message } = App.useApp();
   const [items, setItems] = useState([]);
@@ -82,7 +88,7 @@ export default function ToolListPage({ embedded = false }) {
     }
   };
 
-  const columns = [
+  const allColumns = [
     {
       title: 'รหัส', dataIndex: 'code', key: 'code', width: 120,
       render: (v) => <span style={{ fontFamily: 'monospace', color: COLORS.accent }}>{v}</span>,
@@ -109,7 +115,7 @@ export default function ToolListPage({ embedded = false }) {
       render: (v) => <StatusBadge status={v ? 'ACTIVE' : 'INACTIVE'} />,
     },
     {
-      title: '', key: 'actions', width: 180, align: 'right',
+      title: '', key: 'actions', width: myCheckoutsMode ? 120 : 180, align: 'right',
       render: (_, record) => (
         <Space size={4}>
           {record.status === 'AVAILABLE' && can('tools.tool.execute') && (
@@ -139,13 +145,13 @@ export default function ToolListPage({ embedded = false }) {
                 onClick={() => handleViewHistory(record)} />
             </Tooltip>
           )}
-          {can('tools.tool.update') && (
+          {!myCheckoutsMode && can('tools.tool.update') && (
             <Tooltip title="แก้ไขเครื่องมือ">
               <Button type="text" size="small" icon={<Pencil size={14} />}
                 onClick={() => { setEditItem(record); setFormModalOpen(true); }} />
             </Tooltip>
           )}
-          {can('tools.tool.delete') && (
+          {!myCheckoutsMode && can('tools.tool.delete') && (
             <Popconfirm
               title="ยืนยันการลบ"
               description={`ลบเครื่องมือ "${record.name}" (${record.code})?`}
@@ -162,12 +168,17 @@ export default function ToolListPage({ embedded = false }) {
     },
   ];
 
+  // myCheckoutsMode: simplified columns (code, name, status, actions only)
+  const columns = myCheckoutsMode
+    ? allColumns.filter((c) => ['code', 'name', 'status', 'actions'].includes(c.key))
+    : allColumns;
+
   return (
     <div>
       {!embedded && <PageHeader title="เครื่องมือ" subtitle="จัดการเครื่องมือ — เบิก, คืน, ดูประวัติ" />}
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <SearchInput onSearch={setSearch} placeholder="ค้นหารหัส, ชื่อเครื่องมือ..." />
-        {can('tools.tool.create') && (
+        {!myCheckoutsMode && can('tools.tool.create') && (
           <Button type="primary" icon={<Plus size={14} />}
             onClick={() => { setEditItem(null); setFormModalOpen(true); }}>
             เพิ่มเครื่องมือ

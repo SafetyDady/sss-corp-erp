@@ -6,7 +6,7 @@ import {
   DollarSign, BarChart3, Users, Wrench, Database, Settings,
   UserCheck, LogOut, User, ChevronLeft, ChevronRight, CalendarRange,
   ClipboardList, CalendarOff, Clock, CalendarCheck, Boxes,
-  ClipboardCheck,
+  ClipboardCheck, ClipboardPen, Store,
 } from 'lucide-react';
 import useAuthStore from './stores/authStore';
 import { usePermission } from './hooks/usePermission';
@@ -42,17 +42,21 @@ const ARDetailPage = lazy(() => import('./pages/finance/ARDetailPage'));
 const AdminPage = lazy(() => import('./pages/admin/AdminPage'));
 const PlanningPage = lazy(() => import('./pages/planning/PlanningPage'));
 const SetupWizardPage = lazy(() => import('./pages/setup/SetupWizardPage'));
-const MyDailyReportPage = lazy(() => import('./pages/my/MyDailyReportPage'));
-const MyLeavePage = lazy(() => import('./pages/my/MyLeavePage'));
-const MyTimesheetPage = lazy(() => import('./pages/my/MyTimesheetPage'));
-const MyTasksPage = lazy(() => import('./pages/my/MyTasksPage'));
 const MePage = lazy(() => import('./pages/my/MePage'));
 const ApprovalPage = lazy(() => import('./pages/approval/ApprovalPage'));
 const SupplyChainPage = lazy(() => import('./pages/supply-chain/SupplyChainPage'));
 const WithdrawalSlipDetailPage = lazy(() => import('./pages/supply-chain/WithdrawalSlipDetailPage'));
+const CommonActPage = lazy(() => import('./pages/common-act/CommonActPage'));
+const StoreRoomPage = lazy(() => import('./pages/store/StoreRoomPage'));
+
+// --- Sidebar Menu Groups ---
 
 const MY_MENU_ITEMS = [
   { key: '/me', icon: <User size={18} />, label: 'ME', permission: '_me_check' },
+];
+
+const COMMON_ACT_MENU_ITEMS = [
+  { key: '/common-act', icon: <ClipboardPen size={18} />, label: 'ดำเนินการ', permission: '_common_act_check' },
 ];
 
 const APPROVAL_MENU_ITEMS = [
@@ -62,6 +66,7 @@ const APPROVAL_MENU_ITEMS = [
 const SYSTEM_MENU_ITEMS = [
   { key: '/', icon: <LayoutDashboard size={18} />, label: 'Dashboard', permission: null },
   { key: '/supply-chain', icon: <Boxes size={18} />, label: 'Supply Chain', permission: 'inventory.product.read' },
+  { key: '/store', icon: <Store size={18} />, label: 'Store & Tools', permission: '_store_check' },
   { key: '/work-orders', icon: <FileText size={18} />, label: 'Work Orders', permission: 'workorder.order.read' },
   { key: '/purchasing', icon: <ShoppingCart size={18} />, label: 'Purchasing', permission: '_purchasing_check' },
   { key: '/sales', icon: <DollarSign size={18} />, label: 'Sales', permission: '_sales_check' },
@@ -89,10 +94,10 @@ function AppLayout() {
   const { can } = usePermission();
   const [collapsed, setCollapsed] = useState(false);
 
+  // Group 1: ส่วนตัว (ME)
   const myItems = MY_MENU_ITEMS.filter((item) => {
     if (item.permission === '_me_check') {
-      return can('workorder.plan.read') || can('hr.timesheet.read') ||
-             can('hr.leave.read') || can('hr.dailyreport.read');
+      return can('hr.timesheet.read') || can('hr.leave.read') || can('hr.payroll.read');
     }
     return !item.permission || can(item.permission);
   }).map((item) => ({
@@ -101,6 +106,24 @@ function AppLayout() {
     label: item.label,
   }));
 
+  // Group 2: ดำเนินการ (Common-Act) — ไม่ใช้ dept menu filter (personal)
+  const commonActItems = COMMON_ACT_MENU_ITEMS.filter((item) => {
+    if (item.permission === '_common_act_check') {
+      return can('inventory.withdrawal.create') || can('inventory.withdrawal.read') ||
+             can('purchasing.pr.create') || can('purchasing.pr.read') ||
+             can('tools.tool.execute') || can('tools.tool.read') ||
+             can('hr.dailyreport.create') || can('hr.dailyreport.read') ||
+             can('hr.leave.create') || can('hr.leave.read') ||
+             can('workorder.plan.read');
+    }
+    return !item.permission || can(item.permission);
+  }).map((item) => ({
+    key: item.key,
+    icon: item.icon,
+    label: item.label,
+  }));
+
+  // Group 3: อนุมัติ
   const approvalItems = APPROVAL_MENU_ITEMS.filter((item) => {
     if (item.permission === '_approval_check') {
       return can('hr.dailyreport.approve') || can('hr.timesheet.approve') ||
@@ -114,6 +137,7 @@ function AppLayout() {
     label: item.label,
   }));
 
+  // Group 4: ระบบงาน — with dept menu filter (G6)
   const deptMenu = useAuthStore((s) => s.deptMenu);
 
   const systemItems = SYSTEM_MENU_ITEMS.filter((item) => {
@@ -122,6 +146,8 @@ function AppLayout() {
       if (!can('purchasing.pr.read') && !can('purchasing.po.read')) return false;
     } else if (item.permission === '_sales_check') {
       if (!can('sales.order.read') && !can('sales.delivery.read')) return false;
+    } else if (item.permission === '_store_check') {
+      if (!can('inventory.withdrawal.approve') && !can('inventory.withdrawal.read') && !can('tools.tool.read')) return false;
     } else if (item.permission && !can(item.permission)) {
       return false;
     }
@@ -138,27 +164,36 @@ function AppLayout() {
   }));
 
   const visibleItems = [
-    // Group 1: ME
+    // Group 1: ส่วนตัว
     ...(myItems.length > 0
       ? [
-          { key: 'grp-my', type: 'group', label: collapsed ? null : 'ME', children: myItems },
+          { key: 'grp-my', type: 'group', label: collapsed ? null : 'ส่วนตัว', children: myItems },
         ]
       : []),
-    // Group 2: อนุมัติ
+    // Group 2: ดำเนินการ
+    ...(commonActItems.length > 0
+      ? [
+          { key: 'grp-common-act', type: 'group', label: collapsed ? null : 'ดำเนินการ', children: commonActItems },
+        ]
+      : []),
+    // Group 3: อนุมัติ
     ...(approvalItems.length > 0
       ? [
           { key: 'grp-approval', type: 'group', label: collapsed ? null : 'อนุมัติ', children: approvalItems },
         ]
       : []),
-    // Group 3: ระบบงาน
+    // Group 4: ระบบงาน
     { key: 'grp-system', type: 'group', label: collapsed ? null : 'ระบบงาน', children: systemItems },
   ];
 
   const selectedKey = (() => {
     const path = location.pathname;
-    if (path === '/me' || path.startsWith('/my/')) return '/me';
+    if (path === '/me' || path === '/my/timesheet') return '/me';
+    if (path === '/common-act') return '/common-act';
     if (path === '/approval') return '/approval';
-    if (path.startsWith('/supply-chain') || path.startsWith('/inventory') || path.startsWith('/warehouse') || path.startsWith('/tools') || path.startsWith('/withdrawal-slips')) return '/supply-chain';
+    if (path === '/store') return '/store';
+    if (path.startsWith('/supply-chain') || path.startsWith('/inventory') || path.startsWith('/warehouse')) return '/supply-chain';
+    if (path.startsWith('/withdrawal-slips')) return '/store';
     return '/' + path.split('/')[1];
   })();
 
@@ -255,17 +290,20 @@ function AppLayout() {
             <Routes>
               <Route path="/" element={<DashboardPage />} />
               <Route path="/me" element={<MePage />} />
-              <Route path="/my/daily-report" element={<MePage />} />
-              <Route path="/my/leave" element={<MePage />} />
               <Route path="/my/timesheet" element={<MePage />} />
-              <Route path="/my/tasks" element={<MePage />} />
+              {/* Old /my/* routes redirect to /common-act */}
+              <Route path="/my/daily-report" element={<Navigate to="/common-act" replace />} />
+              <Route path="/my/leave" element={<Navigate to="/common-act" replace />} />
+              <Route path="/my/tasks" element={<Navigate to="/common-act" replace />} />
+              <Route path="/common-act" element={<CommonActPage />} />
+              <Route path="/store" element={<StoreRoomPage />} />
               <Route path="/approval" element={<ApprovalPage />} />
               <Route path="/supply-chain" element={<SupplyChainPage />} />
               <Route path="/inventory" element={<Navigate to="/supply-chain" replace />} />
               <Route path="/inventory/movements" element={<Navigate to="/supply-chain" replace />} />
               <Route path="/warehouse" element={<Navigate to="/supply-chain" replace />} />
               <Route path="/warehouse/locations" element={<Navigate to="/supply-chain" replace />} />
-              <Route path="/tools" element={<Navigate to="/supply-chain" replace />} />
+              <Route path="/tools" element={<Navigate to="/store" replace />} />
               <Route path="/withdrawal-slips/:id" element={<WithdrawalSlipDetailPage />} />
               <Route path="/work-orders" element={<WorkOrderListPage />} />
               <Route path="/work-orders/:id" element={<WorkOrderDetailPage />} />

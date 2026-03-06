@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Table, Button, App, Space, Select, Popconfirm } from 'antd';
-import { Plus, Eye, Trash2, ClipboardList } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Table, Button, App, Space, Select, Popconfirm, Typography, Tag } from 'antd';
+import { Plus, Eye, Trash2, ClipboardList, FileEdit } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '../../hooks/usePermission';
+import useAuthStore from '../../stores/authStore';
 import api from '../../services/api';
 import SearchInput from '../../components/SearchInput';
 import StatusBadge from '../../components/StatusBadge';
@@ -11,21 +12,30 @@ import WithdrawalSlipFormModal from './WithdrawalSlipFormModal';
 import { formatDate, getApiErrorMsg } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
 
+const { Text } = Typography;
+
 const STATUS_OPTIONS = ['DRAFT', 'PENDING', 'ISSUED', 'CANCELLED'].map((v) => ({ value: v, label: v }));
 const TYPE_OPTIONS = [
   { value: 'WO_CONSUME', label: 'WO_CONSUME' },
   { value: 'CC_ISSUE', label: 'CC_ISSUE' },
 ];
 
-export default function WithdrawalSlipTab() {
+/**
+ * WithdrawalSlipTab — reusable in 3 contexts:
+ * - default (SupplyChainPage): full view, all slips
+ * - staffMode (CommonActPage): filtered to own slips (client-side by employeeId)
+ * - storeMode (StoreRoomPage): default PENDING filter, "บันทึก Manual" button
+ */
+export default function WithdrawalSlipTab({ staffMode = false, storeMode = false }) {
   const { can } = usePermission();
   const { message } = App.useApp();
   const navigate = useNavigate();
+  const employeeId = useAuthStore((s) => s.employeeId);
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState(undefined);
+  const [statusFilter, setStatusFilter] = useState(storeMode ? 'PENDING' : undefined);
   const [typeFilter, setTypeFilter] = useState(undefined);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
   const [modalOpen, setModalOpen] = useState(false);
@@ -53,6 +63,18 @@ export default function WithdrawalSlipTab() {
   }, [pagination.current, pagination.pageSize, search, statusFilter, typeFilter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Client-side filter for staffMode: show only own slips
+  const displayItems = useMemo(() => {
+    if (staffMode && employeeId) {
+      return items.filter((i) => i.requested_by === employeeId);
+    }
+    return items;
+  }, [items, staffMode, employeeId]);
+
+  const displayTotal = staffMode && employeeId
+    ? displayItems.length
+    : total;
 
   const handleDelete = async (id) => {
     try {
@@ -154,6 +176,16 @@ export default function WithdrawalSlipTab() {
 
   return (
     <div>
+      {/* Staff mode indicator */}
+      {staffMode && (
+        <div style={{ marginBottom: 12 }}>
+          <Tag color="cyan" style={{ fontSize: 12 }}>
+            <ClipboardList size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+            แสดงเฉพาะใบเบิกของฉัน
+          </Tag>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 12 }}>
@@ -181,7 +213,26 @@ export default function WithdrawalSlipTab() {
             options={TYPE_OPTIONS}
           />
         </div>
-        {can('inventory.withdrawal.create') && (
+        {/* Create button — context-aware */}
+        {staffMode && can('inventory.withdrawal.create') && (
+          <Button
+            type="primary"
+            icon={<Plus size={14} />}
+            onClick={() => { setEditRecord(null); setModalOpen(true); }}
+          >
+            สร้างใบเบิก
+          </Button>
+        )}
+        {storeMode && can('inventory.withdrawal.create') && (
+          <Button
+            type="primary"
+            icon={<FileEdit size={14} />}
+            onClick={() => { setEditRecord(null); setModalOpen(true); }}
+          >
+            บันทึก Manual
+          </Button>
+        )}
+        {!staffMode && !storeMode && can('inventory.withdrawal.create') && (
           <Button
             type="primary"
             icon={<Plus size={14} />}
@@ -195,15 +246,20 @@ export default function WithdrawalSlipTab() {
       {/* Table */}
       <Table
         loading={loading}
-        dataSource={items}
+        dataSource={displayItems}
         columns={columns}
         rowKey="id"
-        locale={{ emptyText: <EmptyState message="ไม่มีใบเบิกสินค้า" /> }}
+        locale={{ emptyText: <EmptyState message={staffMode ? 'คุณยังไม่มีใบเบิก' : 'ไม่มีใบเบิกสินค้า'} /> }}
         onRow={(record) => ({
           onClick: () => navigate(`/withdrawal-slips/${record.id}`),
           style: { cursor: 'pointer' },
         })}
-        pagination={{
+        pagination={staffMode ? {
+          // staffMode: client-side filter so use simple pagination
+          pageSize: 20,
+          showSizeChanger: true,
+          showTotal: (t) => `ทั้งหมด ${t} รายการ`,
+        } : {
           current: pagination.current,
           pageSize: pagination.pageSize,
           total,

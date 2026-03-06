@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-05 v22 (C3: Delivery Order + AR Invoice Print)
+> อัปเดตล่าสุด: 2026-03-06 v23 (Frontend Restructure: ME / Common-Act / Store & Tools Room)
 
 ---
 
@@ -39,11 +39,13 @@ sss-corp-erp/
 ├── frontend/                     ← Vercel deploys this (Root Dir = frontend/)
 │   ├── src/
 │   │   ├── components/           # Shared UI (StatusBadge, ScopeBadge, EmployeeContextSelector, etc.)
-│   │   ├── pages/                # Route pages (~95 files, 29+ routes)
+│   │   ├── pages/                # Route pages (~98 files, 32+ routes)
 │   │   │   ├── setup/            # SetupWizardPage (Phase 4.7)
 │   │   │   ├── planning/         # PlanningPage, DailyPlan, Reservation (Phase 4.5)
 │   │   │   ├── approval/         # ApprovalPage + 6 approval tabs (Phase 7+)
 │   │   │   ├── purchasing/       # PurchasingPage (PR+PO tabs), PRDetail, PODetail, ConvertToPO
+│   │   │   ├── common-act/       # CommonActPage (Staff Actions Hub)
+│   │   │   ├── store/            # StoreRoomPage (Store Officer Workspace)
 │   │   │   ├── supply-chain/    # SupplyChainPage, WithdrawalSlip (Tab, Form, Detail, Issue, Print)
 │   │   │   └── ...               # inventory, warehouse, workorder, hr, etc.
 │   │   ├── hooks/                # usePermission, useAuth, etc.
@@ -1508,7 +1510,10 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `backend/app/schemas/withdrawal.py` | Withdrawal Slip Pydantic schemas (Phase 11.10B) |
 | `backend/app/services/withdrawal.py` | Withdrawal Slip business logic: CRUD + submit + issue + cancel (Phase 11.10B) |
 | `backend/app/api/withdrawal.py` | Withdrawal Slip 8 API endpoints (Phase 11.10B) |
-| `frontend/src/pages/supply-chain/WithdrawalSlipTab.jsx` | Withdrawal list tab in SupplyChainPage (Phase 11.10B) |
+| `frontend/src/pages/common-act/CommonActPage.jsx` | Staff Actions Hub — 6 tabs (Withdrawal staffMode, PR, Tools myCheckoutsMode, DailyReport, Leave, Tasks) |
+| `frontend/src/pages/store/StoreRoomPage.jsx` | Store Officer Workspace — 4 tabs (Pending Slips storeMode, Tools, Products, Low Stock) |
+| `frontend/src/pages/my/LeaveBalanceReadOnly.jsx` | Read-only leave balance for ME page (no create button) |
+| `frontend/src/pages/supply-chain/WithdrawalSlipTab.jsx` | Withdrawal list tab — staffMode/storeMode props (Phase 11.10B + UX Restructure) |
 | `frontend/src/pages/supply-chain/WithdrawalSlipFormModal.jsx` | Create/edit multi-line withdrawal slip (Phase 11.10B) |
 | `frontend/src/pages/supply-chain/WithdrawalSlipDetailPage.jsx` | Withdrawal detail + status actions (Phase 11.10B) |
 | `frontend/src/pages/supply-chain/WithdrawalSlipIssueModal.jsx` | Issue confirmation — per-line issued_qty (Phase 11.10B) |
@@ -1587,4 +1592,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v22 (Phase 0-7.9 complete + Phase 10 partial + Phase 11 partial + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete, Phase 8-14 planned)*
+*End of CLAUDE.md — SSS Corp ERP v23 (Phase 0-7.9 complete + Phase 10 partial + Phase 11 partial + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete, Phase 8-14 planned)*

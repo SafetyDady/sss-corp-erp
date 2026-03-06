@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Tabs, Row, Col, App } from 'antd';
-import { Package, Warehouse, Wrench, ArrowRightLeft, MapPin, AlertTriangle, ClipboardList } from 'lucide-react';
+import { Tabs, Row, Col } from 'antd';
+import { Package, Warehouse, ArrowRightLeft, MapPin, AlertTriangle } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import StatCard from '../../components/StatCard';
 import { COLORS } from '../../utils/constants';
@@ -11,12 +11,14 @@ import ProductListPage from '../inventory/ProductListPage';
 import MovementListPage from '../inventory/MovementListPage';
 import WarehouseListPage from '../warehouse/WarehouseListPage';
 import LocationListPage from '../warehouse/LocationListPage';
-import ToolListPage from '../tools/ToolListPage';
-import WithdrawalSlipTab from './WithdrawalSlipTab';
 
+/**
+ * SupplyChainPage — Inventory, Movements, Warehouse, Locations
+ * Tools + Withdrawal ย้ายไป Store & Tools Room แล้ว
+ */
 export default function SupplyChainPage() {
   const { can } = usePermission();
-  const [stats, setStats] = useState({ products: 0, movements: 0, warehouses: 0, tools: 0, lowStock: 0, pendingSlips: 0 });
+  const [stats, setStats] = useState({ products: 0, movements: 0, warehouses: 0, lowStock: 0 });
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -36,17 +38,9 @@ export default function SupplyChainPage() {
           requests.push(api.get('/api/warehouse/warehouses', { params: { limit: 1, offset: 0 } }));
           keys.push('warehouses');
         }
-        if (can('tools.tool.read')) {
-          requests.push(api.get('/api/tools', { params: { limit: 1, offset: 0 } }));
-          keys.push('tools');
-        }
         if (can('inventory.product.read')) {
           requests.push(api.get('/api/inventory/low-stock-count'));
           keys.push('lowStock');
-        }
-        if (can('inventory.withdrawal.read')) {
-          requests.push(api.get('/api/inventory/withdrawal-slips', { params: { limit: 1, offset: 0, status: 'PENDING' } }));
-          keys.push('pendingSlips');
         }
 
         const results = await Promise.allSettled(requests);
@@ -110,29 +104,9 @@ export default function SupplyChainPage() {
     });
   }
 
-  if (can('tools.tool.read')) {
-    tabItems.push({
-      key: 'tools',
-      label: (
-        <span><Wrench size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />เครื่องมือ</span>
-      ),
-      children: <ToolListPage embedded />,
-    });
-  }
-
-  if (can('inventory.withdrawal.read')) {
-    tabItems.push({
-      key: 'withdrawal',
-      label: (
-        <span><ClipboardList size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />ใบเบิกของ</span>
-      ),
-      children: <WithdrawalSlipTab />,
-    });
-  }
-
   return (
     <div>
-      <PageHeader title="Supply Chain" subtitle="Inventory, Warehouse & Tools" />
+      <PageHeader title="Supply Chain" subtitle="Inventory & Warehouse" />
 
       {/* Stat Cards */}
       <Row gutter={16} style={{ marginBottom: 24 }}>
@@ -169,17 +143,6 @@ export default function SupplyChainPage() {
             />
           </Col>
         )}
-        {can('tools.tool.read') && (
-          <Col xs={12} sm={6}>
-            <StatCard
-              title="Tools"
-              value={stats.tools}
-              subtitle="เครื่องมือ"
-              icon={<Wrench size={20} />}
-              color={COLORS.purple}
-            />
-          </Col>
-        )}
         {can('inventory.product.read') && (
           <Col xs={12} sm={6}>
             <StatCard
@@ -188,17 +151,6 @@ export default function SupplyChainPage() {
               subtitle="สินค้าต่ำกว่า Min Stock"
               icon={<AlertTriangle size={20} />}
               color={COLORS.danger}
-            />
-          </Col>
-        )}
-        {can('inventory.withdrawal.read') && (
-          <Col xs={12} sm={6}>
-            <StatCard
-              title="Pending Slips"
-              value={stats.pendingSlips}
-              subtitle="ใบเบิกรอจ่ายของ"
-              icon={<ClipboardList size={20} />}
-              color="#f59e0b"
             />
           </Col>
         )}
