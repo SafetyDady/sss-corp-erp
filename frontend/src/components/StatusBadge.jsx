@@ -51,7 +51,6 @@ const STATUS_CONFIG = {
   PRODUCE: { color: '#10b981' },
   SHIPPED: { color: '#10b981' },
   // Tool Checkout Slip
-  PARTIAL_ISSUED: { color: '#3b82f6' },
   PARTIAL_RETURN: { color: '#f59e0b' },
   RETURNED: { color: '#10b981' },
 };

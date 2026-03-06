@@ -1,7 +1,7 @@
 """
 SSS Corp ERP — Tool Checkout Slip Schemas (Pydantic v2)
 Multi-line tool checkout document: header + lines
-Flow: DRAFT → PENDING → PARTIAL_ISSUED/CHECKED_OUT → PARTIAL_RETURN/RETURNED (+CANCELLED)
+Flow: DRAFT → PENDING → CHECKED_OUT → PARTIAL_RETURN/RETURNED (+CANCELLED)
 """
 
 from datetime import datetime

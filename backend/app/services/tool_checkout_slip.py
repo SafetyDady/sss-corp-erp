@@ -436,7 +436,7 @@ async def issue_tool_checkout_slip(
 
 
 # ============================================================
-# RETURN (per-line) — CHECKED_OUT/PARTIAL_RETURN/PARTIAL_ISSUED → status depends on state
+# RETURN (per-line) — CHECKED_OUT/PARTIAL_RETURN → status depends on state
 # ============================================================
 
 async def return_tool_checkout_slip_lines(

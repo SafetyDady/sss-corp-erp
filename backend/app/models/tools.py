@@ -48,8 +48,7 @@ class ToolStatus(str, enum.Enum):
 class ToolCheckoutSlipStatus(str, enum.Enum):
     DRAFT = "DRAFT"
     PENDING = "PENDING"
-    PARTIAL_ISSUED = "PARTIAL_ISSUED"  # Some lines issued, some still pending
-    CHECKED_OUT = "CHECKED_OUT"        # All lines issued
+    CHECKED_OUT = "CHECKED_OUT"        # Cut-off at issue: selected lines issued, rest skipped
     PARTIAL_RETURN = "PARTIAL_RETURN"
     RETURNED = "RETURNED"
     CANCELLED = "CANCELLED"
