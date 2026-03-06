@@ -187,12 +187,12 @@ function AppLayout() {
   })();
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ height: '100vh', overflow: 'hidden' }}>
       <Sider
         width={210}
         collapsedWidth={56}
         collapsed={collapsed}
-        style={{ background: COLORS.sidebar, display: 'flex', flexDirection: 'column' }}
+        style={{ background: COLORS.sidebar, display: 'flex', flexDirection: 'column', height: '100vh' }}
         theme="dark"
       >
         <div
@@ -252,7 +252,7 @@ function AppLayout() {
           />
         </div>
       </Sider>
-      <Layout>
+      <Layout style={{ overflow: 'hidden' }}>
         <Header
           style={{
             background: COLORS.surface,
@@ -281,7 +281,7 @@ function AppLayout() {
             {'\u0E2D\u0E2D\u0E01\u0E08\u0E32\u0E01\u0E23\u0E30\u0E1A\u0E1A'}
           </Button>
         </Header>
-        <Content style={{ margin: 24, minHeight: 280, flex: 1, overflow: 'auto' }}>
+        <Content style={{ padding: 24, flex: 1, overflow: 'auto' }}>
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<DashboardPage />} />

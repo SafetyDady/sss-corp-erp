@@ -188,3 +188,11 @@ body {
   border-color: #1e1e2e !important;
   margin: 4px 16px !important;
 }
+
+/* Sticky Tabs navigation — tab bar stays visible when scrolling content */
+.ant-tabs > .ant-tabs-nav {
+  position: sticky !important;
+  top: 0;
+  z-index: 10;
+  background: #0a0a0f;
+}
