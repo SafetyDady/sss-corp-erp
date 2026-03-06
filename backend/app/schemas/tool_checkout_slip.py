@@ -1,7 +1,7 @@
 """
 SSS Corp ERP — Tool Checkout Slip Schemas (Pydantic v2)
 Multi-line tool checkout document: header + lines
-Flow: DRAFT → PENDING → CHECKED_OUT → PARTIAL_RETURN/RETURNED (+CANCELLED)
+Flow: DRAFT → PENDING → PARTIAL_ISSUED/CHECKED_OUT → PARTIAL_RETURN/RETURNED (+CANCELLED)
 """
 
 from datetime import datetime
@@ -119,6 +119,7 @@ class ToolCheckoutSlipResponse(BaseModel):
     is_active: bool
     lines: list[ToolCheckoutSlipLineResponse] = []
     line_count: int = 0
+    issued_count: int = 0
     returned_count: int = 0
     total_charge: Decimal = Decimal("0.00")
     created_at: datetime

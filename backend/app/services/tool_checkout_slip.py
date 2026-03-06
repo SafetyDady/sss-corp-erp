@@ -237,7 +237,12 @@ async def list_tool_checkout_slips(
             ToolCheckoutSlip.note.ilike(pattern),
         ))
     if slip_status:
-        query = query.where(ToolCheckoutSlip.status == slip_status)
+        # Support comma-separated multi-status filter (e.g. "CHECKED_OUT,PARTIAL_RETURN")
+        statuses = [s.strip() for s in slip_status.split(",")]
+        if len(statuses) == 1:
+            query = query.where(ToolCheckoutSlip.status == statuses[0])
+        else:
+            query = query.where(ToolCheckoutSlip.status.in_(statuses))
     if requested_by:
         query = query.where(ToolCheckoutSlip.requested_by == requested_by)
 
@@ -346,6 +351,7 @@ async def cancel_tool_checkout_slip(
 ) -> ToolCheckoutSlip:
     """Cancel a DRAFT or PENDING slip."""
     slip = await get_tool_checkout_slip(db, slip_id, org_id=org_id)
+
     if slip.status not in (ToolCheckoutSlipStatus.DRAFT, ToolCheckoutSlipStatus.PENDING):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -357,7 +363,7 @@ async def cancel_tool_checkout_slip(
 
 
 # ============================================================
-# ISSUE (PENDING → CHECKED_OUT) — creates ToolCheckout per line
+# ISSUE (PENDING → CHECKED_OUT) — creates ToolCheckout per selected line
 # ============================================================
 
 async def issue_tool_checkout_slip(
@@ -365,8 +371,9 @@ async def issue_tool_checkout_slip(
     issue_data: dict, issued_by: UUID, org_id: UUID,
 ) -> ToolCheckoutSlip:
     """
-    Issue a PENDING slip — creates ToolCheckout for each selected line
-    by reusing existing checkout_tool() from services/tools.py.
+    Issue selected lines of a PENDING slip — cut off at issue time.
+    Only selected lines get issued. Un-selected lines are skipped (no future issue).
+    If more tools needed later, create a new slip.
     """
     slip = await get_tool_checkout_slip(db, slip_id, org_id=org_id)
     if slip.status != ToolCheckoutSlipStatus.PENDING:
@@ -417,6 +424,7 @@ async def issue_tool_checkout_slip(
         )
         line.checkout_id = checkout.id
 
+    # Always CHECKED_OUT — cut off at issue time
     slip.status = ToolCheckoutSlipStatus.CHECKED_OUT
     slip.issued_by = issued_by
     slip.issued_at = datetime.now(timezone.utc)
@@ -428,7 +436,7 @@ async def issue_tool_checkout_slip(
 
 
 # ============================================================
-# RETURN (per-line) — CHECKED_OUT/PARTIAL_RETURN → PARTIAL_RETURN/RETURNED
+# RETURN (per-line) — CHECKED_OUT/PARTIAL_RETURN/PARTIAL_ISSUED → status depends on state
 # ============================================================
 
 async def return_tool_checkout_slip_lines(
@@ -438,7 +446,7 @@ async def return_tool_checkout_slip_lines(
     """
     Return selected lines — reuses existing checkin_tool() from services/tools.py.
     Auto-charges hours × rate_per_hour on each return (BR#28).
-    All lines returned → RETURNED, otherwise → PARTIAL_RETURN.
+    Status after return depends on whether all lines issued and all issued lines returned.
     """
     slip = await get_tool_checkout_slip(db, slip_id, org_id=org_id)
     if slip.status not in (
@@ -491,11 +499,17 @@ async def return_tool_checkout_slip_lines(
         line.returned_by = returned_by
         line.charge_amount = checkout.charge_amount
 
-    # Determine new slip status
-    all_returned = all(line.is_returned for line in slip.lines)
-    if all_returned:
+    # Determine new slip status based on line states
+    all_lines_issued = all(line.checkout_id is not None for line in slip.lines)
+    all_issued_returned = all(
+        line.is_returned for line in slip.lines if line.checkout_id is not None
+    )
+
+    if all_issued_returned:
+        # All issued lines returned → RETURNED (un-issued lines = skipped)
         slip.status = ToolCheckoutSlipStatus.RETURNED
     else:
+        # Some issued lines still checked out
         slip.status = ToolCheckoutSlipStatus.PARTIAL_RETURN
 
     if return_note:

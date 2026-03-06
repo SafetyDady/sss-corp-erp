@@ -461,7 +461,9 @@ Staff กรอก Timesheet (WO + Regular hrs + OT hrs + OT Type)
 ```
 Staff สร้างใบเบิกเครื่องมือ (tools.tool.create) → เลือก WO + เพิ่มเครื่องมือหลายตัว
 → Submit ใบเบิก (DRAFT→PENDING) (tools.tool.create)
-→ Store Officer จ่ายเครื่องมือ (tools.tool.execute) → PENDING→CHECKED_OUT
+→ Store Officer จ่ายเครื่องมือ (tools.tool.execute):
+  → ตัดยอด ณ ตอนจ่าย — จ่ายแค่ไหนบันทึกแค่นั้น → CHECKED_OUT
+  → รายการที่ไม่ได้จ่ายถูกข้ามไป (ต้องการเพิ่มทำเบิกใบใหม่)
   → ระบบ call checkout_tool() ต่อ line (reuse existing logic)
 → คืนเครื่องมือทีละตัวได้ (tools.tool.execute) → per-line return
   → ระบบ call checkin_tool() + auto charge: (hours) x Tool Rate baht/hr (BR#28)
@@ -969,7 +971,7 @@ GET    /api/tools/checkout-slips/{id}               tools.tool.read
 PUT    /api/tools/checkout-slips/{id}               tools.tool.update    (DRAFT only)
 DELETE /api/tools/checkout-slips/{id}               tools.tool.delete    (DRAFT only)
 POST   /api/tools/checkout-slips/{id}/submit        tools.tool.create    (DRAFT→PENDING)
-POST   /api/tools/checkout-slips/{id}/issue         tools.tool.execute   (PENDING→CHECKED_OUT, calls checkout_tool per line)
+POST   /api/tools/checkout-slips/{id}/issue         tools.tool.execute   (PENDING→CHECKED_OUT, cut-off at issue — selected lines only)
 POST   /api/tools/checkout-slips/{id}/return        tools.tool.execute   (Per-line return, auto-charge hours×rate)
 POST   /api/tools/checkout-slips/{id}/cancel        tools.tool.update    (DRAFT/PENDING→CANCELLED)
 ```

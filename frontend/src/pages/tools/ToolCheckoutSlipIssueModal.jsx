@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Modal, Table, Checkbox, Input, App } from 'antd';
 import api from '../../services/api';
 import { getApiErrorMsg, formatCurrency } from '../../utils/formatters';
@@ -10,13 +10,19 @@ export default function ToolCheckoutSlipIssueModal({ open, slip, onClose, onSucc
   const [issueNote, setIssueNote] = useState('');
   const { message } = App.useApp();
 
+  // Filter out already-issued lines (those with a checkout_id)
+  const unissuedLines = useMemo(() => {
+    if (!slip?.lines) return [];
+    return slip.lines.filter((l) => !l.checkout_id);
+  }, [slip?.lines]);
+
   // Reset when modal opens
   useEffect(() => {
     if (!open || !slip) return;
-    // Select all lines by default
-    setSelectedLineIds((slip.lines || []).map((l) => l.id));
+    // Select all un-issued lines by default
+    setSelectedLineIds(unissuedLines.map((l) => l.id));
     setIssueNote('');
-  }, [open, slip?.id]);
+  }, [open, slip?.id, unissuedLines]);
 
   const handleToggle = (lineId) => {
     setSelectedLineIds((prev) =>
@@ -26,7 +32,7 @@ export default function ToolCheckoutSlipIssueModal({ open, slip, onClose, onSucc
 
   const handleToggleAll = (checked) => {
     if (checked) {
-      setSelectedLineIds((slip?.lines || []).map((l) => l.id));
+      setSelectedLineIds(unissuedLines.map((l) => l.id));
     } else {
       setSelectedLineIds([]);
     }
@@ -53,8 +59,7 @@ export default function ToolCheckoutSlipIssueModal({ open, slip, onClose, onSucc
     }
   };
 
-  const lines = slip?.lines || [];
-  const allSelected = lines.length > 0 && selectedLineIds.length === lines.length;
+  const allSelected = unissuedLines.length > 0 && selectedLineIds.length === unissuedLines.length;
 
   const columns = [
     {
@@ -113,39 +118,50 @@ export default function ToolCheckoutSlipIssueModal({ open, slip, onClose, onSucc
       confirmLoading={loading}
       width={750}
       okText="ยืนยันจ่ายเครื่องมือ"
-      okButtonProps={{ style: { background: COLORS.success } }}
+      okButtonProps={{
+        style: { background: COLORS.success },
+        disabled: unissuedLines.length === 0,
+      }}
       destroyOnHidden
     >
-      <p style={{ color: COLORS.textSecondary, marginBottom: 16, fontSize: 13 }}>
-        เลือกรายการเครื่องมือที่ต้องการจ่าย — เครื่องมือจะถูก checkout ให้พนักงานที่ระบุ
-      </p>
+      {unissuedLines.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '32px 0', color: COLORS.textSecondary }}>
+          จ่ายเครื่องมือครบแล้ว
+        </div>
+      ) : (
+        <>
+          <p style={{ color: COLORS.textSecondary, marginBottom: 16, fontSize: 13 }}>
+            เลือกรายการเครื่องมือที่ต้องการจ่าย — เครื่องมือจะถูก checkout ให้พนักงานที่ระบุ
+          </p>
 
-      <Table
-        dataSource={lines}
-        columns={columns}
-        rowKey="id"
-        pagination={false}
-        size="small"
-        style={{ marginBottom: 16 }}
-      />
+          <Table
+            dataSource={unissuedLines}
+            columns={columns}
+            rowKey="id"
+            pagination={false}
+            size="small"
+            style={{ marginBottom: 16 }}
+          />
 
-      <div style={{ marginBottom: 8, color: COLORS.textSecondary, fontSize: 12 }}>
-        เลือก {selectedLineIds.length} / {lines.length} รายการ
-      </div>
+          <div style={{ marginBottom: 8, color: COLORS.textSecondary, fontSize: 12 }}>
+            เลือก {selectedLineIds.length} / {unissuedLines.length} รายการ
+          </div>
 
-      {/* Issue note */}
-      <div>
-        <label style={{ color: COLORS.textSecondary, fontSize: 12, marginBottom: 4, display: 'block' }}>
-          หมายเหตุการจ่าย
-        </label>
-        <Input.TextArea
-          rows={2}
-          value={issueNote}
-          onChange={(e) => setIssueNote(e.target.value)}
-          placeholder="หมายเหตุเพิ่มเติม (ไม่บังคับ)"
-          maxLength={500}
-        />
-      </div>
+          {/* Issue note */}
+          <div>
+            <label style={{ color: COLORS.textSecondary, fontSize: 12, marginBottom: 4, display: 'block' }}>
+              หมายเหตุการจ่าย
+            </label>
+            <Input.TextArea
+              rows={2}
+              value={issueNote}
+              onChange={(e) => setIssueNote(e.target.value)}
+              placeholder="หมายเหตุเพิ่มเติม (ไม่บังคับ)"
+              maxLength={500}
+            />
+          </div>
+        </>
+      )}
     </Modal>
   );
 }

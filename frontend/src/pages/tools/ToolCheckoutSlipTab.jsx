@@ -17,12 +17,13 @@ const STATUS_OPTIONS = [
 ].map((v) => ({ value: v, label: v }));
 
 /**
- * ToolCheckoutSlipTab — reusable in 3 contexts:
+ * ToolCheckoutSlipTab — reusable in 4 contexts:
  * - default: full view, all slips
  * - staffMode (CommonActPage): filtered to own slips (client-side by employeeId)
  * - storeMode (StoreRoomPage): default PENDING filter, "บันทึก Manual" button
+ * - activeMode (StoreRoomPage): active checkouts (CHECKED_OUT+PARTIAL_RETURN)
  */
-export default function ToolCheckoutSlipTab({ staffMode = false, storeMode = false }) {
+export default function ToolCheckoutSlipTab({ staffMode = false, storeMode = false, activeMode = false }) {
   const { can } = usePermission();
   const { message } = App.useApp();
   const navigate = useNavigate();
@@ -31,7 +32,9 @@ export default function ToolCheckoutSlipTab({ staffMode = false, storeMode = fal
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState(storeMode ? 'PENDING' : undefined);
+  const [statusFilter, setStatusFilter] = useState(
+    storeMode ? 'PENDING' : activeMode ? 'CHECKED_OUT,PARTIAL_RETURN' : undefined
+  );
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
   const [modalOpen, setModalOpen] = useState(false);
   const [editRecord, setEditRecord] = useState(null);
@@ -100,6 +103,14 @@ export default function ToolCheckoutSlipTab({ staffMode = false, storeMode = fal
         <span style={{ color: COLORS.accent, fontWeight: 600 }}>{v ?? 0}</span>
       ),
     },
+    ...(activeMode ? [{
+      title: 'จ่ายแล้ว', key: 'issued', width: 90, align: 'center',
+      render: (_, record) => (
+        <span style={{ fontFamily: 'monospace' }}>
+          {record.issued_count ?? 0}/{record.line_count}
+        </span>
+      ),
+    }] : []),
     {
       title: 'คืนแล้ว', key: 'returned', width: 90, align: 'center',
       render: (_, record) => (
@@ -155,12 +166,20 @@ export default function ToolCheckoutSlipTab({ staffMode = false, storeMode = fal
 
   return (
     <div>
-      {/* Staff mode indicator */}
+      {/* Mode indicator */}
       {staffMode && (
         <div style={{ marginBottom: 12 }}>
           <Tag color="cyan" style={{ fontSize: 12 }}>
             <Wrench size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />
             แสดงเฉพาะใบเบิกเครื่องมือของฉัน
+          </Tag>
+        </div>
+      )}
+      {activeMode && (
+        <div style={{ marginBottom: 12 }}>
+          <Tag color="blue" style={{ fontSize: 12 }}>
+            <Wrench size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+            เครื่องมือที่กำลังยืมอยู่
           </Tag>
         </div>
       )}
@@ -200,7 +219,7 @@ export default function ToolCheckoutSlipTab({ staffMode = false, storeMode = fal
             บันทึก Manual
           </Button>
         )}
-        {!staffMode && !storeMode && can('tools.tool.create') && (
+        {!staffMode && !storeMode && !activeMode && can('tools.tool.create') && (
           <Button
             type="primary"
             icon={<Plus size={14} />}

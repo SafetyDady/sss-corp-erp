@@ -273,6 +273,11 @@ export default function ToolCheckoutSlipDetailPage() {
           <Descriptions.Item label="วันที่สร้าง">
             {formatDate(slip.created_at)}
           </Descriptions.Item>
+          <Descriptions.Item label="จ่ายแล้ว">
+            <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+              {slip.issued_count ?? lines.filter((l) => l.checkout_id).length}/{lines.length}
+            </span>
+          </Descriptions.Item>
           <Descriptions.Item label="คืนแล้ว">
             <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>
               {returnedCount}/{lines.length}

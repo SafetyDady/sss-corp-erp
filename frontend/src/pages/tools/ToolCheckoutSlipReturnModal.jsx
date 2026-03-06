@@ -13,7 +13,7 @@ export default function ToolCheckoutSlipReturnModal({ open, slip, onClose, onSuc
   // Only show unreturned lines
   const unreturnedLines = useMemo(() => {
     if (!slip?.lines) return [];
-    return slip.lines.filter((l) => !l.is_returned);
+    return slip.lines.filter((l) => !l.is_returned && l.checkout_id);
   }, [slip?.lines]);
 
   // Reset when modal opens

@@ -63,11 +63,14 @@ async def _slip_to_response(db, slip) -> dict:
     slip_info = enrichment.get(slip.id, {})
 
     lines = []
+    issued_count = 0
     returned_count = 0
     total_charge = Decimal("0.00")
 
     for line in sorted(slip.lines, key=lambda x: x.line_number):
         le = line_enrichment.get(line.id, {})
+        if line.checkout_id is not None:
+            issued_count += 1
         if line.is_returned:
             returned_count += 1
         total_charge += line.charge_amount
@@ -109,6 +112,7 @@ async def _slip_to_response(db, slip) -> dict:
         "is_active": slip.is_active,
         "lines": lines,
         "line_count": len(lines),
+        "issued_count": issued_count,
         "returned_count": returned_count,
         "total_charge": total_charge,
         "created_at": slip.created_at,
@@ -150,11 +154,14 @@ async def api_list_tool_checkout_slips(
     for slip in items:
         slip_info = enrichment.get(slip.id, {})
         lines = []
+        issued_count = 0
         returned_count = 0
         total_charge = Decimal("0.00")
 
         for line in sorted(slip.lines, key=lambda x: x.line_number):
             le = line_enrichment.get(line.id, {})
+            if line.checkout_id is not None:
+                issued_count += 1
             if line.is_returned:
                 returned_count += 1
             total_charge += line.charge_amount
@@ -196,6 +203,7 @@ async def api_list_tool_checkout_slips(
             "is_active": slip.is_active,
             "lines": lines,
             "line_count": len(lines),
+            "issued_count": issued_count,
             "returned_count": returned_count,
             "total_charge": total_charge,
             "created_at": slip.created_at,

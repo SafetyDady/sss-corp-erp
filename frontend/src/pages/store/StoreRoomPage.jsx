@@ -26,7 +26,7 @@ const { Text } = Typography;
  */
 export default function StoreRoomPage() {
   const { can } = usePermission();
-  const [stats, setStats] = useState({ pendingSlips: 0, pendingToolSlips: 0, lowStock: 0, checkedOutTools: 0 });
+  const [stats, setStats] = useState({ pendingSlips: 0, pendingToolSlips: 0, lowStock: 0, activeToolSlips: 0 });
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -53,10 +53,12 @@ export default function StoreRoomPage() {
           }));
           keys.push('pendingToolSlips');
         }
-        // Tools count
+        // Active tool slips (CHECKED_OUT + PARTIAL_RETURN)
         if (can('tools.tool.read')) {
-          requests.push(api.get('/api/tools', { params: { limit: 1, offset: 0 } }));
-          keys.push('checkedOutTools');
+          requests.push(api.get('/api/tools/checkout-slips', {
+            params: { limit: 1, offset: 0, status: 'CHECKED_OUT,PARTIAL_RETURN' },
+          }));
+          keys.push('activeToolSlips');
         }
 
         const results = await Promise.allSettled(requests);
@@ -102,7 +104,18 @@ export default function StoreRoomPage() {
     });
   }
 
-  // Tab 3: เครื่องมือ (full management mode for store officer)
+  // Tab 3: กำลังยืม (active checkouts — CHECKED_OUT + PARTIAL_RETURN)
+  if (can('tools.tool.read')) {
+    tabItems.push({
+      key: 'active-tools',
+      label: (
+        <span><Wrench size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />กำลังยืม</span>
+      ),
+      children: <ToolCheckoutSlipTab activeMode />,
+    });
+  }
+
+  // Tab 4: เครื่องมือ (full management mode for store officer)
   if (can('tools.tool.read')) {
     tabItems.push({
       key: 'tools',
@@ -113,7 +126,7 @@ export default function StoreRoomPage() {
     });
   }
 
-  // Tab 3: สินค้าคงคลัง (lookup)
+  // Tab 5: สินค้าคงคลัง (lookup)
   if (can('inventory.product.read')) {
     tabItems.push({
       key: 'products',
@@ -124,7 +137,7 @@ export default function StoreRoomPage() {
     });
   }
 
-  // Tab 4: Low Stock Alerts
+  // Tab 6: Low Stock Alerts
   if (can('inventory.product.read')) {
     tabItems.push({
       key: 'low-stock',
@@ -177,11 +190,11 @@ export default function StoreRoomPage() {
         {can('tools.tool.read') && (
           <Col xs={12} sm={6}>
             <StatCard
-              title="เครื่องมือ"
-              value={stats.checkedOutTools}
-              subtitle="Tools"
+              title="กำลังยืม"
+              value={stats.activeToolSlips}
+              subtitle="Active Tool Slips"
               icon={<Wrench size={20} />}
-              color={COLORS.purple}
+              color="#3b82f6"
             />
           </Col>
         )}
