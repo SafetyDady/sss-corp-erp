@@ -6,7 +6,7 @@ import {
   DollarSign, BarChart3, Users, Wrench, Database, Settings,
   UserCheck, LogOut, User, ChevronLeft, ChevronRight, CalendarRange,
   ClipboardList, CalendarOff, Clock, CalendarCheck, Boxes,
-  ClipboardCheck, ClipboardPen, Store,
+  ClipboardCheck, ClipboardPen, Store, Landmark,
 } from 'lucide-react';
 import useAuthStore from './stores/authStore';
 import { usePermission } from './hooks/usePermission';
@@ -49,6 +49,8 @@ const WithdrawalSlipDetailPage = lazy(() => import('./pages/supply-chain/Withdra
 const CommonActPage = lazy(() => import('./pages/common-act/CommonActPage'));
 const StoreRoomPage = lazy(() => import('./pages/store/StoreRoomPage'));
 const ToolCheckoutSlipDetailPage = lazy(() => import('./pages/tools/ToolCheckoutSlipDetailPage'));
+const AssetPage = lazy(() => import('./pages/asset/AssetPage'));
+const AssetDetailPage = lazy(() => import('./pages/asset/AssetDetailPage'));
 
 // --- Sidebar Menu Groups ---
 
@@ -75,6 +77,7 @@ const SYSTEM_MENU_ITEMS = [
   { key: '/hr', icon: <Users size={18} />, label: 'HR', permission: 'hr.employee.read' },
   { key: '/customers', icon: <UserCheck size={18} />, label: 'Customers', permission: 'customer.customer.read' },
   { key: '/master', icon: <Database size={18} />, label: 'Master Data', permission: 'master.costcenter.read' },
+  { key: '/asset', icon: <Landmark size={18} />, label: 'Asset', permission: '_asset_check' },
   { key: '/finance', icon: <BarChart3 size={18} />, label: 'Finance', permission: 'finance.report.read' },
   { key: '/admin', icon: <Settings size={18} />, label: 'Admin', permission: 'admin.user.read' },
 ];
@@ -149,6 +152,8 @@ function AppLayout() {
       if (!can('sales.order.read') && !can('sales.delivery.read')) return false;
     } else if (item.permission === '_store_check') {
       if (!can('inventory.withdrawal.approve') && !can('inventory.withdrawal.read') && !can('tools.tool.read')) return false;
+    } else if (item.permission === '_asset_check') {
+      if (!can('asset.category.read') && !can('asset.asset.read')) return false;
     } else if (item.permission && !can(item.permission)) {
       return false;
     }
@@ -183,6 +188,7 @@ function AppLayout() {
     if (path.startsWith('/supply-chain') || path.startsWith('/inventory') || path.startsWith('/warehouse')) return '/supply-chain';
     if (path.startsWith('/withdrawal-slips')) return '/store';
     if (path.startsWith('/tool-checkout-slips')) return '/store';
+    if (path.startsWith('/asset')) return '/asset';
     return '/' + path.split('/')[1];
   })();
 
@@ -313,6 +319,8 @@ function AppLayout() {
               <Route path="/hr" element={<HRPage />} />
               <Route path="/master" element={<MasterDataPage />} />
               <Route path="/customers" element={<CustomerListPage />} />
+              <Route path="/asset" element={<AssetPage />} />
+              <Route path="/asset/:id" element={<AssetDetailPage />} />
               <Route path="/finance" element={<FinancePage />} />
               <Route path="/finance/invoices/:id" element={<InvoiceDetailPage />} />
               <Route path="/finance/ar/:id" element={<ARDetailPage />} />

@@ -26,6 +26,7 @@ from app.models.daily_report import DailyWorkReport, DailyWorkReportLine, Report
 from app.models.recharge import FixedRechargeBudget, FixedRechargeEntry, RechargeStatus
 from app.models.invoice import SupplierInvoice, InvoicePayment, InvoiceStatus
 from app.models.ar import CustomerInvoice, CustomerInvoicePayment, CustomerInvoiceStatus
+from app.models.asset import AssetCategory, FixedAsset, DepreciationEntry, DepreciationMethod, AssetStatus
 
 __all__ = [
     "User",
@@ -112,4 +113,9 @@ __all__ = [
     "CustomerInvoicePayment",
     "CustomerInvoiceStatus",
     "Company",
+    "AssetCategory",
+    "FixedAsset",
+    "DepreciationEntry",
+    "DepreciationMethod",
+    "AssetStatus",
 ]

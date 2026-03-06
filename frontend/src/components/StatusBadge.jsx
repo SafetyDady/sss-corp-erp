@@ -53,6 +53,10 @@ const STATUS_CONFIG = {
   // Tool Checkout Slip
   PARTIAL_RETURN: { color: '#f59e0b' },
   RETURNED: { color: '#10b981' },
+  // Fixed Asset
+  FULLY_DEPRECIATED: { color: '#8b5cf6' },
+  DISPOSED: { color: '#ef4444' },
+  STRAIGHT_LINE: { color: '#06b6d4' },
 };
 
 export default function StatusBadge({ status }) {

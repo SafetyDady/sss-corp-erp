@@ -221,10 +221,24 @@ ALL_PERMISSIONS: list[str] = [
     # --- hr.roster (2) --- Phase 4.9: Shift Management
     "hr.roster.create",
     "hr.roster.read",
+
+    # --- asset (12) --- Phase C13: Fixed Asset Management
+    "asset.category.create",
+    "asset.category.read",
+    "asset.category.update",
+    "asset.category.delete",
+    "asset.asset.create",
+    "asset.asset.read",
+    "asset.asset.update",
+    "asset.asset.delete",
+    "asset.depreciation.read",
+    "asset.depreciation.execute",   # generate monthly depreciation
+    "asset.asset.export",
+    "asset.depreciation.export",
 ]
 
-assert len(ALL_PERMISSIONS) == 161, f"Expected 161 permissions, got {len(ALL_PERMISSIONS)}"
-assert len(set(ALL_PERMISSIONS)) == 161, "Duplicate permissions found!"
+assert len(ALL_PERMISSIONS) == 173, f"Expected 173 permissions, got {len(ALL_PERMISSIONS)}"
+assert len(set(ALL_PERMISSIONS)) == 173, "Duplicate permissions found!"
 
 
 # ============================================================
@@ -413,6 +427,19 @@ PERMISSION_DESCRIPTIONS: dict[str, str] = {
     # Phase 4.9: Shift Roster
     "hr.roster.create": "สร้าง/แก้ไขตารางเข้ากะรายวัน",
     "hr.roster.read": "ดูตารางเข้ากะ (ตาม Data Scope)",
+    # Phase C13: Fixed Asset
+    "asset.category.create": "สร้างหมวดสินทรัพย์ใหม่",
+    "asset.category.read": "ดูรายการหมวดสินทรัพย์",
+    "asset.category.update": "แก้ไขหมวดสินทรัพย์",
+    "asset.category.delete": "ลบหมวดสินทรัพย์ (Owner เท่านั้น)",
+    "asset.asset.create": "ลงทะเบียนสินทรัพย์ใหม่",
+    "asset.asset.read": "ดูทะเบียนสินทรัพย์และรายละเอียด",
+    "asset.asset.update": "แก้ไขข้อมูลสินทรัพย์",
+    "asset.asset.delete": "จำหน่ายสินทรัพย์ (Owner เท่านั้น)",
+    "asset.depreciation.read": "ดูรายการค่าเสื่อมราคา",
+    "asset.depreciation.execute": "รันค่าเสื่อมรายเดือน (Depreciation Run)",
+    "asset.asset.export": "ส่งออกทะเบียนสินทรัพย์",
+    "asset.depreciation.export": "ส่งออกรายการค่าเสื่อมราคา",
 }
 
 assert set(PERMISSION_DESCRIPTIONS.keys()) == set(ALL_PERMISSIONS), \
@@ -425,7 +452,7 @@ assert set(PERMISSION_DESCRIPTIONS.keys()) == set(ALL_PERMISSIONS), \
 # Legend:  ✅ = granted  ❌ = denied
 
 def _owner() -> set[str]:
-    """Owner: ALL 161 permissions."""
+    """Owner: ALL 173 permissions."""
     return set(ALL_PERMISSIONS)
 
 
@@ -467,6 +494,9 @@ def _manager() -> set[str]:
         "customer.customer.delete",
         "tools.tool.delete",
         "hr.employee.delete",
+        # Asset: owner only deletes
+        "asset.category.delete",
+        "asset.asset.delete",
         # Finance: owner only
         "finance.report.export",
         "finance.recharge.delete",
@@ -593,6 +623,13 @@ def _supervisor() -> set[str]:
         "master.schedule.read",
         "hr.roster.create",
         "hr.roster.read",
+        # Asset (C13)
+        "asset.category.read",
+        "asset.asset.create",
+        "asset.asset.read",
+        "asset.asset.update",
+        "asset.depreciation.read",
+        "asset.asset.export",
     }
 
 
@@ -660,6 +697,9 @@ def _staff() -> set[str]:
         "master.schedule.read",
         "hr.roster.create",
         "hr.roster.read",
+        # Asset (C13) — staff can read
+        "asset.category.read",
+        "asset.asset.read",
     }
 
 
@@ -715,6 +755,12 @@ def _viewer() -> set[str]:
         # Shift Management (Phase 4.9) — read only
         "master.shifttype.read",
         "master.schedule.read",
+        # Asset (C13) — viewer can read + export
+        "asset.category.read",
+        "asset.asset.read",
+        "asset.depreciation.read",
+        "asset.asset.export",
+        "asset.depreciation.export",
     }
 
 

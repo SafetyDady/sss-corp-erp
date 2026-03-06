@@ -38,6 +38,7 @@ from app.models.warehouse import Warehouse, Location
 from app.models.inventory import Product, ProductType
 from app.models.tools import Tool, ToolStatus
 from app.models.recharge import FixedRechargeBudget, RechargeStatus
+from app.models.asset import AssetCategory, FixedAsset, DepreciationMethod, AssetStatus
 
 
 # ============================================================
@@ -122,6 +123,21 @@ WHT_TRANSPORT_ID = UUID("00000000-0000-0000-000e-000000000001")
 WHT_ADVERTISE_ID = UUID("00000000-0000-0000-000e-000000000002")
 WHT_SERVICE_ID   = UUID("00000000-0000-0000-000e-000000000003")
 WHT_RENTAL_ID    = UUID("00000000-0000-0000-000e-000000000004")
+
+# Asset Categories (C13)
+ACAT_BLDG_ID      = UUID("00000000-0000-0000-000f-000000000001")
+ACAT_BLDG_TEMP_ID = UUID("00000000-0000-0000-000f-000000000002")
+ACAT_MACH_ID      = UUID("00000000-0000-0000-000f-000000000003")
+ACAT_VEH_ID       = UUID("00000000-0000-0000-000f-000000000004")
+ACAT_COMP_ID      = UUID("00000000-0000-0000-000f-000000000005")
+ACAT_OFFICE_ID    = UUID("00000000-0000-0000-000f-000000000006")
+ACAT_TOOL_ID      = UUID("00000000-0000-0000-000f-000000000007")
+ACAT_FURN_ID      = UUID("00000000-0000-0000-000f-000000000008")
+
+# Fixed Assets (C13 — samples)
+ASSET_CUTTER_ID   = UUID("00000000-0000-0000-0010-000000000001")
+ASSET_PICKUP_ID   = UUID("00000000-0000-0000-0010-000000000002")
+ASSET_PC_ID       = UUID("00000000-0000-0000-0010-000000000003")
 
 # Recharge Budgets
 RB_ADMIN_ID = UUID("00000000-0000-0000-000d-000000000001")
@@ -298,6 +314,26 @@ WHT_TYPES = [
     {"id": WHT_RENTAL_ID, "code": "WHT5", "name": "ค่าเช่า 5%",
      "section": "มาตรา 3 เตรส (5)", "rate": Decimal("5.00"),
      "description": "ภาษีหัก ณ ที่จ่าย ค่าเช่าทรัพย์สิน"},
+]
+
+# Asset Categories — Thai Tax Law (กรมสรรพากร)
+ASSET_CATEGORIES = [
+    {"id": ACAT_BLDG_ID, "code": "BLDG", "name": "อาคารถาวร",
+     "useful_life_years": 20, "depreciation_rate": Decimal("5.00")},
+    {"id": ACAT_BLDG_TEMP_ID, "code": "BLDG-T", "name": "อาคารชั่วคราว",
+     "useful_life_years": 5, "depreciation_rate": Decimal("20.00")},
+    {"id": ACAT_MACH_ID, "code": "MACH", "name": "เครื่องจักร",
+     "useful_life_years": 10, "depreciation_rate": Decimal("10.00")},
+    {"id": ACAT_VEH_ID, "code": "VEH", "name": "ยานพาหนะ",
+     "useful_life_years": 5, "depreciation_rate": Decimal("20.00")},
+    {"id": ACAT_COMP_ID, "code": "COMP", "name": "คอมพิวเตอร์",
+     "useful_life_years": 3, "depreciation_rate": Decimal("33.33")},
+    {"id": ACAT_OFFICE_ID, "code": "OFFICE", "name": "เครื่องใช้สำนักงาน",
+     "useful_life_years": 5, "depreciation_rate": Decimal("20.00")},
+    {"id": ACAT_TOOL_ID, "code": "TOOL", "name": "เครื่องมือ",
+     "useful_life_years": 5, "depreciation_rate": Decimal("20.00")},
+    {"id": ACAT_FURN_ID, "code": "FURN", "name": "เฟอร์นิเจอร์",
+     "useful_life_years": 5, "depreciation_rate": Decimal("20.00")},
 ]
 
 SUPPLIERS = [
@@ -787,6 +823,90 @@ async def seed():
                 print(f"  [Tax]  OrgTaxConfig — WHT enabled (updated)")
             else:
                 print(f"  [Tax]  OrgTaxConfig (exists)")
+
+        # ── 20. Asset Categories (C13) ────────────────────────
+        print()
+        acat_count = 0
+        for acat_data in ASSET_CATEGORIES:
+            existing = await _check_exists(db, AssetCategory, id=acat_data["id"])
+            if not existing:
+                acat = AssetCategory(
+                    org_id=DEFAULT_ORG_ID,
+                    depreciation_method=DepreciationMethod.STRAIGHT_LINE,
+                    **acat_data,
+                )
+                db.add(acat)
+                print(f"  [ACat] {acat_data['code']} — {acat_data['name']} ({acat_data['useful_life_years']}yr, {acat_data['depreciation_rate']}%)")
+                acat_count += 1
+            else:
+                print(f"  [ACat] {acat_data['code']} (exists)")
+        if acat_count > 0:
+            await db.flush()
+
+        # ── 21. Sample Fixed Assets (C13) ─────────────────────
+        print()
+        SAMPLE_ASSETS = [
+            {
+                "id": ASSET_CUTTER_ID, "asset_code": "AST-001",
+                "asset_name": "เครื่องตัดเหล็ก CNC", "description": "เครื่องตัดเหล็ก CNC อัตโนมัติ 3 แกน",
+                "category_id": ACAT_MACH_ID,
+                "acquisition_date": date(2025, 3, 1),
+                "acquisition_cost": Decimal("500000.00"),
+                "salvage_value": Decimal("0"),
+                "useful_life_years": 10,
+                "cost_center_id": CC_PROD_ID,
+                "location": "อาคาร A โซนผลิต",
+                "responsible_employee_id": EMP_SUPERVISOR_ID,
+                "tool_id": None, "po_id": None,
+            },
+            {
+                "id": ASSET_PICKUP_ID, "asset_code": "AST-002",
+                "asset_name": "รถกระบะ Toyota Hilux Revo", "description": "รถกระบะขนส่งวัสดุ ทะเบียน กข-1234",
+                "category_id": ACAT_VEH_ID,
+                "acquisition_date": date(2025, 6, 15),
+                "acquisition_cost": Decimal("800000.00"),
+                "salvage_value": Decimal("100000.00"),
+                "useful_life_years": 5,
+                "cost_center_id": CC_SALES_ID,
+                "location": "ลานจอดรถ",
+                "responsible_employee_id": EMP_MANAGER_ID,
+                "tool_id": None, "po_id": None,
+            },
+            {
+                "id": ASSET_PC_ID, "asset_code": "AST-003",
+                "asset_name": "คอมพิวเตอร์ตั้งโต๊ะ Dell OptiPlex", "description": "คอมพิวเตอร์สำนักงาน + จอ 24 นิ้ว",
+                "category_id": ACAT_COMP_ID,
+                "acquisition_date": date(2026, 1, 10),
+                "acquisition_cost": Decimal("35000.00"),
+                "salvage_value": Decimal("0"),
+                "useful_life_years": 3,
+                "cost_center_id": CC_ADMIN_ID,
+                "location": "สำนักงานชั้น 2",
+                "responsible_employee_id": EMP_VIEWER_ID,
+                "tool_id": None, "po_id": None,
+            },
+        ]
+        asset_count = 0
+        owner_user = user_map.get("owner@sss-corp.com")
+        for asset_data in SAMPLE_ASSETS:
+            existing = await _check_exists(db, FixedAsset, id=asset_data["id"])
+            if not existing:
+                nbv = asset_data["acquisition_cost"]  # no depreciation run yet
+                fa = FixedAsset(
+                    org_id=DEFAULT_ORG_ID,
+                    depreciation_method=DepreciationMethod.STRAIGHT_LINE,
+                    status=AssetStatus.ACTIVE,
+                    net_book_value=nbv,
+                    created_by=owner_user.id if owner_user else user_map[TEST_USERS[0]["email"]].id,
+                    **asset_data,
+                )
+                db.add(fa)
+                print(f"  [Asset] {asset_data['asset_code']} — {asset_data['asset_name']} ({asset_data['acquisition_cost']:,.0f} THB)")
+                asset_count += 1
+            else:
+                print(f"  [Asset] {asset_data['asset_code']} (exists)")
+        if asset_count > 0:
+            await db.flush()
 
         # ----- COMMIT -----
         await db.commit()

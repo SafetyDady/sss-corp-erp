@@ -19,12 +19,13 @@ export const MODULE_META = {
   customer:   { label: 'ลูกค้า',          icon: 'UserCheck' },
   tools:      { label: 'เครื่องมือ',       icon: 'Wrench' },
   hr:         { label: 'ทรัพยากรบุคคล',   icon: 'Users' },
+  asset:      { label: 'สินทรัพย์ถาวร',   icon: 'Landmark' },
 };
 
 // Module display order (matches sidebar)
 export const MODULE_ORDER = [
   'inventory', 'warehouse', 'workorder', 'purchasing', 'sales',
-  'finance', 'master', 'admin', 'customer', 'tools', 'hr',
+  'finance', 'master', 'admin', 'customer', 'tools', 'hr', 'asset',
 ];
 
 // ============================================================
@@ -68,6 +69,9 @@ export const RESOURCE_META = {
   invoice:     'ใบวางบิล (Invoice)',
   ar:          'ลูกหนี้ (AR)',
   delivery:    'ใบส่งของ (DO)',
+  category:    'หมวดสินทรัพย์',
+  asset:       'สินทรัพย์ถาวร',
+  depreciation: 'ค่าเสื่อมราคา',
 };
 
 // ============================================================
