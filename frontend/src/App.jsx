@@ -56,7 +56,7 @@ const MY_MENU_ITEMS = [
 ];
 
 const COMMON_ACT_MENU_ITEMS = [
-  { key: '/common-act', icon: <ClipboardPen size={18} />, label: 'ดำเนินการ', permission: '_common_act_check' },
+  { key: '/common-act', icon: <ClipboardPen size={18} />, label: 'My Request', permission: '_common_act_check' },
 ];
 
 const APPROVAL_MENU_ITEMS = [
@@ -68,11 +68,11 @@ const SYSTEM_MENU_ITEMS = [
   { key: '/supply-chain', icon: <Boxes size={18} />, label: 'Supply Chain', permission: 'inventory.product.read' },
   { key: '/store', icon: <Store size={18} />, label: 'Store & Tools', permission: '_store_check' },
   { key: '/work-orders', icon: <FileText size={18} />, label: 'Work Orders', permission: 'workorder.order.read' },
+  { key: '/planning', icon: <CalendarRange size={18} />, label: 'Planning', permission: 'workorder.plan.read' },
   { key: '/purchasing', icon: <ShoppingCart size={18} />, label: 'Purchasing', permission: '_purchasing_check' },
   { key: '/sales', icon: <DollarSign size={18} />, label: 'Sales', permission: '_sales_check' },
   { key: '/hr', icon: <Users size={18} />, label: 'HR', permission: 'hr.employee.read' },
   { key: '/customers', icon: <UserCheck size={18} />, label: 'Customers', permission: 'customer.customer.read' },
-  { key: '/planning', icon: <CalendarRange size={18} />, label: 'Planning', permission: 'workorder.plan.read' },
   { key: '/master', icon: <Database size={18} />, label: 'Master Data', permission: 'master.costcenter.read' },
   { key: '/finance', icon: <BarChart3 size={18} />, label: 'Finance', permission: 'finance.report.read' },
   { key: '/admin', icon: <Settings size={18} />, label: 'Admin', permission: 'admin.user.read' },
@@ -164,26 +164,13 @@ function AppLayout() {
   }));
 
   const visibleItems = [
-    // Group 1: ส่วนตัว
-    ...(myItems.length > 0
-      ? [
-          { key: 'grp-my', type: 'group', label: collapsed ? null : 'ส่วนตัว', children: myItems },
-        ]
-      : []),
-    // Group 2: ดำเนินการ
-    ...(commonActItems.length > 0
-      ? [
-          { key: 'grp-common-act', type: 'group', label: collapsed ? null : 'ดำเนินการ', children: commonActItems },
-        ]
-      : []),
-    // Group 3: อนุมัติ
-    ...(approvalItems.length > 0
-      ? [
-          { key: 'grp-approval', type: 'group', label: collapsed ? null : 'อนุมัติ', children: approvalItems },
-        ]
-      : []),
-    // Group 4: ระบบงาน
-    { key: 'grp-system', type: 'group', label: collapsed ? null : 'ระบบงาน', children: systemItems },
+    ...myItems,
+    ...(myItems.length > 0 && commonActItems.length > 0 ? [{ type: 'divider' }] : []),
+    ...commonActItems,
+    ...((myItems.length > 0 || commonActItems.length > 0) && approvalItems.length > 0 ? [{ type: 'divider' }] : []),
+    ...approvalItems,
+    ...((myItems.length > 0 || commonActItems.length > 0 || approvalItems.length > 0) ? [{ type: 'divider' }] : []),
+    ...systemItems,
   ];
 
   const selectedKey = (() => {
@@ -203,12 +190,13 @@ function AppLayout() {
         width={210}
         collapsedWidth={56}
         collapsed={collapsed}
-        style={{ background: COLORS.sidebar, position: 'relative' }}
+        style={{ background: COLORS.sidebar, display: 'flex', flexDirection: 'column' }}
         theme="dark"
       >
         <div
           style={{
             height: 48,
+            flexShrink: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -219,20 +207,26 @@ function AppLayout() {
             {collapsed ? 'SSS' : 'SSS Corp'}
           </Text>
         </div>
-        <Menu
-          theme="dark"
-          mode="inline"
-          selectedKeys={[selectedKey]}
-          items={visibleItems}
-          onClick={({ key }) => navigate(key)}
-          style={{ background: 'transparent', borderRight: 0, marginTop: 8 }}
-        />
         <div
           style={{
-            position: 'absolute',
-            bottom: 16,
-            left: 0,
-            right: 0,
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            paddingBottom: 8,
+          }}
+        >
+          <Menu
+            theme="dark"
+            mode="inline"
+            selectedKeys={[selectedKey]}
+            items={visibleItems}
+            onClick={({ key }) => navigate(key)}
+            style={{ background: 'transparent', borderRight: 0, marginTop: 8 }}
+          />
+        </div>
+        <div
+          style={{
+            flexShrink: 0,
             padding: collapsed ? '8px 4px' : '8px 16px',
             borderTop: `1px solid ${COLORS.sidebarBorder}`,
           }}
