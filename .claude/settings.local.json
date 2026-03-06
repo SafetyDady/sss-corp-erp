@@ -45,7 +45,15 @@
       "Bash(cmd.exe /c \"cd /d C:\\\\web_project\\\\sss-corp\\\\sss-corp-erp\\\\frontend && npx vite build\")",
       "Bash(powershell.exe -Command \"Set-Location ''C:\\\\web_project\\\\sss-corp\\\\sss-corp-erp\\\\frontend''; npm run build 2>&1\")",
       "Bash(cmd.exe /c \"cd /d C:\\\\web_project\\\\sss-corp\\\\sss-corp-erp\\\\frontend && npx vite build 2>&1\")",
-      "Bash(find frontend/src -name \"*.jsx\" -type f -exec grep -l \"cost.center\" {} ;)"
+      "Bash(find frontend/src -name \"*.jsx\" -type f -exec grep -l \"cost.center\" {} ;)",
+      "Bash(python3 -c \":*)",
+      "Bash(where python)",
+      "Bash(node -e \"const fs=require\\(''fs''\\); fs.writeFileSync\\(''/tmp/write_tool_modal.js'', ''const fs = require\\(\"\"fs\"\"\\); const path = process.argv[1]; const content = fs.readFileSync\\(\"\"/dev/stdin\"\",\"\"utf8\"\"\\); fs.writeFileSync\\(path, content, \"\"utf8\"\"\\); console.log\\(\"\"Written \"\" + content.length + \"\" chars\"\"\\);''\\); console.log\\(''helper script created''\\);\")",
+      "Bash(TMPFILE=\"C:/web_project/sss-corp/sss-corp-erp/frontend/src/pages/tools/_write_helper.js\")",
+      "Bash(node -e \"const fs = require\\(''fs''\\); fs.writeFileSync\\(''$TMPFILE'', \\\\`const fs = require\\(''fs''\\);const content = fs.readFileSync\\(0, ''utf8''\\);fs.writeFileSync\\(process.argv[1], content, ''utf8''\\);console.log\\(''Written '' + content.length + '' chars''\\);\\\\`\\); console.log\\(''helper created''\\);\")",
+      "Bash(node -e \"const fs = require\\(''fs''\\); fs.writeFileSync\\(''C:/web_project/sss-corp/sss-corp-erp/frontend/src/pages/tools/_writer.py'', ''import sys\\\\npath = sys.argv[1]\\\\ncontent = sys.stdin.buffer.read\\(\\).decode\\(\"\"utf-8\"\"\\)\\\\nwith open\\(path, \"\"w\"\", encoding=\"\"utf-8\"\", newline=\"\"\\\\n\"\"\\) as f:\\\\n    f.write\\(content\\)\\\\nprint\\(f\"\"Written {len\\(content\\)} chars to {path}\"\"\\)\\\\n''\\); console.log\\(''writer script created''\\);\")",
+      "Bash(node -e \":*)",
+      "Bash(node -e \"const fs = require\\(''fs''\\); const c = fs.readFileSync\\(''C:/web_project/sss-corp/sss-corp-erp/frontend/src/pages/tools/ToolCheckoutSlipFormModal.jsx'', ''utf8''\\); console.log\\(c\\);\")"
     ]
   }
 }

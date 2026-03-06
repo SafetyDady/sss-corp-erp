@@ -50,6 +50,9 @@ const STATUS_CONFIG = {
   OVERDUE: { color: '#ef4444' },
   PRODUCE: { color: '#10b981' },
   SHIPPED: { color: '#10b981' },
+  // Tool Checkout Slip
+  PARTIAL_RETURN: { color: '#f59e0b' },
+  RETURNED: { color: '#10b981' },
 };
 
 export default function StatusBadge({ status }) {

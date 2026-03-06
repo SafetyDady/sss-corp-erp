@@ -13,7 +13,7 @@ import dayjs from 'dayjs';
 
 import WithdrawalSlipTab from '../supply-chain/WithdrawalSlipTab';
 import PRTab from '../purchasing/PRTab';
-import ToolListPage from '../tools/ToolListPage';
+import ToolCheckoutSlipTab from '../tools/ToolCheckoutSlipTab';
 import MyDailyReportPage from '../my/MyDailyReportPage';
 import MyLeavePage from '../my/MyLeavePage';
 import MyTasksPage from '../my/MyTasksPage';
@@ -46,9 +46,9 @@ export default function CommonActPage() {
           requests.push(api.get('/api/purchasing/pr', { params: { limit: 1, offset: 0 } }));
           keys.push('myPrs');
         }
-        // Checked out tools
+        // My tool checkout slips
         if (can('tools.tool.read')) {
-          requests.push(api.get('/api/tools', { params: { limit: 1, offset: 0 } }));
+          requests.push(api.get('/api/tools/checkout-slips', { params: { limit: 1, offset: 0 } }));
           keys.push('checkedOutTools');
         }
         // Today's daily report
@@ -100,9 +100,9 @@ export default function CommonActPage() {
     tabItems.push({
       key: 'tools',
       label: (
-        <span><Wrench size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />เครื่องมือ</span>
+        <span><Wrench size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />เบิกเครื่องมือ</span>
       ),
-      children: <ToolListPage embedded myCheckoutsMode />,
+      children: <ToolCheckoutSlipTab staffMode />,
     });
   }
 
@@ -167,9 +167,9 @@ export default function CommonActPage() {
         {can('tools.tool.read') && (
           <Col xs={12} sm={6}>
             <StatCard
-              title="เครื่องมือ"
+              title="ใบเบิกเครื่องมือ"
               value={stats.checkedOutTools}
-              subtitle="Tools"
+              subtitle="Tool Checkout Slips"
               icon={<Wrench size={20} />}
               color={COLORS.warning}
             />

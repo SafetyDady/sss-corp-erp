@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Table, Button, App, Space, Popconfirm, Tooltip, Modal, Timeline, Spin } from 'antd';
-import { Plus, Pencil, Trash2, LogIn, LogOut, History } from 'lucide-react';
+import { Plus, Pencil, Trash2, History } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
 import SearchInput from '../../components/SearchInput';
@@ -8,29 +8,25 @@ import StatusBadge from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
 import PageHeader from '../../components/PageHeader';
 import ToolFormModal from './ToolFormModal';
-import ToolCheckoutModal from './ToolCheckoutModal';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
 
 /**
- * ToolListPage — reusable in 3 contexts:
- * - default: full management (CRUD + checkout/checkin)
+ * ToolListPage — Tool CRUD + History
+ * Checkout/checkin is now managed via Tool Checkout Slips (ใบเบิกเครื่องมือ)
+ * - default: full management (CRUD)
  * - embedded: no PageHeader
- * - myCheckoutsMode: simplified view for staff — checkout/checkin only, no CRUD
  */
-export default function ToolListPage({ embedded = false, myCheckoutsMode = false }) {
+export default function ToolListPage({ embedded = false }) {
   const { can } = usePermission();
   const { message } = App.useApp();
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [actionLoading, setActionLoading] = useState(null);
   const [search, setSearch] = useState('');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
   const [formModalOpen, setFormModalOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
-  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
-  const [checkoutTool, setCheckoutTool] = useState(null);
   const [historyModal, setHistoryModal] = useState({ open: false, tool: null, data: [], loading: false });
 
   const fetchData = useCallback(async () => {
@@ -61,19 +57,6 @@ export default function ToolListPage({ embedded = false, myCheckoutsMode = false
       fetchData();
     } catch (err) {
       message.error(err.response?.data?.detail || 'ไม่สามารถลบได้ — อาจมีประวัติการเบิกอยู่');
-    }
-  };
-
-  const handleCheckin = async (id) => {
-    setActionLoading(id);
-    try {
-      await api.post(`/api/tools/${id}/checkin`);
-      message.success('คืนเครื่องมือสำเร็จ');
-      fetchData();
-    } catch (err) {
-      message.error(err.response?.data?.detail || 'ไม่สามารถคืนเครื่องมือได้');
-    } finally {
-      setActionLoading(null);
     }
   };
 
@@ -115,29 +98,9 @@ export default function ToolListPage({ embedded = false, myCheckoutsMode = false
       render: (v) => <StatusBadge status={v ? 'ACTIVE' : 'INACTIVE'} />,
     },
     {
-      title: '', key: 'actions', width: myCheckoutsMode ? 120 : 180, align: 'right',
+      title: '', key: 'actions', width: 140, align: 'right',
       render: (_, record) => (
         <Space size={4}>
-          {record.status === 'AVAILABLE' && can('tools.tool.execute') && (
-            <Tooltip title="เบิกเครื่องมือ (Checkout)">
-              <Button type="text" size="small"
-                icon={<LogOut size={14} />} style={{ color: COLORS.accent }}
-                onClick={() => { setCheckoutTool(record); setCheckoutModalOpen(true); }} />
-            </Tooltip>
-          )}
-          {record.status === 'CHECKED_OUT' && can('tools.tool.execute') && (
-            <Popconfirm
-              title="คืนเครื่องมือ?"
-              description={`คืน "${record.name}" (${record.code}) — ระบบจะคำนวณค่าใช้จ่ายอัตโนมัติ`}
-              onConfirm={() => handleCheckin(record.id)}
-              okText="คืน" cancelText="ยกเลิก"
-            >
-              <Tooltip title="คืนเครื่องมือ (Check-in)">
-                <Button type="text" size="small" loading={actionLoading === record.id}
-                  icon={<LogIn size={14} />} style={{ color: COLORS.success }} />
-              </Tooltip>
-            </Popconfirm>
-          )}
           {can('tools.tool.read') && (
             <Tooltip title="ดูประวัติการเบิก-คืน">
               <Button type="text" size="small"
@@ -145,13 +108,13 @@ export default function ToolListPage({ embedded = false, myCheckoutsMode = false
                 onClick={() => handleViewHistory(record)} />
             </Tooltip>
           )}
-          {!myCheckoutsMode && can('tools.tool.update') && (
+          {can('tools.tool.update') && (
             <Tooltip title="แก้ไขเครื่องมือ">
               <Button type="text" size="small" icon={<Pencil size={14} />}
                 onClick={() => { setEditItem(record); setFormModalOpen(true); }} />
             </Tooltip>
           )}
-          {!myCheckoutsMode && can('tools.tool.delete') && (
+          {can('tools.tool.delete') && (
             <Popconfirm
               title="ยืนยันการลบ"
               description={`ลบเครื่องมือ "${record.name}" (${record.code})?`}
@@ -168,17 +131,14 @@ export default function ToolListPage({ embedded = false, myCheckoutsMode = false
     },
   ];
 
-  // myCheckoutsMode: simplified columns (code, name, status, actions only)
-  const columns = myCheckoutsMode
-    ? allColumns.filter((c) => ['code', 'name', 'status', 'actions'].includes(c.key))
-    : allColumns;
+  const columns = allColumns;
 
   return (
     <div>
-      {!embedded && <PageHeader title="เครื่องมือ" subtitle="จัดการเครื่องมือ — เบิก, คืน, ดูประวัติ" />}
+      {!embedded && <PageHeader title="เครื่องมือ" subtitle="จัดการเครื่องมือ — CRUD, ดูประวัติ" />}
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <SearchInput onSearch={setSearch} placeholder="ค้นหารหัส, ชื่อเครื่องมือ..." />
-        {!myCheckoutsMode && can('tools.tool.create') && (
+        {can('tools.tool.create') && (
           <Button type="primary" icon={<Plus size={14} />}
             onClick={() => { setEditItem(null); setFormModalOpen(true); }}>
             เพิ่มเครื่องมือ
@@ -208,14 +168,6 @@ export default function ToolListPage({ embedded = false, myCheckoutsMode = false
         editItem={editItem}
         onClose={() => setFormModalOpen(false)}
         onSuccess={() => { setFormModalOpen(false); fetchData(); }}
-      />
-
-      {/* Checkout Modal */}
-      <ToolCheckoutModal
-        open={checkoutModalOpen}
-        tool={checkoutTool}
-        onClose={() => setCheckoutModalOpen(false)}
-        onSuccess={() => { setCheckoutModalOpen(false); fetchData(); }}
       />
 
       {/* History Modal */}

@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-06 v23 (Frontend Restructure: ME / Common-Act / Store & Tools Room)
+> อัปเดตล่าสุด: 2026-03-06 v24 (Tool Checkout Slip — ใบเบิกเครื่องมือ)
 
 ---
 
@@ -39,7 +39,7 @@ sss-corp-erp/
 ├── frontend/                     ← Vercel deploys this (Root Dir = frontend/)
 │   ├── src/
 │   │   ├── components/           # Shared UI (StatusBadge, ScopeBadge, EmployeeContextSelector, etc.)
-│   │   ├── pages/                # Route pages (~98 files, 32+ routes)
+│   │   ├── pages/                # Route pages (~104 files, 33+ routes)
 │   │   │   ├── setup/            # SetupWizardPage (Phase 4.7)
 │   │   │   ├── planning/         # PlanningPage, DailyPlan, Reservation (Phase 4.5)
 │   │   │   ├── approval/         # ApprovalPage + 6 approval tabs (Phase 7+)
@@ -58,7 +58,7 @@ sss-corp-erp/
 │   └── vercel.json               # SPA rewrites + security headers + caching
 ├── backend/                      ← Railway deploys this (Dockerfile)
 │   ├── app/
-│   │   ├── api/                  # Route handlers (18 files, 19 routers)
+│   │   ├── api/                  # Route handlers (19 files, 20 routers)
 │   │   │   ├── _helpers.py       # Shared data scope helpers (Phase 6)
 │   │   │   ├── planning.py       # Daily plans, reservations (Phase 4.5)
 │   │   │   ├── setup.py          # One-time org setup (Phase 4.7)
@@ -75,7 +75,7 @@ sss-corp-erp/
 │   │   │   ├── planning.py       # Planning + Reservation service (Phase 4.5)
 │   │   │   └── ...
 │   │   └── main.py               # FastAPI app + Sentry init
-│   ├── alembic/                  # DB migrations (15 revisions)
+│   ├── alembic/                  # DB migrations (16 revisions)
 │   ├── tests/                    # pytest
 │   ├── Dockerfile                # Production (Railway, non-root user)
 │   ├── Dockerfile.dev            # Dev (hot-reload)
@@ -457,12 +457,16 @@ Staff กรอก Timesheet (WO + Regular hrs + OT hrs + OT Type)
 → ระบบ auto charge ManHour Cost เข้า WO
 ```
 
-### Flow 5: Tools Recharge (Job Costing)
+### Flow 5: Tools Recharge via Checkout Slip (Job Costing)
 ```
-Staff Check-out Tool → ระบุ Tool + WO (tools.tool.execute)
-→ ใช้งาน Tool ใน WO
-→ Staff Check-in Tool (tools.tool.execute)
-→ ระบบ auto charge: (check-in time - check-out time) x Tool Rate baht/hr
+Staff สร้างใบเบิกเครื่องมือ (tools.tool.create) → เลือก WO + เพิ่มเครื่องมือหลายตัว
+→ Submit ใบเบิก (DRAFT→PENDING) (tools.tool.create)
+→ Store Officer จ่ายเครื่องมือ (tools.tool.execute) → PENDING→CHECKED_OUT
+  → ระบบ call checkout_tool() ต่อ line (reuse existing logic)
+→ คืนเครื่องมือทีละตัวได้ (tools.tool.execute) → per-line return
+  → ระบบ call checkin_tool() + auto charge: (hours) x Tool Rate baht/hr (BR#28)
+  → บางตัวคืน = PARTIAL_RETURN, คืนครบ = RETURNED
+Permissions: tools.tool.create → execute (issue/return)
 ```
 
 ### Flow 6: Admin Overhead (Job Costing)
@@ -952,9 +956,22 @@ GET    /api/tools                           tools.tool.read
 POST   /api/tools                           tools.tool.create
 PUT    /api/tools/{id}                     tools.tool.update
 DELETE /api/tools/{id}                     tools.tool.delete
-POST   /api/tools/{id}/checkout             tools.tool.execute
-POST   /api/tools/{id}/checkin              tools.tool.execute
+POST   /api/tools/{id}/checkout             ⛔ DEPRECATED (410 Gone — use checkout-slips)
+POST   /api/tools/{id}/checkin              ⛔ DEPRECATED (410 Gone — use checkout-slips)
 GET    /api/tools/{id}/history              tools.tool.read
+```
+
+### Tool Checkout Slips (ใบเบิกเครื่องมือ)
+```
+GET    /api/tools/checkout-slips                    tools.tool.read      (?search, status, limit, offset)
+POST   /api/tools/checkout-slips                    tools.tool.create
+GET    /api/tools/checkout-slips/{id}               tools.tool.read
+PUT    /api/tools/checkout-slips/{id}               tools.tool.update    (DRAFT only)
+DELETE /api/tools/checkout-slips/{id}               tools.tool.delete    (DRAFT only)
+POST   /api/tools/checkout-slips/{id}/submit        tools.tool.create    (DRAFT→PENDING)
+POST   /api/tools/checkout-slips/{id}/issue         tools.tool.execute   (PENDING→CHECKED_OUT, calls checkout_tool per line)
+POST   /api/tools/checkout-slips/{id}/return        tools.tool.execute   (Per-line return, auto-charge hours×rate)
+POST   /api/tools/checkout-slips/{id}/cancel        tools.tool.update    (DRAFT/PENDING→CANCELLED)
 ```
 
 ### Customer
@@ -1510,14 +1527,23 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `backend/app/schemas/withdrawal.py` | Withdrawal Slip Pydantic schemas (Phase 11.10B) |
 | `backend/app/services/withdrawal.py` | Withdrawal Slip business logic: CRUD + submit + issue + cancel (Phase 11.10B) |
 | `backend/app/api/withdrawal.py` | Withdrawal Slip 8 API endpoints (Phase 11.10B) |
-| `frontend/src/pages/common-act/CommonActPage.jsx` | Staff Actions Hub — 6 tabs (Withdrawal staffMode, PR, Tools myCheckoutsMode, DailyReport, Leave, Tasks) |
-| `frontend/src/pages/store/StoreRoomPage.jsx` | Store Officer Workspace — 4 tabs (Pending Slips storeMode, Tools, Products, Low Stock) |
+| `frontend/src/pages/common-act/CommonActPage.jsx` | Staff Actions Hub — 6 tabs (Withdrawal staffMode, PR, ToolCheckoutSlip staffMode, DailyReport, Leave, Tasks) |
+| `frontend/src/pages/store/StoreRoomPage.jsx` | Store Officer Workspace — 5 tabs (Pending Slips storeMode, Pending Tool Slips storeMode, Tools, Products, Low Stock) |
 | `frontend/src/pages/my/LeaveBalanceReadOnly.jsx` | Read-only leave balance for ME page (no create button) |
 | `frontend/src/pages/supply-chain/WithdrawalSlipTab.jsx` | Withdrawal list tab — staffMode/storeMode props (Phase 11.10B + UX Restructure) |
 | `frontend/src/pages/supply-chain/WithdrawalSlipFormModal.jsx` | Create/edit multi-line withdrawal slip (Phase 11.10B) |
 | `frontend/src/pages/supply-chain/WithdrawalSlipDetailPage.jsx` | Withdrawal detail + status actions (Phase 11.10B) |
 | `frontend/src/pages/supply-chain/WithdrawalSlipIssueModal.jsx` | Issue confirmation — per-line issued_qty (Phase 11.10B) |
 | `frontend/src/pages/supply-chain/WithdrawalSlipPrintView.jsx` | Print layout with signature fields (Phase 11.10B) |
+| `backend/app/schemas/tool_checkout_slip.py` | Tool Checkout Slip Pydantic schemas: Create, Update, Issue, Return, Response (Tool Checkout Slip) |
+| `backend/app/services/tool_checkout_slip.py` | Tool Checkout Slip business logic: CRUD + submit + issue (reuse checkout_tool) + return (reuse checkin_tool, auto-charge) + cancel |
+| `backend/app/api/tool_checkout_slip.py` | Tool Checkout Slip 9 API endpoints: /api/tools/checkout-slips/* |
+| `frontend/src/pages/tools/ToolCheckoutSlipTab.jsx` | Tool Checkout Slip list tab — staffMode/storeMode props |
+| `frontend/src/pages/tools/ToolCheckoutSlipFormModal.jsx` | Create/edit multi-line tool checkout slip (WO picker + tool/employee lines) |
+| `frontend/src/pages/tools/ToolCheckoutSlipDetailPage.jsx` | Tool checkout slip detail + status-driven actions (edit/submit/issue/return/cancel/print) |
+| `frontend/src/pages/tools/ToolCheckoutSlipIssueModal.jsx` | Issue confirmation — checkbox per line, store officer confirms checkout |
+| `frontend/src/pages/tools/ToolCheckoutSlipReturnModal.jsx` | Return tools — select unreturned lines, auto-charge on return (hours × rate) |
+| `frontend/src/pages/tools/ToolCheckoutSlipPrintView.jsx` | Print layout with signature fields (forwardRef, black-on-white) |
 | `backend/app/middleware/performance.py` | Request timing middleware (Phase 14) |
 | `backend/app/services/ai_performance.py` | AI performance analysis engine — Claude API (Phase 14) |
 | `frontend/src/pages/admin/PerformancePage.jsx` | AI Performance Dashboard (Phase 14) |
@@ -1592,4 +1618,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v23 (Phase 0-7.9 complete + Phase 10 partial + Phase 11 partial + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete, Phase 8-14 planned)*
+*End of CLAUDE.md — SSS Corp ERP v24 (Phase 0-7.9 complete + Phase 10 partial + Phase 11 partial + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete, Phase 8-14 planned)*

@@ -1,21 +1,22 @@
 """
 SSS Corp ERP — Tools API Routes
-Phase 2: Tool CRUD + Check-out/Check-in
+Phase 2: Tool CRUD + History
+Checkout/Checkin: DEPRECATED — use /api/tools/checkout-slips instead
 
 Endpoints (from CLAUDE.md):
   GET    /api/tools                           tools.tool.read
   POST   /api/tools                           tools.tool.create
   PUT    /api/tools/{id}                      tools.tool.update
   DELETE /api/tools/{id}                      tools.tool.delete
-  POST   /api/tools/{id}/checkout             tools.tool.execute
-  POST   /api/tools/{id}/checkin              tools.tool.execute
+  POST   /api/tools/{id}/checkout             tools.tool.execute  (DEPRECATED → 410)
+  POST   /api/tools/{id}/checkin              tools.tool.execute  (DEPRECATED → 410)
   GET    /api/tools/{id}/history              tools.tool.read
 """
 
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import DEFAULT_ORG_ID
@@ -23,8 +24,6 @@ from app.core.database import get_db
 from app.core.permissions import require
 from app.core.security import get_token_payload
 from app.schemas.tools import (
-    ToolCheckoutRequest,
-    ToolCheckoutResponse,
     ToolCheckoutListResponse,
     ToolCreate,
     ToolListResponse,
@@ -32,8 +31,6 @@ from app.schemas.tools import (
     ToolUpdate,
 )
 from app.services.tools import (
-    checkin_tool,
-    checkout_tool,
     create_tool,
     delete_tool,
     get_tool,
@@ -129,47 +126,31 @@ async def api_delete_tool(
 
 
 # ============================================================
-# CHECK-OUT / CHECK-IN ROUTES (BR#27, BR#28)
+# CHECK-OUT / CHECK-IN ROUTES — DEPRECATED (use checkout-slips)
 # ============================================================
 
 @tools_router.post(
     "/{tool_id}/checkout",
-    response_model=ToolCheckoutResponse,
-    status_code=201,
     dependencies=[Depends(require("tools.tool.execute"))],
 )
-async def api_checkout_tool(
-    tool_id: UUID,
-    body: ToolCheckoutRequest,
-    db: AsyncSession = Depends(get_db),
-    token: dict = Depends(get_token_payload),
-):
-    """Check out a tool for a work order (BR#27: 1 person at a time)."""
-    user_id = UUID(token["sub"])
-    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
-    return await checkout_tool(
-        db,
-        tool_id,
-        employee_id=body.employee_id,
-        work_order_id=body.work_order_id,
-        checked_out_by=user_id,
-        org_id=org_id,
+async def api_checkout_tool(tool_id: UUID):
+    """DEPRECATED: Use /api/tools/checkout-slips instead."""
+    raise HTTPException(
+        status_code=410,
+        detail="Individual checkout is deprecated. Use POST /api/tools/checkout-slips to create a tool checkout slip.",
     )
 
 
 @tools_router.post(
     "/{tool_id}/checkin",
-    response_model=ToolCheckoutResponse,
     dependencies=[Depends(require("tools.tool.execute"))],
 )
-async def api_checkin_tool(
-    tool_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    token: dict = Depends(get_token_payload),
-):
-    """Check in a tool — auto charges hours × rate (BR#28)."""
-    user_id = UUID(token["sub"])
-    return await checkin_tool(db, tool_id, checked_in_by=user_id)
+async def api_checkin_tool(tool_id: UUID):
+    """DEPRECATED: Use /api/tools/checkout-slips/{id}/return instead."""
+    raise HTTPException(
+        status_code=410,
+        detail="Individual checkin is deprecated. Use POST /api/tools/checkout-slips/{id}/return instead.",
+    )
 
 
 @tools_router.get(

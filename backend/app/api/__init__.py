@@ -19,6 +19,7 @@ from app.api.withdrawal import withdrawal_router
 from app.api.recharge import recharge_router
 from app.api.invoice import invoice_router
 from app.api.ar import ar_router
+from app.api.tool_checkout_slip import tool_checkout_slip_router
 
 all_routers = [
     auth_router,
@@ -29,6 +30,7 @@ all_routers = [
     workorder_router,
     master_router,
     hr_router,
+    tool_checkout_slip_router,  # Must be before tools_router (checkout-slips vs {tool_id})
     tools_router,
     customer_router,
     purchasing_router,

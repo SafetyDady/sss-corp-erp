@@ -1018,7 +1018,6 @@ async def api_update_roster(
 @hr_router.get(
     "/payslips/me",
     response_model=PayrollSlipListResponse,
-    dependencies=[Depends(require("hr.payroll.read"))],
 )
 async def api_get_my_payslips(
     limit: int = Query(default=20, ge=1, le=100),
@@ -1026,7 +1025,7 @@ async def api_get_my_payslips(
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
-    """Get my payslips (staff: RELEASED only)."""
+    """Get my payslips (any authenticated user with employee record, RELEASED only)."""
     from app.api._helpers import resolve_employee_id
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     user_id = UUID(token["sub"])

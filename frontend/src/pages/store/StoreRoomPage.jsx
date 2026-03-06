@@ -10,6 +10,7 @@ import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
 
 import WithdrawalSlipTab from '../supply-chain/WithdrawalSlipTab';
+import ToolCheckoutSlipTab from '../tools/ToolCheckoutSlipTab';
 import ToolListPage from '../tools/ToolListPage';
 import ProductListPage from '../inventory/ProductListPage';
 
@@ -25,7 +26,7 @@ const { Text } = Typography;
  */
 export default function StoreRoomPage() {
   const { can } = usePermission();
-  const [stats, setStats] = useState({ pendingSlips: 0, lowStock: 0, checkedOutTools: 0 });
+  const [stats, setStats] = useState({ pendingSlips: 0, pendingToolSlips: 0, lowStock: 0, checkedOutTools: 0 });
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -45,7 +46,14 @@ export default function StoreRoomPage() {
           requests.push(api.get('/api/inventory/low-stock-count'));
           keys.push('lowStock');
         }
-        // Tools
+        // Pending tool checkout slips
+        if (can('tools.tool.read')) {
+          requests.push(api.get('/api/tools/checkout-slips', {
+            params: { limit: 1, offset: 0, status: 'PENDING' },
+          }));
+          keys.push('pendingToolSlips');
+        }
+        // Tools count
         if (can('tools.tool.read')) {
           requests.push(api.get('/api/tools', { params: { limit: 1, offset: 0 } }));
           keys.push('checkedOutTools');
@@ -83,7 +91,18 @@ export default function StoreRoomPage() {
     });
   }
 
-  // Tab 2: เครื่องมือ (full management mode for store officer)
+  // Tab 2: รอจ่ายเครื่องมือ (store mode)
+  if (can('tools.tool.read')) {
+    tabItems.push({
+      key: 'pending-tools',
+      label: (
+        <span><Wrench size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />รอจ่ายเครื่องมือ</span>
+      ),
+      children: <ToolCheckoutSlipTab storeMode />,
+    });
+  }
+
+  // Tab 3: เครื่องมือ (full management mode for store officer)
   if (can('tools.tool.read')) {
     tabItems.push({
       key: 'tools',
@@ -123,7 +142,7 @@ export default function StoreRoomPage() {
       {/* Stat Cards */}
       <Row gutter={16} style={{ marginBottom: 24 }}>
         {can('inventory.withdrawal.read') && (
-          <Col xs={12} sm={8}>
+          <Col xs={12} sm={6}>
             <StatCard
               title="รอจ่ายของ"
               value={stats.pendingSlips}
@@ -133,8 +152,19 @@ export default function StoreRoomPage() {
             />
           </Col>
         )}
+        {can('tools.tool.read') && (
+          <Col xs={12} sm={6}>
+            <StatCard
+              title="รอจ่ายเครื่องมือ"
+              value={stats.pendingToolSlips}
+              subtitle="PENDING Tool Slips"
+              icon={<Wrench size={20} />}
+              color={COLORS.accent}
+            />
+          </Col>
+        )}
         {can('inventory.product.read') && (
-          <Col xs={12} sm={8}>
+          <Col xs={12} sm={6}>
             <StatCard
               title="Low Stock"
               value={stats.lowStock}
@@ -145,7 +175,7 @@ export default function StoreRoomPage() {
           </Col>
         )}
         {can('tools.tool.read') && (
-          <Col xs={12} sm={8}>
+          <Col xs={12} sm={6}>
             <StatCard
               title="เครื่องมือ"
               value={stats.checkedOutTools}
