@@ -113,11 +113,11 @@ export default function SOTab() {
       ),
     },
     {
-      title: '\u0E27\u0E31\u0E19\u0E17\u0E35\u0E48\u0E2A\u0E31\u0E48\u0E07', dataIndex: 'order_date', key: 'order_date', width: 120,
+      title: '\u0E27\u0E31\u0E19\u0E17\u0E35\u0E48\u0E2A\u0E31\u0E48\u0E07', dataIndex: 'order_date', key: 'order_date', width: 120, responsive: ['md'],
       render: (v) => formatDate(v),
     },
     {
-      title: '\u0E22\u0E2D\u0E14\u0E23\u0E27\u0E21', dataIndex: 'total_amount', key: 'total_amount', width: 130, align: 'right',
+      title: '\u0E22\u0E2D\u0E14\u0E23\u0E27\u0E21', dataIndex: 'total_amount', key: 'total_amount', width: 130, align: 'right', responsive: ['lg'],
       render: (v) => <span style={{ fontFamily: 'monospace' }}>{formatCurrency(v)}</span>,
     },
     {

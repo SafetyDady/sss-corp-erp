@@ -46,12 +46,14 @@ export default function LoginPage() {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
+        padding: '16px',
         background: `linear-gradient(135deg, ${COLORS.bg} 0%, ${COLORS.surface} 100%)`,
       }}
     >
       <Card
         style={{
-          width: 400,
+          width: '100%',
+          maxWidth: 400,
           borderRadius: 16,
           background: COLORS.card,
           backgroundColor: COLORS.card,

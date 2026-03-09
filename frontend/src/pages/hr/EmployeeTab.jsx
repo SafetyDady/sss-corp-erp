@@ -103,29 +103,29 @@ export default function EmployeeTab() {
       render: (v) => <span style={{ fontWeight: 500 }}>{v}</span>,
     },
     {
-      title: 'ตำแหน่ง', dataIndex: 'position', key: 'position',
+      title: 'ตำแหน่ง', dataIndex: 'position', key: 'position', responsive: ['lg'],
       render: (v) => v ? <Tag>{v}</Tag> : <span style={{ color: COLORS.textMuted }}>-</span>,
     },
     {
-      title: 'แผนก', dataIndex: 'department_id', key: 'department_id',
+      title: 'แผนก', dataIndex: 'department_id', key: 'department_id', responsive: ['md'],
       render: (id) => {
         const dept = departmentMap[id];
         return dept ? <Tag color="cyan">{dept.name}</Tag> : <span style={{ color: COLORS.textMuted }}>-</span>;
       },
     },
     {
-      title: 'หัวหน้างาน', dataIndex: 'supervisor_id', key: 'supervisor_id',
+      title: 'หัวหน้างาน', dataIndex: 'supervisor_id', key: 'supervisor_id', responsive: ['lg'],
       render: (id) => {
         const sup = employeeMap[id];
         return sup ? sup.full_name : <span style={{ color: COLORS.textMuted }}>-</span>;
       },
     },
     {
-      title: 'ประเภท', dataIndex: 'pay_type', key: 'pay_type', width: 100,
+      title: 'ประเภท', dataIndex: 'pay_type', key: 'pay_type', width: 100, responsive: ['md'],
       render: (v) => <Tag color={v === 'MONTHLY' ? 'blue' : 'green'}>{PAY_TYPE_LABELS[v] || v}</Tag>,
     },
     {
-      title: 'ค่าตอบแทน', key: 'pay_amount', width: 150, align: 'right',
+      title: 'ค่าตอบแทน', key: 'pay_amount', width: 150, align: 'right', responsive: ['lg'],
       render: (_, record) => {
         if (record.pay_type === 'MONTHLY' && record.monthly_salary) {
           return <span style={{ fontFamily: 'monospace' }}>{formatCurrency(record.monthly_salary)}/เดือน</span>;
@@ -137,7 +137,7 @@ export default function EmployeeTab() {
       },
     },
     {
-      title: 'สถานะ', dataIndex: 'is_active', key: 'is_active', width: 100,
+      title: 'สถานะ', dataIndex: 'is_active', key: 'is_active', width: 100, responsive: ['md'],
       render: (v) => <StatusBadge status={v ? 'ACTIVE' : 'INACTIVE'} />,
     },
     {

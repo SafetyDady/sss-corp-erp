@@ -93,17 +93,17 @@ export default function WorkOrderListPage() {
   const columns = [
     { title: 'WO Number', dataIndex: 'wo_number', key: 'wo_number', width: 150 },
     { title: '\u0E25\u0E39\u0E01\u0E04\u0E49\u0E32', dataIndex: 'customer_name', key: 'customer_name' },
-    { title: '\u0E23\u0E32\u0E22\u0E25\u0E30\u0E40\u0E2D\u0E35\u0E22\u0E14', dataIndex: 'description', key: 'description', ellipsis: true },
+    { title: '\u0E23\u0E32\u0E22\u0E25\u0E30\u0E40\u0E2D\u0E35\u0E22\u0E14', dataIndex: 'description', key: 'description', ellipsis: true, responsive: ['md'] },
     {
       title: 'Status', dataIndex: 'status', key: 'status', width: 100,
       render: (v) => <StatusBadge status={v} />,
     },
     {
-      title: '\u0E40\u0E1B\u0E34\u0E14\u0E40\u0E21\u0E37\u0E48\u0E2D', dataIndex: 'opened_at', key: 'opened_at', width: 150,
+      title: '\u0E40\u0E1B\u0E34\u0E14\u0E40\u0E21\u0E37\u0E48\u0E2D', dataIndex: 'opened_at', key: 'opened_at', width: 150, responsive: ['lg'],
       render: (v) => formatDateTime(v),
     },
     {
-      title: '\u0E1B\u0E34\u0E14\u0E40\u0E21\u0E37\u0E48\u0E2D', dataIndex: 'closed_at', key: 'closed_at', width: 150,
+      title: '\u0E1B\u0E34\u0E14\u0E40\u0E21\u0E37\u0E48\u0E2D', dataIndex: 'closed_at', key: 'closed_at', width: 150, responsive: ['lg'],
       render: (v) => formatDateTime(v),
     },
     {

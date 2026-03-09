@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-09 v26 (Phase 10 Export & Print Completion)
+> อัปเดตล่าสุด: 2026-03-09 v27 (Phase 12 Mobile Responsive)
 
 ---
 
@@ -49,7 +49,7 @@ sss-corp-erp/
 │   │   │   ├── store/            # StoreRoomPage (Store Officer Workspace)
 │   │   │   ├── supply-chain/    # SupplyChainPage, WithdrawalSlip (Tab, Form, Detail, Issue, Print)
 │   │   │   └── ...               # inventory, warehouse, workorder, hr, etc.
-│   │   ├── hooks/                # usePermission, useAuth, etc.
+│   │   ├── hooks/                # usePermission, useAuth, useBreakpoint, etc.
 │   │   ├── stores/               # Zustand stores
 │   │   ├── services/             # API client (axios + interceptor)
 │   │   └── utils/                # Helpers, formatters
@@ -1466,13 +1466,16 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [ ] **11.14** Stock Take — cycle count workflow (count → variance → adjust)
 - [ ] **11.15** Multi-warehouse Transfer — TRANSFER movement between warehouses with approval
 
-### Phase 12 — Mobile Responsive 📱 (Planned)
-- [ ] **12.1** Responsive layout — Ant Design Grid breakpoints, collapsible sidebar mobile-first
-- [ ] **12.2** Mobile Staff Portal — Daily Report create/edit from phone
-- [ ] **12.3** Mobile Tool check-in/out — simplified form for field workers
-- [ ] **12.4** Mobile Approval — swipe approve/reject on approval list
-- [ ] **12.5** PWA — manifest.json, service worker, offline-first for read operations
-- [ ] **12.6** Touch-optimized UI — larger tap targets, bottom navigation bar (mobile only)
+### Phase 12 — Mobile Responsive 📱 (Partial ✅)
+- [x] **12.1** Responsive Foundation — `useBreakpoint` hook (Ant Design Grid.useBreakpoint), CSS @media rules for tables/modals/buttons/pagination
+- [x] **12.2** Mobile Layout — Sidebar → Drawer (left, 260px) on mobile, hamburger menu, compact header (icon-only logout/bell), reduced content padding
+- [x] **12.3** Shared Components — PageHeader (column layout + smaller title), SearchInput (fluid width), LoginPage (full-width card + padding)
+- [x] **12.4** Table Responsive — 5 key pages with `responsive: ['md']`/`['lg']` column props (ProductList, WorkOrder, Employee, PR, SO)
+- [x] **12.5** Modal Responsive — CSS @media: max-width calc(100vw-32px), max-height calc(100vh-180px), overflow-y auto
+- [x] **12.6** PWA Manifest — manifest.json (standalone, dark theme), theme-color meta, touch targets (min 36px buttons)
+- [ ] **12.7** Service Worker — offline-first for read operations (deferred)
+- [ ] **12.8** Bottom Navigation — mobile-only bottom nav bar (deferred)
+- [ ] **12.9** Swipe Gestures — swipe approve/reject on mobile (deferred)
 
 ### Phase 13 — Audit & Security Enhancement 🔐 (Planned)
 - [ ] **13.1** Enhanced Audit Trail — model-level event logging (who, what, when, before/after values)
@@ -1566,6 +1569,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `backend/app/core/config.py` | Environment settings + DEFAULT_ORG_ID |
 | `frontend/src/stores/authStore.js` | Auth state + token management |
 | `frontend/src/hooks/usePermission.js` | RBAC hook for components |
+| `frontend/src/hooks/useBreakpoint.js` | Responsive breakpoint hook: isMobile/isTablet/isDesktop (Phase 12) |
 | `frontend/src/components/StatusBadge.jsx` | Reusable status badge (33+ statuses) |
 | `backend/app/models/organization.py` | Org, Department, OrgConfig models |
 | `backend/app/models/planning.py` | WOMasterPlan, DailyPlan, Reservations |
@@ -1725,4 +1729,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v26 (Phase 0-9 complete + Phase 10 partial + Phase 11 partial + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete, Phase 10-14 planned)*
+*End of CLAUDE.md — SSS Corp ERP v27 (Phase 0-9 complete + Phase 10 partial + Phase 11 partial + Phase 12 partial + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete + Mobile Responsive core complete, Phase 12.7-12.9/13/14 planned)*

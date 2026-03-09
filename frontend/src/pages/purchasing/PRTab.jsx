@@ -86,19 +86,19 @@ export default function PRTab() {
       render: (v) => <span style={{ fontFamily: 'monospace' }}>{v}</span>,
     },
     {
-      title: 'ประเภท', dataIndex: 'pr_type', key: 'pr_type', width: 100,
+      title: 'ประเภท', dataIndex: 'pr_type', key: 'pr_type', width: 100, responsive: ['md'],
       render: (v) => <Tag color={TYPE_COLORS[v] || 'default'}>{v}</Tag>,
     },
     {
-      title: 'วันที่ต้องการ', dataIndex: 'required_date', key: 'required_date', width: 120,
+      title: 'วันที่ต้องการ', dataIndex: 'required_date', key: 'required_date', width: 120, responsive: ['md'],
       render: (v) => formatDate(v),
     },
     {
-      title: 'Priority', dataIndex: 'priority', key: 'priority', width: 90,
+      title: 'Priority', dataIndex: 'priority', key: 'priority', width: 90, responsive: ['md'],
       render: (v) => <Tag color={PRIORITY_COLORS[v] || 'default'}>{v}</Tag>,
     },
     {
-      title: 'ยอดประมาณ', dataIndex: 'total_estimated', key: 'total_estimated', width: 130, align: 'right',
+      title: 'ยอดประมาณ', dataIndex: 'total_estimated', key: 'total_estimated', width: 130, align: 'right', responsive: ['lg'],
       render: (v) => v > 0 ? formatCurrency(v) : <span style={{ color: COLORS.textMuted }}>ไม่ระบุ</span>,
     },
     {

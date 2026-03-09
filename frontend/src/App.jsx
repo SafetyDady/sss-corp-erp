@@ -1,16 +1,17 @@
 import { lazy, Suspense, useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { App as AntApp, ConfigProvider, Layout, Menu, Button, Typography, Spin, theme } from 'antd';
+import { App as AntApp, ConfigProvider, Layout, Menu, Button, Typography, Spin, Drawer, theme } from 'antd';
 import {
   LayoutDashboard, Package, Warehouse, FileText, ShoppingCart,
   DollarSign, BarChart3, Users, Wrench, Database, Settings,
   UserCheck, LogOut, User, ChevronLeft, ChevronRight, CalendarRange,
   ClipboardList, CalendarOff, Clock, CalendarCheck, Boxes,
-  ClipboardCheck, ClipboardPen, Store, Landmark,
+  ClipboardCheck, ClipboardPen, Store, Landmark, Menu as MenuIcon,
 } from 'lucide-react';
 import useAuthStore from './stores/authStore';
 import useNotificationStore from './stores/notificationStore';
 import { usePermission } from './hooks/usePermission';
+import useBreakpoint from './hooks/useBreakpoint';
 import { COLORS, ANT_THEME_TOKEN } from './utils/constants';
 import './App.css';
 import AppFooter from './components/AppFooter';
@@ -101,6 +102,8 @@ function AppLayout() {
   const { can } = usePermission();
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { isMobile } = useBreakpoint();
 
   // ── Notification polling lifecycle ──
   useEffect(() => {
@@ -202,103 +205,159 @@ function AppLayout() {
     return '/' + path.split('/')[1];
   })();
 
+  // ── Menu navigation handler (closes mobile drawer) ──
+  const handleMenuClick = ({ key }) => {
+    navigate(key);
+    if (isMobile) setMobileMenuOpen(false);
+  };
+
+  // ── Sidebar menu content (shared between Sider and Drawer) ──
+  const sidebarMenu = (
+    <Menu
+      theme="dark"
+      mode="inline"
+      selectedKeys={[selectedKey]}
+      items={visibleItems}
+      onClick={handleMenuClick}
+      style={{ background: 'transparent', borderRight: 0, marginTop: 8 }}
+    />
+  );
+
   return (
     <Layout style={{ height: '100vh', overflow: 'hidden' }}>
-      <Sider
-        width={210}
-        collapsedWidth={56}
-        collapsed={collapsed}
-        style={{ background: COLORS.sidebar, display: 'flex', flexDirection: 'column', height: '100vh' }}
-        theme="dark"
-      >
-        <div
-          style={{
-            height: 48,
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderBottom: `1px solid ${COLORS.sidebarBorder}`,
-          }}
+      {/* ── Desktop Sidebar ── */}
+      {!isMobile && (
+        <Sider
+          width={210}
+          collapsedWidth={56}
+          collapsed={collapsed}
+          style={{ background: COLORS.sidebar, display: 'flex', flexDirection: 'column', height: '100vh' }}
+          theme="dark"
         >
-          <Text strong style={{ color: COLORS.accent, fontSize: collapsed ? 14 : 16 }}>
-            {collapsed ? 'SSS' : 'SSS Corp'}
-          </Text>
-        </div>
-        <div
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            overflowX: 'hidden',
-            paddingBottom: 8,
-          }}
+          <div
+            style={{
+              height: 48,
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderBottom: `1px solid ${COLORS.sidebarBorder}`,
+            }}
+          >
+            <Text strong style={{ color: COLORS.accent, fontSize: collapsed ? 14 : 16 }}>
+              {collapsed ? 'SSS' : 'SSS Corp'}
+            </Text>
+          </div>
+          <div
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              paddingBottom: 8,
+            }}
+          >
+            {sidebarMenu}
+          </div>
+          <div
+            style={{
+              flexShrink: 0,
+              padding: collapsed ? '8px 4px' : '8px 16px',
+              borderTop: `1px solid ${COLORS.sidebarBorder}`,
+            }}
+          >
+            {!collapsed && (
+              <div style={{ marginBottom: 8 }}>
+                <Text style={{ color: COLORS.text, fontSize: 12, display: 'block' }}>
+                  {user?.full_name}
+                </Text>
+                <Text style={{ color: COLORS.textMuted, fontSize: 11 }}>
+                  {user?.role}
+                </Text>
+              </div>
+            )}
+            <Button
+              type="text"
+              size="small"
+              icon={collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+              onClick={() => setCollapsed(!collapsed)}
+              style={{ color: COLORS.textSecondary, width: '100%' }}
+            />
+          </div>
+        </Sider>
+      )}
+
+      {/* ── Mobile Sidebar Drawer ── */}
+      {isMobile && (
+        <Drawer
+          open={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
+          placement="left"
+          width={260}
+          className="mobile-drawer"
+          title={<Text strong style={{ color: COLORS.accent }}>SSS Corp</Text>}
+          styles={{ body: { padding: 0, background: COLORS.sidebar } }}
         >
-          <Menu
-            theme="dark"
-            mode="inline"
-            selectedKeys={[selectedKey]}
-            items={visibleItems}
-            onClick={({ key }) => navigate(key)}
-            style={{ background: 'transparent', borderRight: 0, marginTop: 8 }}
-          />
-        </div>
-        <div
-          style={{
-            flexShrink: 0,
-            padding: collapsed ? '8px 4px' : '8px 16px',
-            borderTop: `1px solid ${COLORS.sidebarBorder}`,
-          }}
-        >
-          {!collapsed && (
-            <div style={{ marginBottom: 8 }}>
-              <Text style={{ color: COLORS.text, fontSize: 12, display: 'block' }}>
-                {user?.full_name}
-              </Text>
-              <Text style={{ color: COLORS.textMuted, fontSize: 11 }}>
-                {user?.role}
-              </Text>
-            </div>
-          )}
-          <Button
-            type="text"
-            size="small"
-            icon={collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-            onClick={() => setCollapsed(!collapsed)}
-            style={{ color: COLORS.textSecondary, width: '100%' }}
-          />
-        </div>
-      </Sider>
+          <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 16 }}>
+            {sidebarMenu}
+          </div>
+          <div style={{ padding: '12px 16px', borderTop: `1px solid ${COLORS.sidebarBorder}` }}>
+            <Text style={{ color: COLORS.text, fontSize: 12, display: 'block' }}>
+              {user?.full_name}
+            </Text>
+            <Text style={{ color: COLORS.textMuted, fontSize: 11 }}>
+              {user?.role}
+            </Text>
+          </div>
+        </Drawer>
+      )}
+
       <Layout style={{ overflow: 'hidden' }}>
         <Header
           style={{
             background: COLORS.surface,
             height: 48,
             lineHeight: '48px',
-            padding: '0 24px',
+            padding: isMobile ? '0 12px' : '0 24px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'flex-end',
-            gap: 16,
+            justifyContent: 'space-between',
+            gap: isMobile ? 8 : 16,
             borderBottom: `1px solid ${COLORS.border}`,
           }}
         >
-          <Text style={{ color: COLORS.textSecondary, fontSize: 13 }}>
-            <User size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-            {user?.full_name}
-            <span style={{ color: COLORS.textMuted, marginLeft: 8 }}>({user?.role})</span>
-          </Text>
-          <NotificationBell onClick={() => setDrawerOpen(true)} />
-          <Button
-            type="text"
-            size="small"
-            icon={<LogOut size={14} />}
-            onClick={logout}
-            style={{ color: COLORS.textSecondary }}
-          >
-            {'\u0E2D\u0E2D\u0E01\u0E08\u0E32\u0E01\u0E23\u0E30\u0E1A\u0E1A'}
-          </Button>
+          {/* Left side: hamburger on mobile */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {isMobile && (
+              <Button
+                type="text"
+                icon={<MenuIcon size={18} />}
+                onClick={() => setMobileMenuOpen(true)}
+                style={{ color: COLORS.textSecondary }}
+              />
+            )}
+          </div>
+          {/* Right side: user info + bell + logout */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16 }}>
+            {!isMobile && (
+              <Text style={{ color: COLORS.textSecondary, fontSize: 13 }}>
+                <User size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                {user?.full_name}
+                <span style={{ color: COLORS.textMuted, marginLeft: 8 }}>({user?.role})</span>
+              </Text>
+            )}
+            <NotificationBell onClick={() => setDrawerOpen(true)} />
+            <Button
+              type="text"
+              size="small"
+              icon={<LogOut size={14} />}
+              onClick={logout}
+              style={{ color: COLORS.textSecondary }}
+            >
+              {!isMobile && '\u0E2D\u0E2D\u0E01\u0E08\u0E32\u0E01\u0E23\u0E30\u0E1A\u0E1A'}
+            </Button>
+          </div>
         </Header>
-        <Content style={{ padding: 24, flex: 1, overflow: 'auto' }}>
+        <Content style={{ padding: isMobile ? 12 : 24, flex: 1, overflow: 'auto' }} className={isMobile ? 'mobile-content' : ''}>
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<DashboardPage />} />

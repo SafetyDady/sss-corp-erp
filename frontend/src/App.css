@@ -196,3 +196,74 @@ body {
   z-index: 10;
   background: #0a0a0f;
 }
+
+/* ============================================================
+   Phase 12 — Mobile Responsive
+   ============================================================ */
+
+/* -- Tablet & Mobile: content padding + table font -- */
+@media (max-width: 768px) {
+  /* Reduce content area padding */
+  .mobile-content {
+    padding: 12px !important;
+  }
+
+  /* Tabs horizontal scroll on narrow screens */
+  .ant-tabs > .ant-tabs-nav .ant-tabs-nav-list {
+    flex-wrap: nowrap;
+  }
+  .ant-tabs > .ant-tabs-nav .ant-tabs-nav-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Table: slightly smaller text */
+  .ant-table-wrapper .ant-table-thead > tr > th,
+  .ant-table-wrapper .ant-table-thead > tr > td {
+    font-size: 11px !important;
+    padding: 8px 8px !important;
+  }
+  .ant-table-wrapper .ant-table-tbody > tr > td {
+    padding: 8px 8px !important;
+    font-size: 13px;
+  }
+
+  /* Pagination compact */
+  .ant-pagination .ant-pagination-options {
+    display: none;
+  }
+}
+
+/* -- Modal: responsive on mobile -- */
+@media (max-width: 768px) {
+  .ant-modal {
+    max-width: calc(100vw - 32px) !important;
+    margin: 16px auto !important;
+    top: 16px !important;
+  }
+  .ant-modal .ant-modal-body {
+    max-height: calc(100vh - 180px);
+    overflow-y: auto;
+  }
+}
+
+/* -- Touch targets: ensure minimum 40px height for interactive elements -- */
+@media (max-width: 768px) {
+  .ant-btn-sm {
+    min-height: 36px !important;
+    min-width: 36px !important;
+  }
+}
+
+/* -- Mobile sidebar drawer overlay -- */
+.mobile-drawer .ant-drawer-body {
+  padding: 0 !important;
+  background: #0d0d14 !important;
+}
+.mobile-drawer .ant-drawer-header {
+  background: #0d0d14 !important;
+  border-bottom: 1px solid #1e1e2e !important;
+}
+.mobile-drawer .ant-drawer-header-title .ant-drawer-close {
+  color: #94a3b8 !important;
+}

@@ -21,7 +21,7 @@ export default function SearchInput({ onSearch, placeholder = '\u0E04\u0E49\u0E1
       value={value}
       onChange={(e) => setValue(e.target.value)}
       allowClear
-      style={{ maxWidth: 320, ...style }}
+      style={{ maxWidth: '100%', width: 320, ...style }}
     />
   );
 }

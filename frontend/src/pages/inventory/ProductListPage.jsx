@@ -74,11 +74,13 @@ export default function ProductListPage({ embedded = false }) {
     { title: '\u0E0A\u0E37\u0E48\u0E2D\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32', dataIndex: 'name', key: 'name' },
     {
       title: '\u0E1B\u0E23\u0E30\u0E40\u0E20\u0E17', dataIndex: 'product_type', key: 'product_type', width: 120,
+      responsive: ['md'],
       render: (v) => <StatusBadge status={v} />,
     },
-    { title: '\u0E2B\u0E19\u0E48\u0E27\u0E22', dataIndex: 'unit', key: 'unit', width: 80 },
+    { title: '\u0E2B\u0E19\u0E48\u0E27\u0E22', dataIndex: 'unit', key: 'unit', width: 80, responsive: ['md'] },
     {
       title: '\u0E15\u0E49\u0E19\u0E17\u0E38\u0E19', dataIndex: 'cost', key: 'cost', width: 120, align: 'right',
+      responsive: ['md'],
       render: (v) => formatCurrency(v),
     },
     {
@@ -94,7 +96,7 @@ export default function ProductListPage({ embedded = false }) {
       },
     },
     {
-      title: 'Min Stock', dataIndex: 'min_stock', key: 'min_stock', width: 90, align: 'right',
+      title: 'Min Stock', dataIndex: 'min_stock', key: 'min_stock', width: 90, align: 'right', responsive: ['lg'],
       render: (v) => v > 0 ? v : <span style={{ color: COLORS.textSecondary }}>-</span>,
     },
     {
