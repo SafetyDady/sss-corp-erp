@@ -279,6 +279,21 @@ async def submit_ar_invoice(
     inv.status = CustomerInvoiceStatus.PENDING
     await db.commit()
     await db.refresh(inv)
+
+    # Phase 9: Notification — APPROVAL_REQUEST for AR approvers
+    try:
+        from app.services.notification import notify_approval_request, get_user_display_name
+        _name = await get_user_display_name(db, inv.created_by)
+        await notify_approval_request(
+            db, org_id=org_id, permission="finance.ar.approve",
+            entity_type="AR", entity_id=inv.id, doc_number=inv.invoice_number,
+            doc_type_thai="ใบแจ้งหนี้ลูกค้า", link=f"/finance/ar/{inv.id}",
+            actor_id=inv.created_by, actor_name=_name, exclude_user_id=inv.created_by,
+        )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Notification failed for AR submit %s", inv.invoice_number, exc_info=True)
+
     return inv
 
 
@@ -314,6 +329,32 @@ async def approve_ar_invoice(
 
     await db.commit()
     await db.refresh(inv)
+
+    # Phase 9: Notification — APPROVED/REJECTED for AR creator
+    try:
+        from app.services.notification import notify_status_change, get_user_display_name
+        from app.models.notification import NotificationType
+        _approver_name = await get_user_display_name(db, user_id)
+        if action == "approve":
+            await notify_status_change(
+                db, org_id=org_id, user_id=inv.created_by,
+                notification_type=NotificationType.DOCUMENT_APPROVED,
+                entity_type="AR", entity_id=inv.id, doc_number=inv.invoice_number,
+                doc_type_thai="ใบแจ้งหนี้ลูกค้า", link=f"/finance/ar/{inv.id}",
+                actor_id=user_id, actor_name=_approver_name,
+            )
+        elif action == "reject":
+            await notify_status_change(
+                db, org_id=org_id, user_id=inv.created_by,
+                notification_type=NotificationType.DOCUMENT_REJECTED,
+                entity_type="AR", entity_id=inv.id, doc_number=inv.invoice_number,
+                doc_type_thai="ใบแจ้งหนี้ลูกค้า", link=f"/finance/ar/{inv.id}",
+                actor_id=user_id, actor_name=_approver_name, reason=reason,
+            )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Notification failed for AR %s %s", action, inv.invoice_number, exc_info=True)
+
     return inv
 
 

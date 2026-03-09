@@ -59,13 +59,13 @@ sss-corp-erp/
 │   └── vercel.json               # SPA rewrites + security headers + caching
 ├── backend/                      ← Railway deploys this (Dockerfile)
 │   ├── app/
-│   │   ├── api/                  # Route handlers (19 files, 20 routers)
+│   │   ├── api/                  # Route handlers (20 files, 21 routers)
 │   │   │   ├── _helpers.py       # Shared data scope helpers (Phase 6)
 │   │   │   ├── planning.py       # Daily plans, reservations (Phase 4.5)
 │   │   │   ├── setup.py          # One-time org setup (Phase 4.7)
 │   │   │   └── ...               # auth, inventory, warehouse, etc.
 │   │   ├── core/                 # config, database, security, permissions
-│   │   ├── models/               # SQLAlchemy models (13 files)
+│   │   ├── models/               # SQLAlchemy models (14 files)
 │   │   │   ├── organization.py   # Org, Department, OrgConfig (Phase 4.1)
 │   │   │   ├── planning.py       # WOMasterPlan, DailyPlan, Reservations (Phase 4.5)
 │   │   │   └── ...               # user, inventory, warehouse, etc.
@@ -76,7 +76,7 @@ sss-corp-erp/
 │   │   │   ├── planning.py       # Planning + Reservation service (Phase 4.5)
 │   │   │   └── ...
 │   │   └── main.py               # FastAPI app + Sentry init
-│   ├── alembic/                  # DB migrations (16 revisions)
+│   ├── alembic/                  # DB migrations (17 revisions)
 │   ├── tests/                    # pytest
 │   ├── Dockerfile                # Production (Railway, non-root user)
 │   ├── Dockerfile.dev            # Dev (hot-reload)
@@ -1141,6 +1141,15 @@ POST   /api/asset/depreciation/generate     asset.depreciation.execute (batch mo
 GET    /api/asset/depreciation/summary      asset.depreciation.read  (?year)
 ```
 
+### Notifications (Phase 9)
+```
+GET    /api/notifications              — JWT only, list own notifications (?is_read, limit, offset)
+GET    /api/notifications/unread-count — JWT only, lightweight count for polling
+PATCH  /api/notifications/{id}/read   — JWT only, mark single as read
+POST   /api/notifications/read-all    — JWT only, mark all as read → {updated: N}
+DELETE /api/notifications/{id}        — JWT only, delete own notification
+```
+
 ### System
 ```
 GET    /api/health                          — (no auth)
@@ -1413,14 +1422,14 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [ ] **8.5** Finance Dashboard — P&L summary, cost analysis, budget vs actual (future)
 - [ ] **8.6** More Charts — WO Cost Trend, Inventory Turnover, employee productivity (future)
 
-### Phase 9 — Notification Center 🔔 (Planned)
-- [ ] **9.1** Model: `Notification` (user_id, type, title, message, is_read, link, created_at)
-- [ ] **9.2** Backend: Notification service — create on events (approval request, status change, stock alert)
-- [ ] **9.3** API: `GET /api/notifications` + `PATCH /api/notifications/{id}/read` + `POST /api/notifications/read-all`
-- [ ] **9.4** Frontend: Bell icon in header — dropdown with notification list + unread badge count
-- [ ] **9.5** Real-time: WebSocket or SSE for instant push (optional, can start with polling)
-- [ ] **9.6** Integration: connect with existing email service (Phase 4.6) — dual channel (in-app + email)
-- [ ] **9.7** Notification preferences: user can toggle per-event-type (in-app / email / both / none)
+### Phase 9 — Notification Center 🔔 ✅
+- [x] **9.1** Model + Migration — `Notification` (10 types: APPROVAL_REQUEST, DOCUMENT_APPROVED/REJECTED, LOW_STOCK_ALERT, LEAVE_APPROVED/REJECTED, TIMESHEET_APPROVED/FINAL, PO_RECEIVED, SYSTEM) + 4 indexes
+- [x] **9.2** Service + API — Notification CRUD + 6 event helpers (notify_approval_request, notify_status_change, notify_low_stock, notify_leave_decision, notify_timesheet_decision, notify_po_received) + 5 JWT-only endpoints
+- [x] **9.3** Frontend — notificationStore (Zustand + 60s polling) + NotificationBell (Badge) + NotificationDrawer (antd Drawer, type icons/colors, relative time, mark read, navigate)
+- [x] **9.4** Backend Integrations — 24 events across 11 service files (purchasing, sales, hr, daily_report, invoice, ar, inventory, withdrawal, tool_checkout_slip)
+- [x] **9.6** Email Dual Channel — notify_approval_request also calls existing send_approval_request() when EMAIL_ENABLED=True
+- [ ] **9.5** Real-time: WebSocket or SSE for instant push (deferred — polling 60s เพียงพอสำหรับ ERP)
+- [ ] **9.7** Notification preferences: user can toggle per-event-type (deferred — ทุก notification เปิดทุกคน MVP)
 
 ### Phase 10 — Export & Print 🖨️ (Partial ✅)
 - [x] **10.1** Shared Print Infrastructure — `PrintStyles.jsx` (PS styles + CompanyHeader + SignatureSection + PrintFooter + formatters), `@media print` CSS with `.erp-print-content` class
@@ -1617,6 +1626,14 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/tools/ToolCheckoutSlipIssueModal.jsx` | Issue confirmation — checkbox per line, store officer confirms checkout |
 | `frontend/src/pages/tools/ToolCheckoutSlipReturnModal.jsx` | Return tools — select unreturned lines, auto-charge on return (hours × rate) |
 | `frontend/src/pages/tools/ToolCheckoutSlipPrintView.jsx` | Print layout with signature fields (forwardRef, black-on-white) |
+| `backend/app/models/notification.py` | Notification model + NotificationType enum (10 types) (Phase 9) |
+| `backend/app/schemas/notification.py` | Notification Pydantic schemas: Response, ListResponse, UnreadCount (Phase 9) |
+| `backend/app/services/notification.py` | Notification CRUD + 6 event helpers + get_user_display_name + get_employee_user_id (Phase 9) |
+| `backend/app/api/notification.py` | Notification 5 JWT-only API endpoints (Phase 9) |
+| `backend/alembic/versions/p6q7r8s9t0u1_notification_center.py` | Migration: notifications table + 4 indexes (Phase 9) |
+| `frontend/src/stores/notificationStore.js` | Zustand store + 60s polling + visibility check (Phase 9) |
+| `frontend/src/components/NotificationBell.jsx` | Bell icon + Badge with unreadCount (Phase 9) |
+| `frontend/src/components/NotificationDrawer.jsx` | Notification list drawer — type icons, relative time, navigate on click (Phase 9) |
 | `backend/app/middleware/performance.py` | Request timing middleware (Phase 14) |
 | `backend/app/services/ai_performance.py` | AI performance analysis engine — Claude API (Phase 14) |
 | `frontend/src/pages/admin/PerformancePage.jsx` | AI Performance Dashboard (Phase 14) |
@@ -1708,4 +1725,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v25 (Phase 0-8 complete + Phase 10 partial + Phase 11 partial + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete, Phase 9-14 planned)*
+*End of CLAUDE.md — SSS Corp ERP v26 (Phase 0-9 complete + Phase 10 partial + Phase 11 partial + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete, Phase 10-14 planned)*

@@ -27,6 +27,7 @@ from app.models.recharge import FixedRechargeBudget, FixedRechargeEntry, Recharg
 from app.models.invoice import SupplierInvoice, InvoicePayment, InvoiceStatus
 from app.models.ar import CustomerInvoice, CustomerInvoicePayment, CustomerInvoiceStatus
 from app.models.asset import AssetCategory, FixedAsset, DepreciationEntry, DepreciationMethod, AssetStatus
+from app.models.notification import Notification, NotificationType
 
 __all__ = [
     "User",
@@ -118,4 +119,6 @@ __all__ = [
     "DepreciationEntry",
     "DepreciationMethod",
     "AssetStatus",
+    "Notification",
+    "NotificationType",
 ]

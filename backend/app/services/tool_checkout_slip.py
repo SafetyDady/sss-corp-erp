@@ -343,6 +343,21 @@ async def submit_tool_checkout_slip(
         )
     slip.status = ToolCheckoutSlipStatus.PENDING
     await db.commit()
+
+    # Phase 9: Notification — APPROVAL_REQUEST for tool checkout approvers
+    try:
+        from app.services.notification import notify_approval_request, get_user_display_name
+        _name = await get_user_display_name(db, slip.created_by)
+        await notify_approval_request(
+            db, org_id=org_id, permission="tools.tool.execute",
+            entity_type="ToolSlip", entity_id=slip.id, doc_number=slip.slip_number,
+            doc_type_thai="ใบเบิกเครื่องมือ", link=f"/tool-checkout-slips/{slip.id}",
+            actor_id=slip.created_by, actor_name=_name, exclude_user_id=slip.created_by,
+        )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Notification failed for tool slip submit %s", slip.slip_number, exc_info=True)
+
     return await get_tool_checkout_slip(db, slip_id, org_id=org_id)
 
 
@@ -432,6 +447,24 @@ async def issue_tool_checkout_slip(
         slip.note = (slip.note + "\n" + issue_note) if slip.note else issue_note
 
     await db.commit()
+
+    # Phase 9: Notification — DOCUMENT_APPROVED (issued) for slip creator
+    try:
+        from app.services.notification import notify_status_change, get_user_display_name
+        from app.models.notification import NotificationType
+        _issuer_name = await get_user_display_name(db, issued_by)
+        if slip.created_by and slip.created_by != issued_by:
+            await notify_status_change(
+                db, org_id=org_id, user_id=slip.created_by,
+                notification_type=NotificationType.DOCUMENT_APPROVED,
+                entity_type="ToolSlip", entity_id=slip.id, doc_number=slip.slip_number,
+                doc_type_thai="ใบเบิกเครื่องมือ", link=f"/tool-checkout-slips/{slip.id}",
+                actor_id=issued_by, actor_name=_issuer_name,
+            )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Notification failed for tool slip issue %s", slip.slip_number, exc_info=True)
+
     return await get_tool_checkout_slip(db, slip_id, org_id=org_id)
 
 

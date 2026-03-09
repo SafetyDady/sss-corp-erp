@@ -21,6 +21,7 @@ from app.api.invoice import invoice_router
 from app.api.ar import ar_router
 from app.api.tool_checkout_slip import tool_checkout_slip_router
 from app.api.asset import router as asset_router
+from app.api.notification import notification_router
 
 all_routers = [
     auth_router,
@@ -48,4 +49,5 @@ all_routers = [
     invoice_router,
     ar_router,
     asset_router,
+    notification_router,
 ]

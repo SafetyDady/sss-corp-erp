@@ -264,6 +264,21 @@ async def submit_purchase_requisition(
         )
     pr.status = PRStatus.SUBMITTED
     await db.commit()
+
+    # Phase 9: Notification — APPROVAL_REQUEST for PR approvers
+    try:
+        from app.services.notification import notify_approval_request, get_user_display_name
+        _name = await get_user_display_name(db, pr.created_by)
+        await notify_approval_request(
+            db, org_id=org_id, permission="purchasing.pr.approve",
+            entity_type="PR", entity_id=pr.id, doc_number=pr.pr_number,
+            doc_type_thai="ใบขอซื้อ", link=f"/purchasing/pr/{pr.id}",
+            actor_id=pr.created_by, actor_name=_name, exclude_user_id=pr.created_by,
+        )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Notification failed for PR submit %s", pr.pr_number, exc_info=True)
+
     return await get_purchase_requisition(db, pr_id, org_id=org_id)
 
 
@@ -295,6 +310,32 @@ async def approve_purchase_requisition(
         pr.rejected_reason = reason
 
     await db.commit()
+
+    # Phase 9: Notification — APPROVED/REJECTED for PR creator
+    try:
+        from app.services.notification import notify_status_change, get_user_display_name
+        from app.models.notification import NotificationType
+        _approver_name = await get_user_display_name(db, approved_by)
+        if action == "approve":
+            await notify_status_change(
+                db, org_id=org_id, user_id=pr.created_by,
+                notification_type=NotificationType.DOCUMENT_APPROVED,
+                entity_type="PR", entity_id=pr.id, doc_number=pr.pr_number,
+                doc_type_thai="ใบขอซื้อ", link=f"/purchasing/pr/{pr.id}",
+                actor_id=approved_by, actor_name=_approver_name,
+            )
+        elif action == "reject":
+            await notify_status_change(
+                db, org_id=org_id, user_id=pr.created_by,
+                notification_type=NotificationType.DOCUMENT_REJECTED,
+                entity_type="PR", entity_id=pr.id, doc_number=pr.pr_number,
+                doc_type_thai="ใบขอซื้อ", link=f"/purchasing/pr/{pr.id}",
+                actor_id=approved_by, actor_name=_approver_name, reason=reason,
+            )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Notification failed for PR %s %s", action, pr.pr_number, exc_info=True)
+
     return await get_purchase_requisition(db, pr_id, org_id=org_id)
 
 
@@ -757,4 +798,26 @@ async def receive_goods(
         po.status = POStatus.RECEIVED
 
     await db.commit()
+
+    # Phase 9: Notification — PO_RECEIVED when all lines received
+    if all_received:
+        try:
+            from app.services.notification import notify_po_received, get_user_display_name
+            _receiver_name = await get_user_display_name(db, received_by)
+            # Notify PR creator (original requester)
+            if po.pr_id:
+                _pr = await get_purchase_requisition(db, po.pr_id, org_id=org_id)
+                _target_user = _pr.created_by
+            else:
+                _target_user = po.created_by
+            await notify_po_received(
+                db, org_id=org_id, user_id=_target_user,
+                po_number=po.po_number, po_id=po.id,
+                link=f"/purchasing/po/{po.id}",
+                actor_id=received_by, actor_name=_receiver_name,
+            )
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning("Notification failed for PO receive %s", po.po_number, exc_info=True)
+
     return await get_purchase_order(db, po_id, org_id=org_id)

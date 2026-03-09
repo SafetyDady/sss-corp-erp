@@ -1022,13 +1022,13 @@ async def _supplier_to_response(db: AsyncSession, supplier) -> dict:
 
 
 # ============================================================
-# COMPANY ROUTES  (C11 — admin.config.read / admin.config.update)
+# COMPANY ROUTES  (C11 — admin.config.update for write, JWT-only for read)
 # ============================================================
 
 @master_router.get(
     "/companies",
     response_model=CompanyListResponse,
-    dependencies=[Depends(require("admin.config.read"))],
+    # JWT-only: any authenticated user can list companies (reference data for forms)
 )
 async def api_list_companies(
     limit: int = Query(default=20, ge=1, le=500),

@@ -245,6 +245,22 @@ async def submit_daily_report(
     report.submitted_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(report)
+
+    # Phase 9: Notification — APPROVAL_REQUEST for daily report approvers
+    try:
+        from app.services.notification import notify_approval_request, get_user_display_name, get_employee_user_id
+        _name = await get_user_display_name(db, user_id)
+        _date_str = report.report_date.strftime("%d/%m/%Y") if report.report_date else ""
+        await notify_approval_request(
+            db, org_id=org_id or report.org_id, permission="hr.dailyreport.approve",
+            entity_type="DailyReport", entity_id=report.id, doc_number=_date_str,
+            doc_type_thai="รายงานประจำวัน", link="/approval",
+            actor_id=user_id, actor_name=_name, exclude_user_id=user_id,
+        )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Notification failed for daily report submit", exc_info=True)
+
     return report
 
 
@@ -276,6 +292,26 @@ async def approve_daily_report(
 
     await db.commit()
     await db.refresh(report)
+
+    # Phase 9: Notification — DOCUMENT_APPROVED for report employee
+    try:
+        from app.services.notification import notify_status_change, get_user_display_name, get_employee_user_id
+        from app.models.notification import NotificationType
+        _emp_user_id = await get_employee_user_id(db, report.employee_id)
+        if _emp_user_id and _emp_user_id != approver_id:
+            _approver_name = await get_user_display_name(db, approver_id)
+            _date_str = report.report_date.strftime("%d/%m/%Y") if report.report_date else ""
+            await notify_status_change(
+                db, org_id=org_id, user_id=_emp_user_id,
+                notification_type=NotificationType.DOCUMENT_APPROVED,
+                entity_type="DailyReport", entity_id=report.id, doc_number=_date_str,
+                doc_type_thai="รายงานประจำวัน", link="/common-act",
+                actor_id=approver_id, actor_name=_approver_name,
+            )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Notification failed for daily report approve", exc_info=True)
+
     return report
 
 
@@ -321,6 +357,26 @@ async def reject_daily_report(
     report.reject_reason = reason
     await db.commit()
     await db.refresh(report)
+
+    # Phase 9: Notification — DOCUMENT_REJECTED for report employee
+    try:
+        from app.services.notification import notify_status_change, get_user_display_name, get_employee_user_id
+        from app.models.notification import NotificationType
+        _emp_user_id = await get_employee_user_id(db, report.employee_id)
+        if _emp_user_id and _emp_user_id != approver_id:
+            _approver_name = await get_user_display_name(db, approver_id)
+            _date_str = report.report_date.strftime("%d/%m/%Y") if report.report_date else ""
+            await notify_status_change(
+                db, org_id=org_id or report.org_id, user_id=_emp_user_id,
+                notification_type=NotificationType.DOCUMENT_REJECTED,
+                entity_type="DailyReport", entity_id=report.id, doc_number=_date_str,
+                doc_type_thai="รายงานประจำวัน", link="/common-act",
+                actor_id=approver_id, actor_name=_approver_name, reason=reason,
+            )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Notification failed for daily report reject", exc_info=True)
+
     return report
 
 

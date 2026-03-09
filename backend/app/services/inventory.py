@@ -425,6 +425,26 @@ async def create_movement(
     product.on_hand = new_on_hand
     await db.commit()
     await db.refresh(movement)
+
+    # Phase 9: Notification — LOW_STOCK_ALERT if stock fell below min_stock
+    if (
+        product.min_stock
+        and product.min_stock > 0
+        and new_on_hand <= product.min_stock
+        and qty_delta < 0  # Only on stock decrease (ISSUE, CONSUME, etc.)
+    ):
+        try:
+            from app.services.notification import notify_low_stock
+            await notify_low_stock(
+                db, org_id=org_id,
+                product_id=product.id, product_sku=product.sku,
+                product_name=product.name, on_hand=new_on_hand,
+                min_stock=product.min_stock,
+            )
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning("Notification failed for low stock %s", product.sku, exc_info=True)
+
     return movement
 
 

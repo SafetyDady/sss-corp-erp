@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { App as AntApp, ConfigProvider, Layout, Menu, Button, Typography, Spin, theme } from 'antd';
 import {
@@ -9,10 +9,13 @@ import {
   ClipboardCheck, ClipboardPen, Store, Landmark,
 } from 'lucide-react';
 import useAuthStore from './stores/authStore';
+import useNotificationStore from './stores/notificationStore';
 import { usePermission } from './hooks/usePermission';
 import { COLORS, ANT_THEME_TOKEN } from './utils/constants';
 import './App.css';
 import AppFooter from './components/AppFooter';
+import NotificationBell from './components/NotificationBell';
+import NotificationDrawer from './components/NotificationDrawer';
 
 const { Sider, Header, Content } = Layout;
 const { Text } = Typography;
@@ -97,6 +100,13 @@ function AppLayout() {
   const logout = useAuthStore((s) => s.logout);
   const { can } = usePermission();
   const [collapsed, setCollapsed] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // ── Notification polling lifecycle ──
+  useEffect(() => {
+    useNotificationStore.getState().startPolling();
+    return () => useNotificationStore.getState().stopPolling();
+  }, []);
 
   // Group 1: ส่วนตัว (ME)
   const myItems = MY_MENU_ITEMS.filter((item) => {
@@ -277,6 +287,7 @@ function AppLayout() {
             {user?.full_name}
             <span style={{ color: COLORS.textMuted, marginLeft: 8 }}>({user?.role})</span>
           </Text>
+          <NotificationBell onClick={() => setDrawerOpen(true)} />
           <Button
             type="text"
             size="small"
@@ -332,6 +343,7 @@ function AppLayout() {
         </Content>
         <AppFooter />
       </Layout>
+      <NotificationDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </Layout>
   );
 }

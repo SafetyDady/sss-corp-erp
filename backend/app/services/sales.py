@@ -253,6 +253,21 @@ async def submit_sales_order(
     # Clear rejected_reason when re-submitting
     so.rejected_reason = None
     await db.commit()
+
+    # Phase 9: Notification — APPROVAL_REQUEST for SO approvers
+    try:
+        from app.services.notification import notify_approval_request, get_user_display_name
+        _name = await get_user_display_name(db, so.created_by)
+        await notify_approval_request(
+            db, org_id=so.org_id, permission="sales.order.approve",
+            entity_type="SO", entity_id=so.id, doc_number=so.so_number,
+            doc_type_thai="ใบสั่งขาย", link=f"/sales/{so.id}",
+            actor_id=so.created_by, actor_name=_name, exclude_user_id=so.created_by,
+        )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Notification failed for SO submit %s", so.so_number, exc_info=True)
+
     return await get_sales_order(db, so_id)
 
 
@@ -299,6 +314,32 @@ async def approve_sales_order(
         )
 
     await db.commit()
+
+    # Phase 9: Notification — APPROVED/REJECTED for SO creator
+    try:
+        from app.services.notification import notify_status_change, get_user_display_name
+        from app.models.notification import NotificationType
+        _approver_name = await get_user_display_name(db, approved_by)
+        if action == "approve":
+            await notify_status_change(
+                db, org_id=so.org_id, user_id=so.created_by,
+                notification_type=NotificationType.DOCUMENT_APPROVED,
+                entity_type="SO", entity_id=so.id, doc_number=so.so_number,
+                doc_type_thai="ใบสั่งขาย", link=f"/sales/{so.id}",
+                actor_id=approved_by, actor_name=_approver_name,
+            )
+        elif action == "reject":
+            await notify_status_change(
+                db, org_id=so.org_id, user_id=so.created_by,
+                notification_type=NotificationType.DOCUMENT_REJECTED,
+                entity_type="SO", entity_id=so.id, doc_number=so.so_number,
+                doc_type_thai="ใบสั่งขาย", link=f"/sales/{so.id}",
+                actor_id=approved_by, actor_name=_approver_name, reason=reason,
+            )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Notification failed for SO %s %s", action, so.so_number, exc_info=True)
+
     return await get_sales_order(db, so_id)
 
 

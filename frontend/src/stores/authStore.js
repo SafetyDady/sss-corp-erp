@@ -89,6 +89,12 @@ const useAuthStore = create(
         if (refreshToken) {
           api.post('/api/auth/logout', { refresh_token: refreshToken }).catch(() => {});
         }
+        // Phase 9: reset notification store on logout
+        try {
+          import('../stores/notificationStore').then(({ default: store }) => {
+            store.getState().reset();
+          }).catch(() => {});
+        } catch { /* ignore if not loaded */ }
         set({
           user: null,
           accessToken: null,

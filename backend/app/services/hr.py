@@ -395,6 +395,25 @@ async def approve_timesheet(
     ts.approved_by = approved_by
     await db.commit()
     await db.refresh(ts)
+
+    # Phase 9: Notification — TIMESHEET_APPROVED for employee
+    try:
+        from app.services.notification import notify_timesheet_decision, get_user_display_name, get_employee_user_id
+        from app.models.notification import NotificationType
+        _emp_user_id = await get_employee_user_id(db, ts.employee_id)
+        if _emp_user_id:
+            _approver_name = await get_user_display_name(db, approved_by)
+            _date_str = ts.work_date.strftime("%d/%m/%Y") if ts.work_date else ""
+            await notify_timesheet_decision(
+                db, org_id=ts.org_id, user_id=_emp_user_id,
+                notification_type=NotificationType.TIMESHEET_APPROVED,
+                timesheet_date=_date_str, link="/my/timesheet",
+                actor_id=approved_by, actor_name=_approver_name,
+            )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Notification failed for timesheet approve", exc_info=True)
+
     return ts
 
 
@@ -418,6 +437,25 @@ async def final_approve_timesheet(
     ts.is_locked = True
     await db.commit()
     await db.refresh(ts)
+
+    # Phase 9: Notification — TIMESHEET_FINAL for employee
+    try:
+        from app.services.notification import notify_timesheet_decision, get_user_display_name, get_employee_user_id
+        from app.models.notification import NotificationType
+        _emp_user_id = await get_employee_user_id(db, ts.employee_id)
+        if _emp_user_id:
+            _hr_name = await get_user_display_name(db, final_approved_by)
+            _date_str = ts.work_date.strftime("%d/%m/%Y") if ts.work_date else ""
+            await notify_timesheet_decision(
+                db, org_id=ts.org_id, user_id=_emp_user_id,
+                notification_type=NotificationType.TIMESHEET_FINAL,
+                timesheet_date=_date_str, link="/my/timesheet",
+                actor_id=final_approved_by, actor_name=_hr_name,
+            )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Notification failed for timesheet final", exc_info=True)
+
     return ts
 
 
@@ -552,6 +590,24 @@ async def create_leave(
 
     await db.commit()
     await db.refresh(leave)
+
+    # Phase 9: Notification — APPROVAL_REQUEST for leave approvers
+    try:
+        from app.services.notification import notify_approval_request, get_user_display_name
+        _name = await get_user_display_name(db, created_by)
+        _dates = f"{start_date.strftime('%d/%m/%Y')}"
+        if start_date != end_date:
+            _dates += f" - {end_date.strftime('%d/%m/%Y')}"
+        await notify_approval_request(
+            db, org_id=org_id, permission="hr.leave.approve",
+            entity_type="Leave", entity_id=leave.id, doc_number=_dates,
+            doc_type_thai="คำขอลา", link="/approval",
+            actor_id=created_by, actor_name=_name, exclude_user_id=created_by,
+        )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Notification failed for leave create", exc_info=True)
+
     return leave
 
 
@@ -663,6 +719,25 @@ async def approve_leave(
     leave.approved_by = approved_by
     await db.commit()
     await db.refresh(leave)
+
+    # Phase 9: Notification — LEAVE_APPROVED/REJECTED for employee
+    try:
+        from app.services.notification import notify_leave_decision, get_user_display_name
+        from app.models.notification import NotificationType
+        _approver_name = await get_user_display_name(db, approved_by)
+        _dates = f"{leave.start_date.strftime('%d/%m/%Y')}"
+        if leave.start_date != leave.end_date:
+            _dates += f" - {leave.end_date.strftime('%d/%m/%Y')}"
+        await notify_leave_decision(
+            db, org_id=leave.org_id, user_id=leave.created_by,
+            notification_type=NotificationType.LEAVE_APPROVED if approve else NotificationType.LEAVE_REJECTED,
+            leave_dates=_dates, link="/common-act",
+            actor_id=approved_by, actor_name=_approver_name,
+        )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Notification failed for leave decision", exc_info=True)
+
     return leave
 
 
