@@ -251,10 +251,29 @@ async def api_delete_work_order(
 )
 async def api_open_work_order(
     wo_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Transition: DRAFT → OPEN."""
-    return await open_work_order(db, wo_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    wo = await open_work_order(db, wo_id)
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=UUID(token["sub"]), org_id=org_id,
+        action="STATUS_CHANGE", resource_type="work_order",
+        resource_id=str(wo.id),
+        description=f"เปิดใบสั่งงาน {wo.wo_number}",
+        changes={"status": {"old": "DRAFT", "new": "OPEN"}},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()  # Persist audit log (service already committed business data)
+
+    return wo
 
 
 @workorder_router.post(
@@ -264,10 +283,29 @@ async def api_open_work_order(
 )
 async def api_close_work_order(
     wo_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Transition: OPEN → CLOSED."""
-    return await close_work_order(db, wo_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    wo = await close_work_order(db, wo_id)
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=UUID(token["sub"]), org_id=org_id,
+        action="STATUS_CHANGE", resource_type="work_order",
+        resource_id=str(wo.id),
+        description=f"ปิดใบสั่งงาน {wo.wo_number}",
+        changes={"status": {"old": "OPEN", "new": "CLOSED"}},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()  # Persist audit log (service already committed business data)
+
+    return wo
 
 
 # ============================================================

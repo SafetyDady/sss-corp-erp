@@ -267,6 +267,7 @@ async def api_submit_invoice(
 async def api_approve_invoice(
     invoice_id: UUID,
     body: InvoiceApproveRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -276,6 +277,22 @@ async def api_approve_invoice(
         db, invoice_id, org_id, user_id,
         action=body.action, reason=body.reason,
     )
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    new_status = inv.status.value if hasattr(inv.status, "value") else str(inv.status)
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="STATUS_CHANGE", resource_type="supplier_invoice",
+        resource_id=str(inv.id),
+        description=f"{body.action} ใบแจ้งหนี้ {inv.invoice_number}",
+        changes={"status": {"old": "PENDING", "new": new_status}, "action": body.action},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()  # Persist audit log (service already committed business data)
+
     return await enrich_invoice_detail(db, inv)
 
 
@@ -288,12 +305,29 @@ async def api_approve_invoice(
 async def api_record_payment(
     invoice_id: UUID,
     body: InvoicePaymentCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     org_id = UUID(token["org_id"])
     user_id = UUID(token["sub"])
     inv = await record_payment(db, invoice_id, org_id, user_id, body.model_dump())
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    new_status = inv.status.value if hasattr(inv.status, "value") else str(inv.status)
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="STATUS_CHANGE", resource_type="supplier_invoice",
+        resource_id=str(inv.id),
+        description=f"บันทึกการจ่ายเงิน ใบแจ้งหนี้ {inv.invoice_number} (สถานะ: {new_status})",
+        changes={"status": {"new": new_status}, "payment_amount": float(body.amount)},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()  # Persist audit log (service already committed business data)
+
     return await enrich_invoice_detail(db, inv)
 
 

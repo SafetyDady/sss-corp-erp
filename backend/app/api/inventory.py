@@ -347,6 +347,7 @@ async def api_list_movements(
 )
 async def api_create_movement(
     body: StockMovementCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -385,6 +386,22 @@ async def api_create_movement(
         adjust_type=body.adjust_type,
         bin_id=body.bin_id,
     )
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    mv_type = body.movement_type.value if hasattr(body.movement_type, "value") else str(body.movement_type)
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="CREATE", resource_type="stock_movement",
+        resource_id=str(movement.id),
+        description=f"สร้าง stock movement ({mv_type}) จำนวน {body.quantity}",
+        changes={"movement_type": mv_type, "product_id": str(body.product_id), "quantity": body.quantity},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()  # Persist audit log (service already committed business data)
+
     return movement
 
 
@@ -396,6 +413,7 @@ async def api_create_movement(
 )
 async def api_reverse_movement(
     movement_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -406,6 +424,22 @@ async def api_reverse_movement(
     user_id = UUID(token["sub"])
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
 
-    return await reverse_movement(
+    reversal = await reverse_movement(
         db, movement_id, created_by=user_id, org_id=org_id
     )
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="DELETE", resource_type="stock_movement",
+        resource_id=str(movement_id),
+        description=f"กลับรายการ stock movement {movement_id}",
+        changes={"original_movement_id": str(movement_id), "reversal_id": str(reversal.id)},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()  # Persist audit log (service already committed business data)
+
+    return reversal

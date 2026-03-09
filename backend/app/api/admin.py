@@ -18,7 +18,7 @@ Business Rules:
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -149,6 +149,7 @@ async def api_list_roles():
 async def api_update_role_permissions(
     role_name: str,
     body: RolePermissionUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -203,6 +204,19 @@ async def api_update_role_permissions(
             permissions_json=sorted(body.permissions),
         )
         db.add(override)
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=UUID(token["sub"]), org_id=org_id,
+        action="UPDATE", resource_type="role_permissions",
+        resource_id=role_name,
+        description=f"อัปเดตสิทธิ์ role {role_name} ({len(body.permissions)} สิทธิ์)",
+        changes={"permissions_count": {"old": len(ROLE_PERMISSIONS.get(role_name, set())), "new": len(body.permissions)}},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+
     await db.commit()
 
     # Update in-memory (for current process)
@@ -274,6 +288,7 @@ async def api_list_users(
 async def api_update_user_role(
     user_id: UUID,
     body: UserRoleUpdate,
+    request: Request,
     token: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
@@ -297,7 +312,23 @@ async def api_update_user_role(
             detail="Owner cannot demote themselves (BR#31)",
         )
 
+    old_role = user.role
     user.role = body.role
+
+    # Audit log
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=current_user_id, org_id=org_id,
+        action="UPDATE", resource_type="user",
+        resource_id=str(user.id),
+        description=f"เปลี่ยน role ผู้ใช้ {user.email} จาก {old_role} เป็น {body.role}",
+        changes={"role": {"old": old_role, "new": body.role}},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+
     await db.commit()
     await db.refresh(user)
     return user
@@ -401,34 +432,29 @@ async def api_update_user_department(
     dependencies=[Depends(require("admin.role.read"))],
 )
 async def api_audit_log(
-    limit: int = Query(default=50, ge=1, le=200),
+    user_id: UUID | None = Query(default=None),
+    action: str | None = Query(default=None),
+    resource_type: str | None = Query(default=None),
+    search: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
-    """
-    Audit log placeholder — returns recent user activity.
-    Full audit logging would use a dedicated audit_logs table.
-    """
+    """Enhanced audit log — returns AuditLog entries with filters and user enrichment."""
+    from app.services.security import get_audit_logs
+
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
-    result = await db.execute(
-        select(User)
-        .where(User.org_id == org_id)
-        .order_by(User.updated_at.desc())
-        .limit(limit)
+    items, total = await get_audit_logs(
+        db, org_id,
+        user_id=user_id,
+        action=action,
+        resource_type=resource_type,
+        search=search,
+        limit=limit,
+        offset=offset,
     )
-    users = list(result.scalars().all())
-    return {
-        "entries": [
-            {
-                "user_id": str(u.id),
-                "email": u.email,
-                "role": u.role,
-                "last_activity": u.updated_at.isoformat() if u.updated_at else None,
-            }
-            for u in users
-        ],
-        "total": len(users),
-    }
+    return {"items": items, "total": total}
 
 
 @admin_router.post(
@@ -746,6 +772,7 @@ async def api_get_security_config(
 )
 async def api_update_security_config(
     body: "OrgSecurityConfigUpdate",
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -756,7 +783,21 @@ async def api_update_security_config(
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
     config = await svc_update_security(db, org_id, update_data)
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=UUID(token["sub"]), org_id=org_id,
+        action="UPDATE", resource_type="security_config",
+        description=f"อัปเดตนโยบายความปลอดภัย ({', '.join(update_data.keys())})",
+        changes=update_data,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+
     await db.commit()
+    await db.refresh(config)  # Reload server-side updated_at
     return OrgSecurityConfigResponse.model_validate(config)
 
 
@@ -799,14 +840,27 @@ async def api_get_login_history(
 )
 async def api_unlock_user(
     user_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     """Admin manually unlocks a locked user account."""
-    from app.services.security import admin_unlock_user
+    from app.services.security import admin_unlock_user, create_audit_log
+    from app.api._helpers import get_client_ip
 
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     await admin_unlock_user(db, user_id, org_id)
+
+    # Audit log
+    await create_audit_log(
+        db, user_id=UUID(token["sub"]), org_id=org_id,
+        action="UPDATE", resource_type="user",
+        resource_id=str(user_id),
+        description=f"ปลดล็อคบัญชีผู้ใช้ {user_id}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+
     await db.commit()
     return {"message": "User account unlocked successfully"}
 

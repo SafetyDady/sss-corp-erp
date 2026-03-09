@@ -28,7 +28,7 @@ from app.models.invoice import SupplierInvoice, InvoicePayment, InvoiceStatus
 from app.models.ar import CustomerInvoice, CustomerInvoicePayment, CustomerInvoiceStatus
 from app.models.asset import AssetCategory, FixedAsset, DepreciationEntry, DepreciationMethod, AssetStatus
 from app.models.notification import Notification, NotificationType
-from app.models.security import LoginHistory, LoginStatus, OrgSecurityConfig, ExportAuditLog
+from app.models.security import LoginHistory, LoginStatus, OrgSecurityConfig, ExportAuditLog, AuditLog, AuditAction
 
 __all__ = [
     "User",
@@ -126,4 +126,6 @@ __all__ = [
     "LoginStatus",
     "OrgSecurityConfig",
     "ExportAuditLog",
+    "AuditLog",
+    "AuditAction",
 ]

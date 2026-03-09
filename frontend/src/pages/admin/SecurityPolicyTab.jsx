@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, Form, InputNumber, Switch, Button, App, Checkbox, Typography, Spin, Divider } from 'antd';
-import { Save, Shield, Lock, KeyRound } from 'lucide-react';
+import { Save, Shield, Lock, KeyRound, Gauge } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
 import { COLORS } from '../../utils/constants';
@@ -36,6 +36,8 @@ export default function SecurityPolicyTab() {
         max_failed_attempts: data.max_failed_attempts,
         lockout_duration_minutes: data.lockout_duration_minutes,
         require_2fa_roles: data.require_2fa_roles || [],
+        api_rate_limit_per_minute: data.api_rate_limit_per_minute,
+        api_rate_limit_login: data.api_rate_limit_login,
       });
     } catch (err) {
       message.error(err.response?.data?.detail || 'ไม่สามารถโหลดข้อมูลได้');
@@ -143,6 +145,32 @@ export default function SecurityPolicyTab() {
             >
               <InputNumber min={1} max={1440} style={{ width: 200 }}
                 suffix="นาที" disabled={!canEdit} />
+            </Form.Item>
+          </div>
+        </Card>
+
+        {/* Rate Limiting */}
+        <Card size="small" style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <Gauge size={16} color={COLORS.info} />
+            <Title level={5} style={{ margin: 0 }}>Rate Limiting</Title>
+          </div>
+          <Text type="secondary" style={{ display: 'block', marginBottom: 16, fontSize: 13 }}>
+            จำกัดจำนวน request ต่อนาทีเพื่อป้องกันการใช้งาน API เกินขีดจำกัด (ต้องมี Redis)
+          </Text>
+
+          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+            <Form.Item name="api_rate_limit_per_minute" label="API requests ต่อนาที"
+              rules={[{ required: true, message: 'กรุณากรอก' }]}
+            >
+              <InputNumber min={10} max={600} style={{ width: 200 }}
+                suffix="req/min" disabled={!canEdit} />
+            </Form.Item>
+            <Form.Item name="api_rate_limit_login" label="Login requests ต่อนาที"
+              rules={[{ required: true, message: 'กรุณากรอก' }]}
+            >
+              <InputNumber min={1} max={60} style={{ width: 200 }}
+                suffix="req/min" disabled={!canEdit} />
             </Form.Item>
           </div>
         </Card>

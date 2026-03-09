@@ -1,6 +1,6 @@
 """
 SSS Corp ERP — Security Models
-Phase 13: Login History + OrgSecurityConfig
+Phase 13: Login History + OrgSecurityConfig + Audit Trail
 """
 
 import enum
@@ -32,6 +32,13 @@ class LoginStatus(str, enum.Enum):
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
     LOCKED = "LOCKED"
+
+
+class AuditAction(str, enum.Enum):
+    CREATE = "CREATE"
+    UPDATE = "UPDATE"
+    DELETE = "DELETE"
+    STATUS_CHANGE = "STATUS_CHANGE"
 
 
 # ============================================================
@@ -118,6 +125,14 @@ class OrgSecurityConfig(Base, TimestampMixin):
         JSON, default=list, nullable=False  # e.g. ["owner", "manager"]
     )
 
+    # Rate limiting (Phase 13.6)
+    api_rate_limit_per_minute: Mapped[int] = mapped_column(
+        Integer, default=120, nullable=False, server_default="120"
+    )
+    api_rate_limit_login: Mapped[int] = mapped_column(
+        Integer, default=5, nullable=False, server_default="5"
+    )
+
     __table_args__ = (
         CheckConstraint(
             "min_password_length >= 6 AND min_password_length <= 128",
@@ -134,6 +149,14 @@ class OrgSecurityConfig(Base, TimestampMixin):
         CheckConstraint(
             "password_expiry_days >= 0 AND password_expiry_days <= 3650",
             name="ck_security_password_expiry",
+        ),
+        CheckConstraint(
+            "api_rate_limit_per_minute >= 10 AND api_rate_limit_per_minute <= 600",
+            name="ck_security_api_rate_limit",
+        ),
+        CheckConstraint(
+            "api_rate_limit_login >= 1 AND api_rate_limit_login <= 60",
+            name="ck_security_login_rate_limit",
         ),
     )
 
@@ -175,3 +198,39 @@ class ExportAuditLog(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<ExportAuditLog {self.resource_type} by user={self.user_id}>"
+
+
+# ============================================================
+# AUDIT LOG (Phase 13.1 — Enhanced Audit Trail)
+# ============================================================
+
+class AuditLog(Base, TimestampMixin):
+    """Generic audit trail for all CRUD and status change events."""
+    __tablename__ = "audit_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False
+    )
+    action: Mapped[str] = mapped_column(String(20), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    resource_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    description: Mapped[str] = mapped_column(String(500), nullable=False)
+    changes: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    __table_args__ = (
+        Index("ix_audit_logs_org_created", "org_id", "created_at"),
+        Index("ix_audit_logs_user_id", "user_id"),
+        Index("ix_audit_logs_resource", "resource_type", "resource_id"),
+        Index("ix_audit_logs_action", "action"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<AuditLog {self.action} {self.resource_type} by user={self.user_id}>"

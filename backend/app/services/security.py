@@ -1,6 +1,6 @@
 """
 SSS Corp ERP — Security Service
-Phase 13: Login History, Password Policy, 2FA TOTP
+Phase 13: Login History, Password Policy, 2FA TOTP, Audit Trail
 """
 
 import re
@@ -627,6 +627,124 @@ async def get_export_audit_log(
             "file_format": item.file_format,
             "ip_address": item.ip_address,
             "filters_used": item.filters_used,
+            "created_at": item.created_at,
+        })
+
+    return enriched, total
+
+
+# ============================================================
+# AUDIT LOG (Phase 13.1 — Enhanced Audit Trail)
+# ============================================================
+
+import logging as _logging
+
+_audit_logger = _logging.getLogger("audit")
+
+
+async def create_audit_log(
+    db: AsyncSession,
+    *,
+    user_id: uuid.UUID | None,
+    org_id: uuid.UUID,
+    action: str,
+    resource_type: str,
+    resource_id: str | None = None,
+    description: str,
+    changes: dict | None = None,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+) -> None:
+    """
+    Fire-and-forget audit log creation.
+    Rides on the caller's transaction — if business operation rolls back,
+    audit log also rolls back (atomic consistency).
+    Errors are silenced to never break the main business flow.
+    """
+    try:
+        from app.models.security import AuditLog
+
+        entry = AuditLog(
+            user_id=user_id,
+            org_id=org_id,
+            action=action,
+            resource_type=resource_type,
+            resource_id=str(resource_id) if resource_id else None,
+            description=description[:500] if description else "",
+            changes=changes,
+            ip_address=ip_address,
+            user_agent=user_agent[:500] if user_agent and len(user_agent) > 500 else user_agent,
+        )
+        db.add(entry)
+        # NOTE: Does NOT commit — relies on the caller's commit.
+    except Exception:
+        _audit_logger.warning("Audit log creation failed", exc_info=True)
+
+
+async def get_audit_logs(
+    db: AsyncSession,
+    org_id: uuid.UUID,
+    *,
+    user_id: uuid.UUID | None = None,
+    action: str | None = None,
+    resource_type: str | None = None,
+    search: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[dict], int]:
+    """Query audit logs with filters, pagination, and user enrichment."""
+    from app.models.security import AuditLog
+
+    base_q = select(AuditLog).where(AuditLog.org_id == org_id)
+    if user_id:
+        base_q = base_q.where(AuditLog.user_id == user_id)
+    if action:
+        base_q = base_q.where(AuditLog.action == action)
+    if resource_type:
+        base_q = base_q.where(AuditLog.resource_type == resource_type)
+    if search:
+        base_q = base_q.where(AuditLog.description.ilike(f"%{search}%"))
+
+    # Count
+    count_q = select(func.count()).select_from(base_q.subquery())
+    total = (await db.execute(count_q)).scalar() or 0
+
+    # Items
+    items_q = (
+        base_q
+        .order_by(AuditLog.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    result = await db.execute(items_q)
+    items = list(result.scalars().all())
+
+    # Enrich with user email/name (batch cache)
+    enriched = []
+    user_cache: dict = {}
+    for item in items:
+        if item.user_id and item.user_id not in user_cache:
+            u_result = await db.execute(
+                select(User.email, User.full_name).where(User.id == item.user_id)
+            )
+            u_row = u_result.one_or_none()
+            user_cache[item.user_id] = (
+                u_row[0] if u_row else None,
+                u_row[1] if u_row else None,
+            )
+
+        email, name = user_cache.get(item.user_id, (None, None)) if item.user_id else (None, None)
+        enriched.append({
+            "id": item.id,
+            "user_id": item.user_id,
+            "user_email": email,
+            "user_name": name,
+            "action": item.action,
+            "resource_type": item.resource_type,
+            "resource_id": item.resource_id,
+            "description": item.description,
+            "changes": item.changes,
+            "ip_address": item.ip_address,
             "created_at": item.created_at,
         })
 

@@ -338,6 +338,7 @@ async def api_submit_pr(
 async def api_approve_pr(
     pr_id: UUID,
     body: PRApproveRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -346,6 +347,22 @@ async def api_approve_pr(
     pr = await approve_purchase_requisition(
         db, pr_id, action=body.action, reason=body.reason, approved_by=user_id, org_id=org_id
     )
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    new_status = pr.status.value if hasattr(pr.status, "value") else str(pr.status)
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="STATUS_CHANGE", resource_type="purchase_requisition",
+        resource_id=str(pr.id),
+        description=f"{body.action} ใบขอซื้อ {pr.pr_number}",
+        changes={"status": {"old": "SUBMITTED", "new": new_status}, "action": body.action},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()  # Persist audit log (service already committed business data)
+
     return _pr_to_response(pr)
 
 
@@ -372,6 +389,7 @@ async def api_cancel_pr(
 async def api_convert_pr_to_po(
     pr_id: UUID,
     body: ConvertToPORequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -382,6 +400,20 @@ async def api_convert_pr_to_po(
     body_dict["lines"] = [l.model_dump() for l in body.lines]
 
     po = await convert_pr_to_po(db, pr_id, body=body_dict, created_by=user_id, org_id=org_id)
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="CREATE", resource_type="purchase_order",
+        resource_id=str(po.id),
+        description=f"แปลง PR เป็น PO {po.po_number} (จาก PR {pr_id})",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()  # Persist audit log (service already committed business data)
+
     return _po_to_response(po)
 
 
@@ -520,6 +552,7 @@ async def api_approve_po(
 async def api_receive_goods(
     po_id: UUID,
     body: GoodsReceiptRequest,
+    request: Request,
     token: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
@@ -534,6 +567,22 @@ async def api_receive_goods(
         org_id=org_id,
         delivery_note_number=body.delivery_note_number,
     )
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    new_status = po.status.value if hasattr(po.status, "value") else str(po.status)
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="STATUS_CHANGE", resource_type="purchase_order",
+        resource_id=str(po.id),
+        description=f"รับสินค้า PO {po.po_number} (สถานะ: {new_status})",
+        changes={"status": {"old": "APPROVED", "new": new_status}},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()  # Persist audit log (service already committed business data)
+
     return _po_to_response(po)
 
 

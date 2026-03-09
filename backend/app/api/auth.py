@@ -23,6 +23,7 @@ from app.core.security import (
     verify_password,
 )
 from app.core.permissions import ROLE_PERMISSIONS, require
+from app.core.rate_limit import limiter
 from app.models import User, RefreshToken
 from app.models.security import LoginStatus
 from app.schemas import (
@@ -115,6 +116,7 @@ def _create_tokens_and_refresh(user, ip: str | None = None, user_agent: str | No
 
 
 @router.post("/login", response_model=LoginResponse)
+@limiter.limit("5/minute")
 async def login(
     body: LoginRequest,
     request: Request,
@@ -558,6 +560,7 @@ async def get_me(
 )
 async def register(
     body: UserCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -584,6 +587,20 @@ async def register(
         password_changed_at=datetime.now(timezone.utc),
     )
     db.add(user)
+    await db.flush()  # get user.id before audit log
+
+    # Audit log: user registration
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=UUID(token["sub"]), org_id=org_id,
+        action="CREATE", resource_type="user",
+        resource_id=str(user.id),
+        description=f"สร้างผู้ใช้ใหม่ {user.email} (role: {user.role})",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+
     await db.commit()
     await db.refresh(user)
 

@@ -9,11 +9,11 @@ import sentry_sdk
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 from app.core.config import get_settings
+from app.core.rate_limit import limiter
 from app.core.database import engine, Base
 from app.api import all_routers
 
@@ -38,10 +38,6 @@ if settings.ENVIRONMENT == "production":
             "FATAL: JWT_SECRET_KEY must be changed in production! "
             "Set a strong random secret via environment variable."
         )
-
-# Rate limiter
-limiter = Limiter(key_func=get_remote_address)
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -89,15 +85,6 @@ app.add_middleware(
 # Rate Limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-
-# --- Rate limit on login ---
-@app.middleware("http")
-async def rate_limit_login(request: Request, call_next):
-    if request.url.path == "/api/auth/login" and request.method == "POST":
-        # Apply 5/minute limit
-        pass  # slowapi handles via decorator — see below
-    return await call_next(request)
 
 
 # --- Register Routers ---

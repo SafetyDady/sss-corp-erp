@@ -51,6 +51,8 @@ class OrgSecurityConfigResponse(BaseModel):
     max_failed_attempts: int
     lockout_duration_minutes: int
     require_2fa_roles: list[str]
+    api_rate_limit_per_minute: int = 120
+    api_rate_limit_login: int = 5
     created_at: datetime
     updated_at: datetime
 
@@ -68,6 +70,8 @@ class OrgSecurityConfigUpdate(BaseModel):
     max_failed_attempts: Optional[int] = Field(default=None, ge=1, le=100)
     lockout_duration_minutes: Optional[int] = Field(default=None, ge=1, le=1440)
     require_2fa_roles: Optional[list[str]] = None
+    api_rate_limit_per_minute: Optional[int] = Field(default=None, ge=10, le=600)
+    api_rate_limit_login: Optional[int] = Field(default=None, ge=1, le=60)
 
     @field_validator("require_2fa_roles")
     @classmethod
@@ -182,4 +186,30 @@ class ExportAuditLogResponse(BaseModel):
 
 class ExportAuditListResponse(BaseModel):
     items: list[ExportAuditLogResponse]
+    total: int
+
+
+# ============================================================
+# AUDIT LOG (Phase 13.1 — Enhanced Audit Trail)
+# ============================================================
+
+class AuditLogResponse(BaseModel):
+    id: UUID
+    user_id: Optional[UUID] = None
+    user_email: Optional[str] = None
+    user_name: Optional[str] = None
+    action: str
+    resource_type: str
+    resource_id: Optional[str] = None
+    description: str
+    changes: Optional[dict] = None
+    ip_address: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AuditLogListResponse(BaseModel):
+    items: list[AuditLogResponse]
     total: int
