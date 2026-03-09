@@ -14,7 +14,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, select
+from sqlalchemy import func, select, literal_column, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import DEFAULT_ORG_ID
@@ -142,3 +142,104 @@ async def api_finance_export(
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=finance_report.csv"},
     )
+
+
+@finance_router.get(
+    "/reports/monthly-summary",
+    dependencies=[Depends(require("finance.report.read"))],
+)
+async def api_monthly_summary(
+    months: int = Query(default=6, ge=1, le=12),
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Monthly summary for dashboard charts (SO revenue, PO spend, WO closed)."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    today = date.today()
+
+    # Build month buckets going backwards
+    buckets = []
+    y, m = today.year, today.month
+    for _ in range(months):
+        buckets.append(date(y, m, 1))
+        m -= 1
+        if m == 0:
+            m = 12
+            y -= 1
+    buckets.reverse()
+
+    start_date = buckets[0]
+
+    # SO revenue per month
+    so_period = func.date_trunc(text("'month'"), SalesOrder.order_date).label("period")
+    so_query = (
+        select(
+            so_period,
+            func.coalesce(func.sum(SalesOrder.total_amount), 0).label("amount"),
+        )
+        .where(
+            SalesOrder.is_active == True,
+            SalesOrder.org_id == org_id,
+            SalesOrder.status == SOStatus.APPROVED,
+            SalesOrder.order_date >= start_date,
+        )
+        .group_by(so_period)
+    )
+    so_result = await db.execute(so_query)
+    so_map = {str(r.period.date())[:7]: float(r.amount) for r in so_result}
+
+    # PO spend per month
+    po_period = func.date_trunc(text("'month'"), PurchaseOrder.order_date).label("period")
+    po_query = (
+        select(
+            po_period,
+            func.coalesce(func.sum(PurchaseOrder.total_amount), 0).label("amount"),
+        )
+        .where(
+            PurchaseOrder.is_active == True,
+            PurchaseOrder.org_id == org_id,
+            PurchaseOrder.order_date >= start_date,
+        )
+        .group_by(po_period)
+    )
+    po_result = await db.execute(po_query)
+    po_map = {str(r.period.date())[:7]: float(r.amount) for r in po_result}
+
+    # WO closed per month
+    wo_period = func.date_trunc(text("'month'"), WorkOrder.closed_at).label("period")
+    wo_query = (
+        select(
+            wo_period,
+            func.count().label("cnt"),
+        )
+        .where(
+            WorkOrder.is_active == True,
+            WorkOrder.org_id == org_id,
+            WorkOrder.status == WOStatus.CLOSED,
+            WorkOrder.closed_at.isnot(None),
+            WorkOrder.closed_at >= start_date,
+        )
+        .group_by(wo_period)
+    )
+    wo_result = await db.execute(wo_query)
+    wo_map = {str(r.period.date())[:7]: r.cnt for r in wo_result}
+
+    THAI_MONTHS = [
+        "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+        "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.",
+    ]
+
+    result = []
+    for b in buckets:
+        key = b.strftime("%Y-%m")
+        thai_year = str(b.year + 543)[2:]
+        label = f"{THAI_MONTHS[b.month - 1]} {thai_year}"
+        result.append({
+            "period": key,
+            "label": label,
+            "so_amount": so_map.get(key, 0.0),
+            "po_amount": po_map.get(key, 0.0),
+            "wo_closed": wo_map.get(key, 0),
+        })
+
+    return {"months": result}

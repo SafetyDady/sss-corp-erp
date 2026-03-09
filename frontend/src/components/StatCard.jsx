@@ -10,7 +10,7 @@ import { COLORS } from '../utils/constants';
  *   color     — Accent color for left border + icon bg (defaults to COLORS.accent)
  *   trend     — Optional { value: string, positive: boolean }
  */
-export default function StatCard({ title, value, subtitle, icon, color, trend }) {
+export default function StatCard({ title, value, subtitle, icon, color, trend, onClick }) {
   const accent = color || COLORS.accent;
 
   return (
@@ -22,8 +22,9 @@ export default function StatCard({ title, value, subtitle, icon, color, trend })
         borderRadius: 8,
         padding: '16px 20px',
         transition: 'background 0.15s',
-        cursor: 'default',
+        cursor: onClick ? 'pointer' : 'default',
       }}
+      onClick={onClick}
       onMouseEnter={(e) => { e.currentTarget.style.background = COLORS.cardHover; }}
       onMouseLeave={(e) => { e.currentTarget.style.background = COLORS.card; }}
     >
