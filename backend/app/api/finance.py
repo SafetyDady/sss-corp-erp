@@ -12,7 +12,7 @@ from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select, literal_column, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -113,6 +113,7 @@ async def api_finance_reports(
     dependencies=[Depends(require("finance.report.export"))],
 )
 async def api_finance_export(
+    request: Request,
     period_start: Optional[date] = Query(default=None),
     period_end: Optional[date] = Query(default=None),
     db: AsyncSession = Depends(get_db),
@@ -137,6 +138,20 @@ async def api_finance_export(
     writer.writerow(["Inventory", "Movement Value", report["inventory_movement_value"]])
 
     output.seek(0)
+
+    # Phase 13.7: Export audit log
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    from app.api._helpers import get_client_ip
+    from app.services.security import log_export
+    await log_export(
+        db, user_id=UUID(token["sub"]), org_id=org_id,
+        endpoint=request.url.path, resource_type="finance_reports",
+        record_count=8, file_format="csv",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        filters_used=dict(request.query_params),
+    )
+
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",

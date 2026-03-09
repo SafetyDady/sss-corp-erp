@@ -1,9 +1,10 @@
 """
-Auth API — Login / Refresh / Me / Register / 2FA / Password Change
+Auth API — Login / Refresh / Me / Register / 2FA / Password Change / Sessions
 Rate limited: 5 req/min on /login
-Phase 13: Login History + Account Lockout + 2FA TOTP + Password Policy
+Phase 13: Login History + Account Lockout + 2FA TOTP + Password Policy + Session Management
 """
 
+import uuid as _uuid
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
@@ -39,6 +40,8 @@ from app.schemas.security import (
     TwoFactorVerifyRequest,
     TwoFactorDisableRequest,
     TwoFactorLoginRequest,
+    SessionListResponse,
+    SessionResponse,
 )
 from app.services.security import (
     check_account_locked,
@@ -55,6 +58,10 @@ from app.services.security import (
     change_password,
     validate_password_policy,
     get_or_create_security_config,
+    parse_device_name,
+    get_active_sessions,
+    revoke_session,
+    revoke_other_sessions,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -74,8 +81,10 @@ def _get_client_info(request: Request) -> tuple[str | None, str | None]:
     return ip, user_agent
 
 
-def _create_tokens_and_refresh(user, db):
-    """Create access + refresh tokens for user. Returns (access, refresh, db_refresh)."""
+def _create_tokens_and_refresh(user, ip: str | None = None, user_agent: str | None = None):
+    """Create access + refresh tokens for user with session metadata.
+    Returns (access_token, refresh_token_str, db_refresh_obj, sid).
+    """
     org_id_str = str(user.org_id) if user.org_id else str(DEFAULT_ORG_ID)
     token_data = {
         "sub": str(user.id),
@@ -83,16 +92,26 @@ def _create_tokens_and_refresh(user, db):
         "email": user.email,
         "org_id": org_id_str,
     }
-    access_token = create_access_token(token_data)
+
+    # Pre-generate RefreshToken UUID for sid
+    refresh_id = _uuid.uuid4()
+    sid = str(refresh_id)
+
+    access_token = create_access_token(token_data, sid=sid)
     refresh_token = create_refresh_token(token_data)
 
     db_refresh = RefreshToken(
+        id=refresh_id,
         token=refresh_token,
         user_id=user.id,
         expires_at=datetime.now(timezone.utc)
         + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        device_name=parse_device_name(user_agent),
+        ip_address=ip,
+        user_agent=user_agent[:500] if user_agent and len(user_agent) > 500 else user_agent,
+        last_used_at=datetime.now(timezone.utc),
     )
-    return access_token, refresh_token, db_refresh
+    return access_token, refresh_token, db_refresh, sid
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -170,7 +189,7 @@ async def login(
     password_expired = await check_password_expiry(db, user, org_id)
     if password_expired:
         # Issue real tokens so user can call /change-password endpoint
-        access_token, refresh_token, db_refresh = _create_tokens_and_refresh(user, db)
+        access_token, refresh_token, db_refresh, sid = _create_tokens_and_refresh(user, ip, user_agent)
         db.add(db_refresh)
         await record_login_attempt(
             db, body.email, user.id, org_id, ip, user_agent,
@@ -197,7 +216,7 @@ async def login(
         )
 
     # Normal login — issue tokens
-    access_token, refresh_token, db_refresh = _create_tokens_and_refresh(user, db)
+    access_token, refresh_token, db_refresh, sid = _create_tokens_and_refresh(user, ip, user_agent)
     db.add(db_refresh)
 
     await record_login_attempt(
@@ -229,9 +248,10 @@ async def login_2fa(
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
+    ip, user_agent = _get_client_info(request)
+
     # Verify 2FA code
     if not await verify_2fa_code(db, user, body.code):
-        ip, user_agent = _get_client_info(request)
         await record_login_attempt(
             db, user.email, user.id, user.org_id, ip, user_agent,
             LoginStatus.FAILED, "Invalid 2FA code"
@@ -239,8 +259,8 @@ async def login_2fa(
         await db.commit()
         raise HTTPException(status_code=401, detail="Invalid verification code")
 
-    # Issue tokens
-    access_token, refresh_token, db_refresh = _create_tokens_and_refresh(user, db)
+    # Issue tokens with session metadata
+    access_token, refresh_token, db_refresh, sid = _create_tokens_and_refresh(user, ip, user_agent)
     db.add(db_refresh)
     await db.commit()
 
@@ -345,8 +365,59 @@ async def change_password_endpoint(
     return {"message": "Password changed successfully"}
 
 
+# ============================================================
+# SESSION MANAGEMENT (Phase 13.3)
+# ============================================================
+
+@router.get("/sessions", response_model=SessionListResponse)
+async def list_sessions(
+    token_payload: dict = Depends(get_token_payload),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all active sessions for current user."""
+    user_id = UUID(token_payload["sub"])
+    current_sid = token_payload.get("sid")
+    sessions = await get_active_sessions(db, user_id, current_sid=current_sid)
+    return SessionListResponse(
+        items=[SessionResponse(**s) for s in sessions]
+    )
+
+
+@router.delete("/sessions/{session_id}")
+async def revoke_session_endpoint(
+    session_id: UUID,
+    token_payload: dict = Depends(get_token_payload),
+    db: AsyncSession = Depends(get_db),
+):
+    """Revoke a specific session. Cannot revoke current session."""
+    user_id = UUID(token_payload["sub"])
+    current_sid = token_payload.get("sid")
+    await revoke_session(db, user_id, session_id, current_sid=current_sid)
+    await db.commit()
+    return {"message": "Session revoked successfully"}
+
+
+@router.delete("/sessions")
+async def revoke_all_other_sessions(
+    token_payload: dict = Depends(get_token_payload),
+    db: AsyncSession = Depends(get_db),
+):
+    """Revoke all sessions except the current one."""
+    user_id = UUID(token_payload["sub"])
+    current_sid = token_payload.get("sid")
+    if not current_sid:
+        raise HTTPException(status_code=400, detail="Session ID not found in token")
+    count = await revoke_other_sessions(db, user_id, current_sid)
+    await db.commit()
+    return {"message": f"Revoked {count} session(s)", "count": count}
+
+
+# ============================================================
+# TOKEN REFRESH
+# ============================================================
+
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
+async def refresh(body: RefreshRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """Exchange refresh token for new access + refresh tokens (rotation)."""
     # Decode refresh token
     payload = decode_token(body.refresh_token)
@@ -379,28 +450,21 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
-    # Create new tokens (include org_id for multi-tenant filtering)
-    token_data = {
-        "sub": str(user.id),
-        "role": user.role,
-        "email": user.email,
-        "org_id": str(user.org_id) if user.org_id else str(DEFAULT_ORG_ID),
-    }
-    new_access = create_access_token(token_data)
-    new_refresh = create_refresh_token(token_data)
+    ip, user_agent = _get_client_info(request)
 
-    # Store new refresh token
-    db_new_refresh = RefreshToken(
-        token=new_refresh,
-        user_id=user.id,
-        expires_at=datetime.now(timezone.utc)
-        + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+    # Create new tokens with session metadata (carry over device info from old token)
+    access_token, new_refresh, db_new_refresh, sid = _create_tokens_and_refresh(
+        user, ip=ip or db_token.ip_address, user_agent=user_agent or db_token.user_agent
     )
     db.add(db_new_refresh)
     await db.commit()
 
-    return TokenResponse(access_token=new_access, refresh_token=new_refresh)
+    return TokenResponse(access_token=access_token, refresh_token=new_refresh)
 
+
+# ============================================================
+# ME / REGISTER / LOGOUT
+# ============================================================
 
 @router.get("/me", response_model=UserMe)
 async def get_me(

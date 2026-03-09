@@ -839,3 +839,30 @@ async def api_update_tax_config(
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
     return await update_tax_config(db, org_id, update_data=update_data)
+
+
+# ============================================================
+# EXPORT AUDIT LOG  (Phase 13.7)
+# ============================================================
+
+@admin_router.get(
+    "/export-audit",
+    dependencies=[Depends(require("admin.config.read"))],
+)
+async def api_get_export_audit(
+    user_id: UUID | None = Query(default=None),
+    resource_type: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Get export audit log for compliance review."""
+    from app.services.security import get_export_audit_log
+
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    items, total = await get_export_audit_log(
+        db, org_id, user_id=user_id, resource_type=resource_type,
+        limit=limit, offset=offset,
+    )
+    return {"items": items, "total": total}

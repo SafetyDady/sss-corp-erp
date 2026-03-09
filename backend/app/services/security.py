@@ -412,3 +412,222 @@ def verify_temp_token(token: str, expected_type: str = "2fa_pending") -> dict | 
         return payload
     except JWTError:
         return None
+
+
+# ============================================================
+# SESSION MANAGEMENT (Phase 13.3)
+# ============================================================
+
+def parse_device_name(user_agent: str | None) -> str:
+    """
+    Lightweight UA parser — regex-based, no dependency.
+    Returns e.g. "Chrome on Windows", "Safari on iPhone", "Unknown Device".
+    """
+    if not user_agent:
+        return "Unknown Device"
+
+    ua = user_agent.lower()
+
+    # Detect browser
+    browser = "Unknown Browser"
+    if "edg/" in ua or "edge/" in ua:
+        browser = "Edge"
+    elif "opr/" in ua or "opera" in ua:
+        browser = "Opera"
+    elif "chrome/" in ua and "chromium" not in ua:
+        browser = "Chrome"
+    elif "firefox/" in ua:
+        browser = "Firefox"
+    elif "safari/" in ua and "chrome" not in ua:
+        browser = "Safari"
+    elif "msie" in ua or "trident" in ua:
+        browser = "Internet Explorer"
+
+    # Detect OS/device
+    device = "Unknown OS"
+    if "iphone" in ua:
+        device = "iPhone"
+    elif "ipad" in ua:
+        device = "iPad"
+    elif "android" in ua:
+        if "mobile" in ua:
+            device = "Android Phone"
+        else:
+            device = "Android Tablet"
+    elif "macintosh" in ua or "mac os" in ua:
+        device = "Mac"
+    elif "windows" in ua:
+        device = "Windows"
+    elif "linux" in ua:
+        device = "Linux"
+    elif "cros" in ua:
+        device = "ChromeOS"
+
+    return f"{browser} on {device}"
+
+
+async def get_active_sessions(
+    db: AsyncSession, user_id: uuid.UUID, current_sid: str | None = None
+) -> list[dict]:
+    """List all non-expired, non-revoked refresh tokens for user."""
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        select(RefreshToken).where(
+            RefreshToken.user_id == user_id,
+            RefreshToken.is_revoked == False,
+            RefreshToken.expires_at > now,
+        ).order_by(RefreshToken.created_at.desc())
+    )
+    tokens = list(result.scalars().all())
+
+    sessions = []
+    for t in tokens:
+        sessions.append({
+            "id": str(t.id),
+            "device_name": t.device_name,
+            "ip_address": t.ip_address,
+            "last_used_at": t.last_used_at,
+            "created_at": t.created_at,
+            "is_current": str(t.id) == current_sid if current_sid else False,
+        })
+    return sessions
+
+
+async def revoke_session(
+    db: AsyncSession, user_id: uuid.UUID, session_id: uuid.UUID, current_sid: str | None = None
+) -> None:
+    """Revoke a specific session. Cannot revoke current session."""
+    from fastapi import HTTPException
+
+    if current_sid and str(session_id) == current_sid:
+        raise HTTPException(status_code=400, detail="Cannot revoke current session")
+
+    result = await db.execute(
+        select(RefreshToken).where(
+            RefreshToken.id == session_id,
+            RefreshToken.user_id == user_id,
+            RefreshToken.is_revoked == False,
+        )
+    )
+    token = result.scalar_one_or_none()
+    if not token:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    token.is_revoked = True
+    await db.flush()
+
+
+async def revoke_other_sessions(
+    db: AsyncSession, user_id: uuid.UUID, current_sid: str
+) -> int:
+    """Revoke all refresh tokens except current session. Returns count revoked."""
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        select(RefreshToken).where(
+            RefreshToken.user_id == user_id,
+            RefreshToken.is_revoked == False,
+            RefreshToken.expires_at > now,
+            RefreshToken.id != uuid.UUID(current_sid),
+        )
+    )
+    tokens = list(result.scalars().all())
+    for t in tokens:
+        t.is_revoked = True
+    await db.flush()
+    return len(tokens)
+
+
+# ============================================================
+# EXPORT AUDIT LOG (Phase 13.7)
+# ============================================================
+
+async def log_export(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    org_id: uuid.UUID,
+    endpoint: str,
+    resource_type: str,
+    record_count: int | None = None,
+    file_format: str = "xlsx",
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+    filters_used: dict | None = None,
+) -> None:
+    """Fire-and-forget export audit log. Errors silenced to not break exports."""
+    try:
+        from app.models.security import ExportAuditLog
+        entry = ExportAuditLog(
+            user_id=user_id,
+            org_id=org_id,
+            endpoint=endpoint,
+            resource_type=resource_type,
+            record_count=record_count,
+            file_format=file_format,
+            ip_address=ip_address,
+            user_agent=user_agent[:500] if user_agent and len(user_agent) > 500 else user_agent,
+            filters_used=filters_used,
+        )
+        db.add(entry)
+        await db.commit()
+    except Exception:
+        pass  # Never break an export due to audit logging failure
+
+
+async def get_export_audit_log(
+    db: AsyncSession,
+    org_id: uuid.UUID,
+    user_id: uuid.UUID | None = None,
+    resource_type: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list, int]:
+    """Admin query for export audit log with filters + pagination."""
+    from app.models.security import ExportAuditLog
+
+    base_q = select(ExportAuditLog).where(ExportAuditLog.org_id == org_id)
+    if user_id:
+        base_q = base_q.where(ExportAuditLog.user_id == user_id)
+    if resource_type:
+        base_q = base_q.where(ExportAuditLog.resource_type == resource_type)
+
+    # Count
+    count_q = select(func.count()).select_from(base_q.subquery())
+    total = (await db.execute(count_q)).scalar() or 0
+
+    # Items with user info
+    items_q = (
+        base_q
+        .order_by(ExportAuditLog.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    result = await db.execute(items_q)
+    items = list(result.scalars().all())
+
+    # Enrich with user email/name
+    enriched = []
+    user_cache = {}
+    for item in items:
+        if item.user_id not in user_cache:
+            u_result = await db.execute(
+                select(User.email, User.full_name).where(User.id == item.user_id)
+            )
+            u_row = u_result.one_or_none()
+            user_cache[item.user_id] = (u_row[0] if u_row else None, u_row[1] if u_row else None)
+
+        email, name = user_cache[item.user_id]
+        enriched.append({
+            "id": item.id,
+            "user_id": item.user_id,
+            "user_email": email,
+            "user_name": name,
+            "endpoint": item.endpoint,
+            "resource_type": item.resource_type,
+            "record_count": item.record_count,
+            "file_format": item.file_format,
+            "ip_address": item.ip_address,
+            "filters_used": item.filters_used,
+            "created_at": item.created_at,
+        })
+
+    return enriched, total

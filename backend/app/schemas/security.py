@@ -137,3 +137,49 @@ class LoginResponse(BaseModel):
     requires_2fa: bool = False
     temp_token: Optional[str] = None
     password_expired: bool = False
+
+
+# ============================================================
+# SESSION MANAGEMENT (Phase 13.3)
+# ============================================================
+
+class SessionResponse(BaseModel):
+    id: str
+    device_name: Optional[str] = None
+    ip_address: Optional[str] = None
+    last_used_at: Optional[datetime] = None
+    created_at: datetime
+    is_current: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+class SessionListResponse(BaseModel):
+    items: list[SessionResponse]
+
+
+# ============================================================
+# EXPORT AUDIT LOG (Phase 13.7)
+# ============================================================
+
+class ExportAuditLogResponse(BaseModel):
+    id: UUID
+    user_id: UUID
+    user_email: Optional[str] = None
+    user_name: Optional[str] = None
+    endpoint: str
+    resource_type: str
+    record_count: Optional[int] = None
+    file_format: str
+    ip_address: Optional[str] = None
+    filters_used: Optional[dict] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ExportAuditListResponse(BaseModel):
+    items: list[ExportAuditLogResponse]
+    total: int

@@ -1,5 +1,5 @@
 import { Tabs } from 'antd';
-import { Users, Shield, FileText, Settings, LayoutGrid, Clock, ShieldCheck } from 'lucide-react';
+import { Users, Shield, FileText, Settings, LayoutGrid, Clock, ShieldCheck, Download } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import { usePermission } from '../../hooks/usePermission';
 import UserTab from './UserTab';
@@ -9,6 +9,7 @@ import OrgSettingsTab from './OrgSettingsTab';
 import DeptMenuConfigTab from './DeptMenuConfigTab';
 import SecurityPolicyTab from './SecurityPolicyTab';
 import LoginHistoryTab from './LoginHistoryTab';
+import ExportAuditTab from './ExportAuditTab';
 import { COLORS } from '../../utils/constants';
 
 const tabLabel = (Icon, text) => (
@@ -50,6 +51,11 @@ export default function AdminPage() {
       key: 'login-history',
       label: tabLabel(Clock, 'ประวัติเข้าระบบ'),
       children: <LoginHistoryTab />,
+    },
+    can('admin.config.read') && {
+      key: 'export-audit',
+      label: tabLabel(Download, 'Export Audit'),
+      children: <ExportAuditTab />,
     },
     can('admin.role.read') && {
       key: 'audit',

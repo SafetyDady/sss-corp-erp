@@ -111,6 +111,14 @@ class RefreshToken(Base, TimestampMixin):
     )
     is_revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # Phase 13.3: Session metadata
+    device_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     # Relationships
     user: Mapped["User"] = relationship(back_populates="refresh_tokens")
 

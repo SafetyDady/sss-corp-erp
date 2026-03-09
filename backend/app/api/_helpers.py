@@ -1,18 +1,30 @@
 """
 SSS Corp ERP — Shared API Helpers
 Data scope helpers for role-based data visibility (Phase 6)
++ get_client_ip for audit logging (Phase 13.7)
 
 Usage:
-    from app.api._helpers import resolve_employee_id, resolve_employee, get_department_employee_ids
+    from app.api._helpers import resolve_employee_id, resolve_employee, get_department_employee_ids, get_client_ip
 """
 
 from typing import Optional
 from uuid import UUID
 
+from fastapi import Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.hr import Employee
+
+
+def get_client_ip(request: Request) -> str | None:
+    """Extract client IP — supports X-Forwarded-For (Railway/Vercel proxy)."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    if request.client:
+        return request.client.host
+    return None
 
 
 async def resolve_employee_id(

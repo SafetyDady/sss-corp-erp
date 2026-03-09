@@ -61,14 +61,11 @@ export default function SecurityPolicyTab() {
     }
   };
 
-  if (loading) {
-    return <div style={{ textAlign: 'center', padding: 48 }}><Spin /></div>;
-  }
-
   const canEdit = can('admin.config.update');
 
   return (
     <div style={{ maxWidth: 800 }}>
+      <Spin spinning={loading}>
       <Form form={form} layout="vertical">
         {/* Password Rules */}
         <Card size="small" style={{ marginBottom: 24 }}>
@@ -88,22 +85,30 @@ export default function SecurityPolicyTab() {
           </Form.Item>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <Form.Item name="require_uppercase" valuePropName="checked" style={{ marginBottom: 0 }}>
-              <Switch disabled={!canEdit} checkedChildren="เปิด" unCheckedChildren="ปิด" />
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <Form.Item name="require_uppercase" valuePropName="checked" style={{ marginBottom: 0 }}>
+                <Switch disabled={!canEdit} checkedChildren="เปิด" unCheckedChildren="ปิด" />
+              </Form.Item>
               <Text style={{ marginLeft: 12 }}>ต้องมีตัวพิมพ์ใหญ่ (A-Z)</Text>
-            </Form.Item>
-            <Form.Item name="require_lowercase" valuePropName="checked" style={{ marginBottom: 0 }}>
-              <Switch disabled={!canEdit} checkedChildren="เปิด" unCheckedChildren="ปิด" />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <Form.Item name="require_lowercase" valuePropName="checked" style={{ marginBottom: 0 }}>
+                <Switch disabled={!canEdit} checkedChildren="เปิด" unCheckedChildren="ปิด" />
+              </Form.Item>
               <Text style={{ marginLeft: 12 }}>ต้องมีตัวพิมพ์เล็ก (a-z)</Text>
-            </Form.Item>
-            <Form.Item name="require_digits" valuePropName="checked" style={{ marginBottom: 0 }}>
-              <Switch disabled={!canEdit} checkedChildren="เปิด" unCheckedChildren="ปิด" />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <Form.Item name="require_digits" valuePropName="checked" style={{ marginBottom: 0 }}>
+                <Switch disabled={!canEdit} checkedChildren="เปิด" unCheckedChildren="ปิด" />
+              </Form.Item>
               <Text style={{ marginLeft: 12 }}>ต้องมีตัวเลข (0-9)</Text>
-            </Form.Item>
-            <Form.Item name="require_special_chars" valuePropName="checked" style={{ marginBottom: 0 }}>
-              <Switch disabled={!canEdit} checkedChildren="เปิด" unCheckedChildren="ปิด" />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <Form.Item name="require_special_chars" valuePropName="checked" style={{ marginBottom: 0 }}>
+                <Switch disabled={!canEdit} checkedChildren="เปิด" unCheckedChildren="ปิด" />
+              </Form.Item>
               <Text style={{ marginLeft: 12 }}>ต้องมีอักขระพิเศษ (!@#$%...)</Text>
-            </Form.Item>
+            </div>
           </div>
 
           <Divider style={{ margin: '16px 0' }} />
@@ -173,6 +178,7 @@ export default function SecurityPolicyTab() {
           </Button>
         )}
       </Form>
+      </Spin>
     </div>
   );
 }

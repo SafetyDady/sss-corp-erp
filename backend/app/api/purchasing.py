@@ -26,7 +26,7 @@ PO Endpoints (existing):
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -139,6 +139,7 @@ async def api_list_prs(
     dependencies=[Depends(require("purchasing.pr.export"))],
 )
 async def api_export_prs(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -188,6 +189,17 @@ async def api_export_prs(
         org_name=org_name,
         col_widths=[18, 12, 14, 12, 14, 20, 16, 14],
         money_cols=[6],
+    )
+
+    # Phase 13.7: Export audit log
+    from app.api._helpers import get_client_ip
+    from app.services.security import log_export
+    await log_export(
+        db, user_id=UUID(token["sub"]), org_id=org_id,
+        endpoint=request.url.path, resource_type="purchase_requisitions",
+        record_count=len(rows), ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        filters_used=dict(request.query_params),
     )
 
     return StreamingResponse(

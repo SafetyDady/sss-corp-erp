@@ -14,6 +14,7 @@ import LeaveBalanceReadOnly from './LeaveBalanceReadOnly';
 import ProfileEditModal from './ProfileEditModal';
 import Setup2FAModal from './Setup2FAModal';
 import ChangePasswordModal from './ChangePasswordModal';
+import SessionsSection from './SessionsSection';
 
 const { Title, Text } = Typography;
 
@@ -188,6 +189,9 @@ export default function MePage() {
           </div>
         </div>
       </Card>
+
+      {/* Active Sessions (Phase 13.3) */}
+      <SessionsSection />
 
       {/* Tabbed Content — Personal Info Only */}
       {tabItems.length === 0 ? (

@@ -30,7 +30,7 @@ import io
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
@@ -223,6 +223,7 @@ async def api_update_profile_self(
     dependencies=[Depends(require("hr.employee.export"))],
 )
 async def api_export_employees(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -277,6 +278,17 @@ async def api_export_employees(
         org_name=org_name,
         col_widths=[14, 25, 18, 18, 14, 12, 14, 12, 14, 10],
         money_cols=[5, 6, 7],
+    )
+
+    # Phase 13.7: Export audit log
+    from app.api._helpers import get_client_ip
+    from app.services.security import log_export
+    await log_export(
+        db, user_id=UUID(token["sub"]), org_id=org_id,
+        endpoint=request.url.path, resource_type="employees",
+        record_count=len(rows), ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        filters_used=dict(request.query_params),
     )
 
     return StreamingResponse(
@@ -863,6 +875,7 @@ async def api_execute_payroll(
     dependencies=[Depends(require("hr.payroll.export"))],
 )
 async def api_export_payroll(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     limit: int = Query(default=100, le=500),
     offset: int = Query(default=0, ge=0),
@@ -892,6 +905,19 @@ async def api_export_payroll(
             str(pr.created_at),
         ])
     output.seek(0)
+
+    # Phase 13.7: Export audit log
+    from app.api._helpers import get_client_ip
+    from app.services.security import log_export
+    await log_export(
+        db, user_id=UUID(token["sub"]), org_id=org_id,
+        endpoint=request.url.path, resource_type="payroll",
+        record_count=len(items), file_format="csv",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        filters_used=dict(request.query_params),
+    )
+
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",

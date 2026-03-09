@@ -8,7 +8,7 @@ Permissions: finance.invoice.{create,read,update,delete,approve,export}
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -107,6 +107,7 @@ async def api_ap_summary(
     dependencies=[Depends(require("finance.invoice.export"))],
 )
 async def api_export_invoices(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -170,6 +171,17 @@ async def api_export_invoices(
         org_name=org_name,
         col_widths=[18, 18, 25, 14, 14, 14, 14, 14, 14, 12, 14],
         money_cols=[3, 4, 5, 6, 7, 8],
+    )
+
+    # Phase 13.7: Export audit log
+    from app.api._helpers import get_client_ip
+    from app.services.security import log_export
+    await log_export(
+        db, user_id=UUID(token["sub"]), org_id=org_id,
+        endpoint=request.url.path, resource_type="supplier_invoices",
+        record_count=len(rows), ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        filters_used=dict(request.query_params),
     )
 
     return StreamingResponse(
