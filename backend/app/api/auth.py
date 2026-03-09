@@ -1,6 +1,7 @@
 """
-Auth API — Login / Refresh / Me / Register
+Auth API — Login / Refresh / Me / Register / 2FA / Password Change
 Rate limited: 5 req/min on /login
+Phase 13: Login History + Account Lockout + 2FA TOTP + Password Policy
 """
 
 from datetime import datetime, timedelta, timezone
@@ -22,6 +23,7 @@ from app.core.security import (
 )
 from app.core.permissions import ROLE_PERMISSIONS, require
 from app.models import User, RefreshToken
+from app.models.security import LoginStatus
 from app.schemas import (
     LoginRequest,
     TokenResponse,
@@ -30,47 +32,317 @@ from app.schemas import (
     UserResponse,
     UserMe,
 )
+from app.schemas.security import (
+    LoginResponse,
+    PasswordChangeRequest,
+    TwoFactorSetupResponse,
+    TwoFactorVerifyRequest,
+    TwoFactorDisableRequest,
+    TwoFactorLoginRequest,
+)
+from app.services.security import (
+    check_account_locked,
+    check_password_expiry,
+    create_temp_token,
+    verify_temp_token,
+    increment_failed_attempts,
+    record_login_attempt,
+    reset_failed_attempts,
+    setup_2fa,
+    verify_and_enable_2fa,
+    verify_2fa_code,
+    disable_2fa,
+    change_password,
+    validate_password_policy,
+    get_or_create_security_config,
+)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 settings = get_settings()
 
 
-@router.post("/login", response_model=TokenResponse)
-async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
-    """Authenticate user and return access + refresh tokens."""
-    # Find user
-    result = await db.execute(
-        select(User).where(User.email == body.email, User.is_active == True)
-    )
-    user = result.scalar_one_or_none()
+def _get_client_info(request: Request) -> tuple[str | None, str | None]:
+    """Extract IP address and user agent from request."""
+    ip = None
+    if request.client:
+        ip = request.client.host
+    # Check for proxy headers
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        ip = forwarded.split(",")[0].strip()
+    user_agent = request.headers.get("user-agent")
+    return ip, user_agent
 
-    if not user or not verify_password(body.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
-        )
 
-    # Create tokens (include org_id for multi-tenant filtering)
+def _create_tokens_and_refresh(user, db):
+    """Create access + refresh tokens for user. Returns (access, refresh, db_refresh)."""
+    org_id_str = str(user.org_id) if user.org_id else str(DEFAULT_ORG_ID)
     token_data = {
         "sub": str(user.id),
         "role": user.role,
         "email": user.email,
-        "org_id": str(user.org_id) if user.org_id else str(DEFAULT_ORG_ID),
+        "org_id": org_id_str,
     }
     access_token = create_access_token(token_data)
     refresh_token = create_refresh_token(token_data)
 
-    # Store refresh token in DB
     db_refresh = RefreshToken(
         token=refresh_token,
         user_id=user.id,
         expires_at=datetime.now(timezone.utc)
         + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
     )
+    return access_token, refresh_token, db_refresh
+
+
+@router.post("/login", response_model=LoginResponse)
+async def login(
+    body: LoginRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Authenticate user. Handles lockout, 2FA, and password expiry."""
+    ip, user_agent = _get_client_info(request)
+
+    # Find user (include inactive for recording purposes)
+    result = await db.execute(
+        select(User).where(User.email == body.email)
+    )
+    user = result.scalar_one_or_none()
+
+    # User not found
+    if not user:
+        await record_login_attempt(
+            db, body.email, None, None, ip, user_agent,
+            LoginStatus.FAILED, "User not found"
+        )
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+
+    org_id = user.org_id or DEFAULT_ORG_ID
+
+    # Inactive user
+    if not user.is_active:
+        await record_login_attempt(
+            db, body.email, user.id, org_id, ip, user_agent,
+            LoginStatus.FAILED, "Account inactive"
+        )
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+
+    # Check account locked
+    is_locked, lock_reason = await check_account_locked(db, user, org_id)
+    if is_locked:
+        await record_login_attempt(
+            db, body.email, user.id, org_id, ip, user_agent,
+            LoginStatus.LOCKED, lock_reason
+        )
+        await db.commit()
+        raise HTTPException(
+            status_code=423,
+            detail=lock_reason,
+        )
+
+    # Verify password
+    if not verify_password(body.password, user.hashed_password):
+        was_locked = await increment_failed_attempts(db, user, org_id)
+        reason = "Account locked after too many attempts" if was_locked else "Invalid password"
+        await record_login_attempt(
+            db, body.email, user.id, org_id, ip, user_agent,
+            LoginStatus.LOCKED if was_locked else LoginStatus.FAILED, reason
+        )
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+
+    # Password correct — reset failed attempts
+    await reset_failed_attempts(db, user)
+
+    # Check password expiry
+    password_expired = await check_password_expiry(db, user, org_id)
+    if password_expired:
+        # Issue real tokens so user can call /change-password endpoint
+        access_token, refresh_token, db_refresh = _create_tokens_and_refresh(user, db)
+        db.add(db_refresh)
+        await record_login_attempt(
+            db, body.email, user.id, org_id, ip, user_agent,
+            LoginStatus.SUCCESS, "Password expired — change required"
+        )
+        await db.commit()
+        return LoginResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            password_expired=True,
+        )
+
+    # Check 2FA
+    if user.is_2fa_enabled:
+        temp_token = create_temp_token(str(user.id), str(org_id), "2fa_pending")
+        await record_login_attempt(
+            db, body.email, user.id, org_id, ip, user_agent,
+            LoginStatus.SUCCESS, "2FA required"
+        )
+        await db.commit()
+        return LoginResponse(
+            requires_2fa=True,
+            temp_token=temp_token,
+        )
+
+    # Normal login — issue tokens
+    access_token, refresh_token, db_refresh = _create_tokens_and_refresh(user, db)
+    db.add(db_refresh)
+
+    await record_login_attempt(
+        db, body.email, user.id, org_id, ip, user_agent,
+        LoginStatus.SUCCESS
+    )
+    await db.commit()
+
+    return LoginResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+    )
+
+
+@router.post("/2fa/login", response_model=LoginResponse)
+async def login_2fa(
+    body: TwoFactorLoginRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Complete 2FA login with OTP or backup code."""
+    payload = verify_temp_token(body.temp_token, "2fa_pending")
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired temp token")
+
+    user_id = payload["sub"]
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    # Verify 2FA code
+    if not await verify_2fa_code(db, user, body.code):
+        ip, user_agent = _get_client_info(request)
+        await record_login_attempt(
+            db, user.email, user.id, user.org_id, ip, user_agent,
+            LoginStatus.FAILED, "Invalid 2FA code"
+        )
+        await db.commit()
+        raise HTTPException(status_code=401, detail="Invalid verification code")
+
+    # Issue tokens
+    access_token, refresh_token, db_refresh = _create_tokens_and_refresh(user, db)
     db.add(db_refresh)
     await db.commit()
 
-    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+    # Check password expiry after 2FA
+    org_id = user.org_id or DEFAULT_ORG_ID
+    password_expired = await check_password_expiry(db, user, org_id)
+
+    return LoginResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        password_expired=password_expired,
+    )
+
+
+@router.post("/2fa/setup", response_model=TwoFactorSetupResponse)
+async def setup_2fa_endpoint(
+    token_payload: dict = Depends(get_token_payload),
+    db: AsyncSession = Depends(get_db),
+):
+    """Initialize 2FA setup. Returns QR code URI and backup codes."""
+    user_id = token_payload.get("sub")
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.is_2fa_enabled:
+        raise HTTPException(status_code=400, detail="2FA is already enabled")
+
+    data = await setup_2fa(db, user)
+    await db.commit()
+
+    return TwoFactorSetupResponse(**data)
+
+
+@router.post("/2fa/verify")
+async def verify_2fa_endpoint(
+    body: TwoFactorVerifyRequest,
+    token_payload: dict = Depends(get_token_payload),
+    db: AsyncSession = Depends(get_db),
+):
+    """Verify OTP and enable 2FA."""
+    user_id = token_payload.get("sub")
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.is_2fa_enabled:
+        raise HTTPException(status_code=400, detail="2FA is already enabled")
+
+    if not await verify_and_enable_2fa(db, user, body.code):
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+
+    await db.commit()
+    return {"message": "2FA enabled successfully"}
+
+
+@router.post("/2fa/disable")
+async def disable_2fa_endpoint(
+    body: TwoFactorDisableRequest,
+    token_payload: dict = Depends(get_token_payload),
+    db: AsyncSession = Depends(get_db),
+):
+    """Disable 2FA. Requires current OTP for security."""
+    user_id = token_payload.get("sub")
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not user.is_2fa_enabled:
+        raise HTTPException(status_code=400, detail="2FA is not enabled")
+
+    if not await disable_2fa(db, user, body.code):
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+
+    await db.commit()
+    return {"message": "2FA disabled successfully"}
+
+
+@router.post("/change-password")
+async def change_password_endpoint(
+    body: PasswordChangeRequest,
+    token_payload: dict = Depends(get_token_payload),
+    db: AsyncSession = Depends(get_db),
+):
+    """Change password. Validates against org policy. Revokes all sessions."""
+    user_id = token_payload.get("sub")
+    org_id = UUID(token_payload["org_id"])
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    violations = await change_password(db, user, body.current_password, body.new_password, org_id)
+    if violations:
+        raise HTTPException(status_code=400, detail="; ".join(violations))
+
+    await db.commit()
+    return {"message": "Password changed successfully"}
 
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -210,6 +482,7 @@ async def get_me(
         org_name=org.name if org else None,
         org_address=org.address if org else None,
         org_tax_id=org.tax_id if org else None,
+        is_2fa_enabled=user.is_2fa_enabled,
     )
 
 
@@ -224,7 +497,7 @@ async def register(
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
-    """Register a new user (admin only)."""
+    """Register a new user (admin only). Validates password against policy."""
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
 
     # Check duplicate email
@@ -232,12 +505,19 @@ async def register(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Email already registered")
 
+    # Validate password against org policy
+    config = await get_or_create_security_config(db, org_id)
+    violations = validate_password_policy(body.password, config)
+    if violations:
+        raise HTTPException(status_code=400, detail="; ".join(violations))
+
     user = User(
         email=body.email,
         hashed_password=hash_password(body.password),
         full_name=body.full_name,
         role=body.role,
         org_id=org_id,
+        password_changed_at=datetime.now(timezone.utc),
     )
     db.add(user)
     await db.commit()

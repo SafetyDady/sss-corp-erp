@@ -11,12 +11,13 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Integer,
     Numeric,
     String,
     Text,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -67,6 +68,24 @@ class User(Base, TimestampMixin):
     org_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True, index=True
     )
+
+    # Phase 13: Password tracking
+    password_changed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    failed_login_count: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False, server_default="0"
+    )
+    locked_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    # Phase 13: 2FA TOTP
+    totp_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    is_2fa_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="false"
+    )
+    backup_codes_hash: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Relationships
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(

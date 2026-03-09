@@ -1,16 +1,19 @@
 import { useState } from 'react';
-import { Tabs, Card, Typography, Avatar, Button } from 'antd';
-import { User, Clock, Receipt, CalendarOff, Building2, Calendar, Pencil } from 'lucide-react';
+import { Tabs, Card, Typography, Avatar, Button, Tag, App, Popconfirm, Space } from 'antd';
+import { User, Clock, Receipt, CalendarOff, Building2, Calendar, Pencil, ShieldCheck, ShieldOff, Lock } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
 import { usePermission } from '../../hooks/usePermission';
 import { COLORS } from '../../utils/constants';
 import EmptyState from '../../components/EmptyState';
 import dayjs from 'dayjs';
+import api from '../../services/api';
 
 import MyTimesheetPage from './MyTimesheetPage';
 import MyPayslipTab from './MyPayslipTab';
 import LeaveBalanceReadOnly from './LeaveBalanceReadOnly';
 import ProfileEditModal from './ProfileEditModal';
+import Setup2FAModal from './Setup2FAModal';
+import ChangePasswordModal from './ChangePasswordModal';
 
 const { Title, Text } = Typography;
 
@@ -26,9 +29,15 @@ export default function MePage() {
   const employeeId = useAuthStore((s) => s.employeeId);
   const hireDate = useAuthStore((s) => s.hireDate);
   const departmentName = useAuthStore((s) => s.departmentName);
+  const is2FAEnabled = useAuthStore((s) => s.is2FAEnabled);
+  const fetchMe = useAuthStore((s) => s.fetchMe);
   const { can } = usePermission();
+  const { message } = App.useApp();
 
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [setup2FAOpen, setSetup2FAOpen] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [disabling2FA, setDisabling2FA] = useState(false);
 
   const tenure = hireDate
     ? `${dayjs().diff(dayjs(hireDate), 'year')} ปี ${dayjs().diff(dayjs(hireDate), 'month') % 12} เดือน`
@@ -114,6 +123,68 @@ export default function MePage() {
                 เริ่มงาน {dayjs(hireDate).format('DD MMM YYYY')} — {tenure}
               </Text>
             )}
+
+            {/* Security Actions: 2FA + Change Password */}
+            <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {is2FAEnabled ? (
+                <>
+                  <Tag color={COLORS.success} icon={<ShieldCheck size={12} />}>
+                    2FA เปิดใช้งาน
+                  </Tag>
+                  <Popconfirm
+                    title="ปิด 2FA"
+                    description="คุณต้องกรอก OTP จากแอป Authenticator เพื่อยืนยัน"
+                    okText="ปิด 2FA"
+                    cancelText="ยกเลิก"
+                    onConfirm={async () => {
+                      const code = window.prompt('กรอก OTP 6 หลัก เพื่อยืนยันการปิด 2FA:');
+                      if (!code || code.length !== 6) {
+                        message.warning('กรุณากรอก OTP 6 หลัก');
+                        return;
+                      }
+                      setDisabling2FA(true);
+                      try {
+                        await api.post('/api/auth/2fa/disable', { code });
+                        message.success('ปิด 2FA สำเร็จ');
+                        await fetchMe();
+                      } catch (err) {
+                        message.error(err.response?.data?.detail || 'OTP ไม่ถูกต้อง');
+                      } finally {
+                        setDisabling2FA(false);
+                      }
+                    }}
+                  >
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<ShieldOff size={13} />}
+                      loading={disabling2FA}
+                      style={{ color: COLORS.textMuted }}
+                    >
+                      ปิด 2FA
+                    </Button>
+                  </Popconfirm>
+                </>
+              ) : (
+                <Button
+                  type="default"
+                  size="small"
+                  icon={<ShieldCheck size={13} />}
+                  onClick={() => setSetup2FAOpen(true)}
+                  style={{ borderColor: COLORS.success, color: COLORS.success }}
+                >
+                  ตั้งค่า 2FA
+                </Button>
+              )}
+              <Button
+                type="default"
+                size="small"
+                icon={<Lock size={13} />}
+                onClick={() => setChangePasswordOpen(true)}
+              >
+                เปลี่ยนรหัสผ่าน
+              </Button>
+            </div>
           </div>
         </div>
       </Card>
@@ -130,6 +201,20 @@ export default function MePage() {
         open={profileModalOpen}
         onClose={() => setProfileModalOpen(false)}
         onSuccess={() => setProfileModalOpen(false)}
+      />
+
+      {/* 2FA Setup Modal (Phase 13) */}
+      <Setup2FAModal
+        open={setup2FAOpen}
+        onClose={() => setSetup2FAOpen(false)}
+        onSuccess={() => { setSetup2FAOpen(false); fetchMe(); }}
+      />
+
+      {/* Change Password Modal (Phase 13) */}
+      <ChangePasswordModal
+        open={changePasswordOpen}
+        onClose={() => setChangePasswordOpen(false)}
+        onSuccess={() => setChangePasswordOpen(false)}
       />
     </div>
   );

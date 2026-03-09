@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     # Sentry (monitoring — optional)
     SENTRY_DSN: str = ""
 
+    # 2FA TOTP (Phase 13)
+    TOTP_ENCRYPTION_KEY: str = "change-this-totp-encryption-key"
+
     # Email (Phase 4.6 — disabled by default)
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587

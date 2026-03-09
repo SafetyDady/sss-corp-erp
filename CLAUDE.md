@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-09 v27 (Phase 12 Mobile Responsive)
+> อัปเดตล่าสุด: 2026-03-09 v28 (Phase 13 Security Round 1)
 
 ---
 
@@ -744,6 +744,11 @@ POST   /api/auth/refresh                   — (refresh token)
 GET    /api/auth/me                         — (JWT)
 POST   /api/auth/register                  admin.user.create
 POST   /api/auth/logout                    — (JWT)
+POST   /api/auth/change-password           — (JWT, self-service)
+POST   /api/auth/2fa/setup                 — (JWT, self-service)
+POST   /api/auth/2fa/verify                — (JWT, self-service)
+POST   /api/auth/2fa/login                 — (no auth, temp_token + OTP)
+POST   /api/auth/2fa/disable               — (JWT, self-service)
 ```
 
 ### Inventory
@@ -1024,6 +1029,10 @@ GET    /api/admin/users                     admin.user.read
 PATCH  /api/admin/users/{id}/role           admin.user.update
 GET    /api/admin/audit-log                 admin.role.read
 POST   /api/admin/seed-permissions          admin.role.update
+GET    /api/admin/config/security           admin.config.read
+PUT    /api/admin/config/security           admin.config.update
+GET    /api/admin/login-history             admin.user.read
+POST   /api/admin/users/{id}/unlock         admin.user.update
 ```
 
 ### Setup (Phase 4.7)
@@ -1477,12 +1486,12 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [ ] **12.8** Bottom Navigation — mobile-only bottom nav bar (deferred)
 - [ ] **12.9** Swipe Gestures — swipe approve/reject on mobile (deferred)
 
-### Phase 13 — Audit & Security Enhancement 🔐 (Planned)
+### Phase 13 — Audit & Security Enhancement 🔐 (Partial ✅)
 - [ ] **13.1** Enhanced Audit Trail — model-level event logging (who, what, when, before/after values)
-- [ ] **13.2** Login History — device, IP, location, timestamp per user
+- [x] **13.2** Login History — device, IP, user agent, timestamp per user + admin unlock
 - [ ] **13.3** Session Management — active sessions list, remote logout
-- [ ] **13.4** Password Policy — min length, complexity, expiry, history (no reuse)
-- [ ] **13.5** Two-Factor Auth (2FA) — TOTP (Google Authenticator) or email OTP
+- [x] **13.4** Password Policy — min length, complexity, expiry, account lockout, per-org config
+- [x] **13.5** Two-Factor Auth (2FA) — TOTP (Google Authenticator), backup codes, role-based enforcement
 - [ ] **13.6** API Rate Limiting per user — prevent abuse (beyond current global rate limit)
 - [ ] **13.7** Data Export Audit — log all export/download actions for compliance
 
@@ -1638,6 +1647,14 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/stores/notificationStore.js` | Zustand store + 60s polling + visibility check (Phase 9) |
 | `frontend/src/components/NotificationBell.jsx` | Bell icon + Badge with unreadCount (Phase 9) |
 | `frontend/src/components/NotificationDrawer.jsx` | Notification list drawer — type icons, relative time, navigate on click (Phase 9) |
+| `backend/app/models/security.py` | LoginHistory + OrgSecurityConfig models (Phase 13) |
+| `backend/app/schemas/security.py` | Security Pydantic schemas: LoginHistory, SecurityConfig, 2FA, PasswordChange (Phase 13) |
+| `backend/app/services/security.py` | Security service: login history, password policy, 2FA TOTP, lockout, backup codes (Phase 13) |
+| `backend/alembic/versions/q7r8s9t0u1v2_phase13_security.py` | Migration: login_history + org_security_configs tables + user columns (Phase 13) |
+| `frontend/src/pages/admin/SecurityPolicyTab.jsx` | Password policy + lockout + 2FA enforcement admin config (Phase 13) |
+| `frontend/src/pages/admin/LoginHistoryTab.jsx` | Login history table + user filter + unlock button (Phase 13) |
+| `frontend/src/pages/my/Setup2FAModal.jsx` | 3-step 2FA setup: QR scan → OTP verify → backup codes (Phase 13) |
+| `frontend/src/pages/my/ChangePasswordModal.jsx` | Password change form with policy hints + force change mode (Phase 13) |
 | `backend/app/middleware/performance.py` | Request timing middleware (Phase 14) |
 | `backend/app/services/ai_performance.py` | AI performance analysis engine — Claude API (Phase 14) |
 | `frontend/src/pages/admin/PerformancePage.jsx` | AI Performance Dashboard (Phase 14) |
@@ -1729,4 +1746,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v27 (Phase 0-9 complete + Phase 10 partial + Phase 11 partial + Phase 12 partial + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete + Mobile Responsive core complete, Phase 12.7-12.9/13/14 planned)*
+*End of CLAUDE.md — SSS Corp ERP v28 (Phase 0-9 complete + Phase 10 partial + Phase 11 partial + Phase 12 partial + Phase 13 partial (Login History + Password Policy + 2FA) + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete + Mobile Responsive core complete, Phase 12.7-12.9/13.1,13.3,13.6,13.7/14 planned)*

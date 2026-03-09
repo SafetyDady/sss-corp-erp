@@ -59,3 +59,5 @@ class UserMe(UserResponse):
     org_name: Optional[str] = None
     org_address: Optional[str] = None
     org_tax_id: Optional[str] = None
+    # Phase 13: 2FA status
+    is_2fa_enabled: bool = False

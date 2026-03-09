@@ -30,6 +30,10 @@ sentry-sdk[fastapi]==2.19.2
 # Excel Export
 openpyxl==3.1.5
 
+# 2FA TOTP (Phase 13)
+pyotp==2.9.0
+qrcode[pil]==8.0
+
 # Utilities
 python-dotenv==1.0.1
 httpx==0.28.1

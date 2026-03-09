@@ -718,6 +718,99 @@ async def api_update_dept_menu(
 # ORG TAX CONFIG ROUTES  (C5 Tax Calculation)
 # ============================================================
 
+# ============================================================
+# SECURITY CONFIG ROUTES  (Phase 13)
+# ============================================================
+
+@admin_router.get(
+    "/config/security",
+    dependencies=[Depends(require("admin.config.read"))],
+)
+async def api_get_security_config(
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Get org security configuration (password policy, lockout, 2FA enforcement)."""
+    from app.schemas.security import OrgSecurityConfigResponse
+    from app.services.security import get_or_create_security_config
+
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    config = await get_or_create_security_config(db, org_id)
+    await db.commit()
+    return OrgSecurityConfigResponse.model_validate(config)
+
+
+@admin_router.put(
+    "/config/security",
+    dependencies=[Depends(require("admin.config.update"))],
+)
+async def api_update_security_config(
+    body: "OrgSecurityConfigUpdate",
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Update org security configuration."""
+    from app.schemas.security import OrgSecurityConfigResponse, OrgSecurityConfigUpdate
+    from app.services.security import update_security_config as svc_update_security
+
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    update_data = body.model_dump(exclude_unset=True)
+    config = await svc_update_security(db, org_id, update_data)
+    await db.commit()
+    return OrgSecurityConfigResponse.model_validate(config)
+
+
+# Fix type annotation for body parameter
+from app.schemas.security import OrgSecurityConfigUpdate as _OrgSecurityConfigUpdate
+api_update_security_config.__annotations__["body"] = _OrgSecurityConfigUpdate
+
+
+# ============================================================
+# LOGIN HISTORY ROUTES  (Phase 13)
+# ============================================================
+
+@admin_router.get(
+    "/login-history",
+    dependencies=[Depends(require("admin.user.read"))],
+)
+async def api_get_login_history(
+    user_id: UUID = Query(default=None, description="Filter by user ID"),
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Get login history for admin view."""
+    from app.schemas.security import LoginHistoryListResponse, LoginHistoryResponse
+    from app.services.security import get_login_history
+
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    items, total = await get_login_history(db, org_id, user_id=user_id, limit=limit, offset=offset)
+
+    return LoginHistoryListResponse(
+        items=[LoginHistoryResponse.model_validate(item) for item in items],
+        total=total,
+    )
+
+
+@admin_router.post(
+    "/users/{user_id}/unlock",
+    dependencies=[Depends(require("admin.user.update"))],
+)
+async def api_unlock_user(
+    user_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Admin manually unlocks a locked user account."""
+    from app.services.security import admin_unlock_user
+
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    await admin_unlock_user(db, user_id, org_id)
+    await db.commit()
+    return {"message": "User account unlocked successfully"}
+
+
 @admin_router.get(
     "/config/tax",
     response_model=OrgTaxConfigResponse,
