@@ -131,6 +131,7 @@ async def delete_category(
     asset_count = await db.execute(
         select(func.count()).where(
             FixedAsset.category_id == category_id,
+            FixedAsset.org_id == org_id,
             FixedAsset.is_active == True,
         )
     )
@@ -457,7 +458,10 @@ async def update_asset(
     if req.salvage_value is not None:
         # Check if has depreciation entries — cannot change salvage after depreciation (BR#140 extended)
         dep_count = await db.execute(
-            select(func.count()).where(DepreciationEntry.asset_id == asset_id)
+            select(func.count()).where(
+                DepreciationEntry.asset_id == asset_id,
+                DepreciationEntry.org_id == org_id,
+            )
         )
         if (dep_count.scalar() or 0) > 0:
             raise HTTPException(
@@ -503,7 +507,10 @@ async def delete_asset(
 
     # Check no depreciation entries (BR#142)
     dep_count = await db.execute(
-        select(func.count()).where(DepreciationEntry.asset_id == asset_id)
+        select(func.count()).where(
+            DepreciationEntry.asset_id == asset_id,
+            DepreciationEntry.org_id == org_id,
+        )
     )
     if (dep_count.scalar() or 0) > 0:
         raise HTTPException(
@@ -533,10 +540,10 @@ async def dispose_asset(
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
 
-    if asset.status not in (AssetStatus.ACTIVE, AssetStatus.FULLY_DEPRECIATED):
+    if asset.status != AssetStatus.ACTIVE:
         raise HTTPException(
             status_code=422,
-            detail=f"Cannot dispose asset with status {asset.status.value}"
+            detail=f"Cannot dispose asset with status {asset.status.value}. Only ACTIVE assets can be disposed (BR#143)"
         )
 
     asset.status = AssetStatus.DISPOSED
@@ -592,10 +599,6 @@ async def get_asset_summary(
 
     # Total count
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
-
-    # By status
-    for s in [AssetStatus.ACTIVE, AssetStatus.FULLY_DEPRECIATED, AssetStatus.DISPOSED, AssetStatus.RETIRED]:
-        pass  # will query individually
 
     active_q = select(func.count()).where(
         FixedAsset.org_id == org_id, FixedAsset.is_active == True,

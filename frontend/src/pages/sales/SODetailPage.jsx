@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Table, Button, App, Space, Descriptions, Spin, Popconfirm, Modal, Input, Alert } from 'antd';
-import { ArrowLeft, Check, X, Send, Pencil, Ban, Truck } from 'lucide-react';
+import { ArrowLeft, Check, X, Send, Pencil, Ban, Truck, Printer } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
+import useAuthStore from '../../stores/authStore';
 import api from '../../services/api';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
 import SOFormModal from './SOFormModal';
+import SOPrintView from './SOPrintView';
 import { formatCurrency, formatDate, formatDateTime } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
 
@@ -21,7 +23,11 @@ export default function SODetailPage() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [printModalOpen, setPrintModalOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const orgName = useAuthStore((s) => s.orgName);
+  const orgAddress = useAuthStore((s) => s.orgAddress);
+  const orgTaxId = useAuthStore((s) => s.orgTaxId);
 
   const fetchData = async () => {
     setLoading(true);
@@ -173,6 +179,10 @@ export default function SODetailPage() {
                 <Button danger>{'ลบ'}</Button>
               </Popconfirm>
             )}
+            <Button icon={<Printer size={14} />} onClick={() => {
+              setPrintModalOpen(true);
+              setTimeout(() => window.print(), 400);
+            }}>พิมพ์</Button>
           </Space>
         }
       />
@@ -226,6 +236,29 @@ export default function SODetailPage() {
         onClose={() => setEditModalOpen(false)}
         onSuccess={() => { setEditModalOpen(false); fetchData(); }}
       />
+
+      {/* Print Modal */}
+      <Modal
+        open={printModalOpen}
+        onCancel={() => setPrintModalOpen(false)}
+        footer={[
+          <Button key="close" onClick={() => setPrintModalOpen(false)}>ปิด</Button>,
+          <Button key="print" type="primary" icon={<Printer size={14} />} onClick={() => window.print()}>
+            พิมพ์
+          </Button>,
+        ]}
+        title="ใบสั่งขาย / Sales Order"
+        width={700}
+        destroyOnHidden
+      >
+        <SOPrintView
+          so={so}
+          products={products}
+          orgName={orgName}
+          orgAddress={orgAddress}
+          orgTaxId={orgTaxId}
+        />
+      </Modal>
 
       {/* Reject Modal */}
       <Modal

@@ -27,6 +27,7 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import DEFAULT_ORG_ID
@@ -130,6 +131,70 @@ async def api_list_prs(
         response_items.append(pr_dict)
 
     return PRListResponse(items=response_items, total=total, limit=limit, offset=offset)
+
+
+# ── PR Export (Phase 10) ── must be before /pr/{pr_id} route
+@purchasing_router.get(
+    "/pr/export",
+    dependencies=[Depends(require("purchasing.pr.export"))],
+)
+async def api_export_prs(
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Export purchase requisitions as .xlsx"""
+    from sqlalchemy import select as sa_select
+    from app.models.organization import Organization
+    from app.models.master import CostCenter
+    from app.services.export import create_excel_workbook
+
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+
+    # Fetch org name for header
+    org_result = await db.execute(
+        sa_select(Organization.name).where(Organization.id == org_id)
+    )
+    org_name = org_result.scalar_one_or_none() or ""
+
+    # Fetch cost center lookup
+    cc_result = await db.execute(
+        sa_select(CostCenter.id, CostCenter.name).where(CostCenter.org_id == org_id)
+    )
+    cc_map = {row.id: row.name for row in cc_result.fetchall()}
+
+    items, _ = await list_purchase_requisitions(
+        db, limit=10000, offset=0, org_id=org_id,
+    )
+
+    headers = ["PR Number", "ประเภท", "สถานะ", "ความเร่งด่วน", "วันที่ต้องการ", "Cost Center", "ยอดประมาณ", "วันที่สร้าง"]
+    rows = []
+    for pr in items:
+        pr_dict = _pr_to_response(pr)
+        rows.append([
+            pr.pr_number,
+            pr.pr_type.value if hasattr(pr.pr_type, "value") else str(pr.pr_type or ""),
+            pr.status.value if hasattr(pr.status, "value") else str(pr.status or ""),
+            pr.priority.value if hasattr(pr.priority, "value") else str(pr.priority or ""),
+            str(pr.required_date) if pr.required_date else "",
+            cc_map.get(pr.cost_center_id, ""),
+            float(pr_dict.get("total_estimated", 0)),
+            str(pr.created_at.date()) if pr.created_at else "",
+        ])
+
+    buf = create_excel_workbook(
+        title="ใบขอซื้อ (Purchase Requisitions)",
+        headers=headers,
+        rows=rows,
+        org_name=org_name,
+        col_widths=[18, 12, 14, 12, 14, 20, 16, 14],
+        money_cols=[6],
+    )
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=pr_export.xlsx"},
+    )
 
 
 @purchasing_router.post(

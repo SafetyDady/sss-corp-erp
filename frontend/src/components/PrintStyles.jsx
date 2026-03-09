@@ -98,6 +98,7 @@ export const PS = {
     border: '1px solid #444',
     padding: '6px 8px',
     fontWeight: 700,
+    textAlign: 'right',
     color: '#000',
     background: '#f0f0f0',
   },

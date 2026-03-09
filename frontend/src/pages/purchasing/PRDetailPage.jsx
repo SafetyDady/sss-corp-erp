@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Table, Button, App, Space, Descriptions, Spin, Popconfirm, Tag, Input, Modal } from 'antd';
-import { ArrowLeft, Pencil, SendHorizontal, Check, X, ArrowRightLeft, Ban } from 'lucide-react';
+import { ArrowLeft, Pencil, SendHorizontal, Check, X, ArrowRightLeft, Ban, Printer } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
+import useAuthStore from '../../stores/authStore';
 import api from '../../services/api';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
@@ -10,6 +11,7 @@ import { formatCurrency, formatDate, getApiErrorMsg } from '../../utils/formatte
 import { COLORS } from '../../utils/constants';
 import PRFormModal from './PRFormModal';
 import ConvertToPOModal from './ConvertToPOModal';
+import PRPrintView from './PRPrintView';
 
 const PRIORITY_COLORS = { NORMAL: 'default', URGENT: 'red' };
 const TYPE_COLORS = { STANDARD: 'blue', BLANKET: 'purple' };
@@ -26,7 +28,11 @@ export default function PRDetailPage() {
   const [convertModalOpen, setConvertModalOpen] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [printModalOpen, setPrintModalOpen] = useState(false);
   const [products, setProducts] = useState({});
+  const orgName = useAuthStore((s) => s.orgName);
+  const orgAddress = useAuthStore((s) => s.orgAddress);
+  const orgTaxId = useAuthStore((s) => s.orgTaxId);
 
   const fetchData = async () => {
     setLoading(true);
@@ -150,6 +156,10 @@ export default function PRDetailPage() {
         actions={
           <Space>
             <Button icon={<ArrowLeft size={14} />} onClick={() => navigate('/purchasing')}>กลับ</Button>
+            <Button icon={<Printer size={14} />} onClick={() => {
+              setPrintModalOpen(true);
+              setTimeout(() => window.print(), 400);
+            }}>พิมพ์</Button>
 
             {/* Edit — DRAFT only */}
             {pr.status === 'DRAFT' && can('purchasing.pr.update') && (
@@ -262,6 +272,29 @@ export default function PRDetailPage() {
           navigate(`/purchasing/po/${poId}`);
         }}
       />
+
+      {/* Print Modal */}
+      <Modal
+        open={printModalOpen}
+        onCancel={() => setPrintModalOpen(false)}
+        footer={[
+          <Button key="close" onClick={() => setPrintModalOpen(false)}>ปิด</Button>,
+          <Button key="print" type="primary" icon={<Printer size={14} />} onClick={() => window.print()}>
+            พิมพ์
+          </Button>,
+        ]}
+        title="ใบขอซื้อ / Purchase Requisition"
+        width={700}
+        destroyOnHidden
+      >
+        <PRPrintView
+          pr={pr}
+          products={products}
+          orgName={orgName}
+          orgAddress={orgAddress}
+          orgTaxId={orgTaxId}
+        />
+      </Modal>
 
       {/* Reject Modal */}
       <Modal

@@ -17,6 +17,7 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import DEFAULT_ORG_ID
@@ -95,6 +96,79 @@ async def api_create_delivery_order(
     )
     enriched = await enrich_delivery_orders(db, [do])
     return enriched[0]
+
+
+# ============================================================
+# EXPORT (before get detail to avoid path conflict)
+# ============================================================
+
+@delivery_router.get(
+    "/export",
+    dependencies=[Depends(require("sales.delivery.export"))],
+)
+async def api_export_delivery_orders(
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Export delivery orders as .xlsx"""
+    from sqlalchemy import select as sa_select
+    from app.models.organization import Organization
+    from app.models.sales import SalesOrder
+    from app.models.customer import Customer
+    from app.services.export import create_excel_workbook
+
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+
+    # Fetch org name for header
+    org_result = await db.execute(
+        sa_select(Organization.name).where(Organization.id == org_id)
+    )
+    org_name = org_result.scalar_one_or_none() or ""
+
+    items, _ = await list_delivery_orders(db, limit=10000, offset=0, org_id=org_id)
+
+    # Lookup SO numbers and customer names
+    so_ids = {do.so_id for do in items}
+    customer_ids = {do.customer_id for do in items if do.customer_id}
+    so_map = {}
+    customer_map = {}
+    if so_ids:
+        result = await db.execute(
+            sa_select(SalesOrder.id, SalesOrder.so_number).where(SalesOrder.id.in_(so_ids))
+        )
+        so_map = {row.id: row.so_number for row in result.fetchall()}
+    if customer_ids:
+        result = await db.execute(
+            sa_select(Customer.id, Customer.name).where(Customer.id.in_(customer_ids))
+        )
+        customer_map = {row.id: row.name for row in result.fetchall()}
+
+    headers = ["DO Number", "SO Number", "ลูกค้า", "สถานะ", "จำนวน Lines", "วันที่ส่ง"]
+    rows = []
+    for do in items:
+        num_lines = len(do.lines) if hasattr(do, "lines") and do.lines else 0
+        rows.append([
+            do.do_number,
+            so_map.get(do.so_id, ""),
+            customer_map.get(do.customer_id, ""),
+            do.status.value if hasattr(do.status, "value") else str(do.status or ""),
+            num_lines,
+            str(do.delivery_date) if do.delivery_date else "",
+        ])
+
+    buf = create_excel_workbook(
+        title="ใบส่งของ (Delivery Orders)",
+        headers=headers,
+        rows=rows,
+        org_name=org_name,
+        col_widths=[18, 18, 25, 12, 12, 14],
+    )
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=do_export.xlsx"},
+    )
 
 
 # ============================================================

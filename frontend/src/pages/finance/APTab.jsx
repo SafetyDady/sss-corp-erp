@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Table, Button, Space, Input, Select, Row, Col, App, Tag } from 'antd';
-import { Plus, RefreshCw, FileText, AlertTriangle, CheckCircle, DollarSign, Clock } from 'lucide-react';
+import { Plus, RefreshCw, FileText, AlertTriangle, CheckCircle, DollarSign, Clock, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
+import { downloadExcel } from '../../utils/download';
 import StatCard from '../../components/StatCard';
 import StatusBadge from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
@@ -21,6 +22,19 @@ export default function APTab() {
   const [total, setTotal] = useState(0);
   const [filters, setFilters] = useState({ status: null, search: '', limit: 20, offset: 0 });
   const [modalOpen, setModalOpen] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+
+  const handleExport = async () => {
+    setExportLoading(true);
+    try {
+      await downloadExcel('/api/finance/invoices/export', 'ap_invoices');
+      message.success('Export สำเร็จ');
+    } catch {
+      message.error('ไม่สามารถ Export ได้');
+    } finally {
+      setExportLoading(false);
+    }
+  };
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
@@ -195,11 +209,16 @@ export default function APTab() {
             รีเฟรช
           </Button>
         </Space>
-        {can('finance.invoice.create') && (
-          <Button type="primary" icon={<Plus size={14} />} onClick={() => setModalOpen(true)}>
-            สร้างใบวางบิล
-          </Button>
-        )}
+        <Space>
+          {can('finance.invoice.export') && (
+            <Button icon={<Download size={14} />} loading={exportLoading} onClick={handleExport}>Export</Button>
+          )}
+          {can('finance.invoice.create') && (
+            <Button type="primary" icon={<Plus size={14} />} onClick={() => setModalOpen(true)}>
+              สร้างใบวางบิล
+            </Button>
+          )}
+        </Space>
       </div>
 
       {/* Invoice Table */}

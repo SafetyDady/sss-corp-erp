@@ -53,7 +53,8 @@
       "Bash(node -e \"const fs = require\\(''fs''\\); fs.writeFileSync\\(''$TMPFILE'', \\\\`const fs = require\\(''fs''\\);const content = fs.readFileSync\\(0, ''utf8''\\);fs.writeFileSync\\(process.argv[1], content, ''utf8''\\);console.log\\(''Written '' + content.length + '' chars''\\);\\\\`\\); console.log\\(''helper created''\\);\")",
       "Bash(node -e \"const fs = require\\(''fs''\\); fs.writeFileSync\\(''C:/web_project/sss-corp/sss-corp-erp/frontend/src/pages/tools/_writer.py'', ''import sys\\\\npath = sys.argv[1]\\\\ncontent = sys.stdin.buffer.read\\(\\).decode\\(\"\"utf-8\"\"\\)\\\\nwith open\\(path, \"\"w\"\", encoding=\"\"utf-8\"\", newline=\"\"\\\\n\"\"\\) as f:\\\\n    f.write\\(content\\)\\\\nprint\\(f\"\"Written {len\\(content\\)} chars to {path}\"\"\\)\\\\n''\\); console.log\\(''writer script created''\\);\")",
       "Bash(node -e \":*)",
-      "Bash(node -e \"const fs = require\\(''fs''\\); const c = fs.readFileSync\\(''C:/web_project/sss-corp/sss-corp-erp/frontend/src/pages/tools/ToolCheckoutSlipFormModal.jsx'', ''utf8''\\); console.log\\(c\\);\")"
+      "Bash(node -e \"const fs = require\\(''fs''\\); const c = fs.readFileSync\\(''C:/web_project/sss-corp/sss-corp-erp/frontend/src/pages/tools/ToolCheckoutSlipFormModal.jsx'', ''utf8''\\); console.log\\(c\\);\")",
+      "Bash(cmd.exe /c \"cd /d C:\\\\web_project\\\\sss-corp\\\\sss-corp-erp\\\\frontend && npm run build\")"
     ]
   }
 }

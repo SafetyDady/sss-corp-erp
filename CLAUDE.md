@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-06 v24 (Tool Checkout Slip — ใบเบิกเครื่องมือ)
+> อัปเดตล่าสุด: 2026-03-09 v26 (Phase 10 Export & Print Completion)
 
 ---
 
@@ -10,7 +10,7 @@
 
 **SSS Corp ERP** — ระบบ ERP สำหรับธุรกิจ Manufacturing/Trading ขนาดเล็ก-กลาง
 - Multi-tenant (Shared DB + org_id)
-- **11 Modules, 161 Permissions, 5 Roles**
+- **12 Modules, 174 Permissions, 5 Roles**
 - Job Costing: Material + ManHour + Tools Recharge + Admin Overhead
 - อ้างอิงเพิ่มเติม: `UI_GUIDELINES.md` (theme/icons), `BUSINESS_POLICY.md` (business rules)
 
@@ -26,6 +26,7 @@
 | Cache | **Redis** | Rate limiting + session cache |
 | ORM | **SQLAlchemy 2.0** (async) | Numeric(12,2) for money |
 | Auth | **JWT Bearer Token** | Access 15min + Refresh 7d + rotation |
+| Charts | **Recharts** | Dashboard line/bar charts (lazy-loaded) |
 | Icons | **Lucide React** | ห้ามใช้ emoji / Ant Design Icons |
 | Monitoring | **Sentry** (optional) | Backend + Frontend error tracking |
 | Deploy | **Vercel** (frontend) + **Railway** (backend) | git push = deploy |
@@ -96,7 +97,7 @@ sss-corp-erp/
 ### 1. Permission System
 - Format: `module.resource.action` **(3-part เสมอ)**
 - 7 Actions: `create / read / update / delete / approve / export / execute`
-- 11 Modules: `inventory / warehouse / workorder / purchasing / sales / finance / master / admin / customer / tools / hr`
+- 12 Modules: `inventory / warehouse / workorder / purchasing / sales / finance / master / admin / customer / tools / hr / asset`
 - **Explicit allow only** — ไม่มี implicit, wildcard, inheritance
 - ทุก endpoint ต้องมี `dependencies=[Depends(require("module.resource.action"))]`
 
@@ -163,7 +164,7 @@ sss-corp-erp/
 
 ---
 
-## RBAC — 5 Roles x 139 Permissions (Full Matrix)
+## RBAC — 5 Roles x 173 Permissions (Full Matrix)
 
 ### Inventory (15 permissions)
 
@@ -219,7 +220,7 @@ sss-corp-erp/
 | workorder.reservation.create | ✅ | ✅ | ✅ | ❌ | ❌ |
 | workorder.reservation.read | ✅ | ✅ | ✅ | ✅ | ✅ |
 
-### Purchasing (11 permissions)
+### Purchasing (12 permissions)
 
 | Permission | owner | manager | supervisor | staff | viewer |
 |-----------|:-----:|:-------:|:----------:|:-----:|:------:|
@@ -228,6 +229,7 @@ sss-corp-erp/
 | purchasing.pr.update | ✅ | ✅ | ✅ | ❌ | ❌ |
 | purchasing.pr.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
 | purchasing.pr.approve | ✅ | ✅ | ✅ | ❌ | ❌ |
+| purchasing.pr.export | ✅ | ✅ | ✅ | ❌ | ✅ |
 | purchasing.po.create | ✅ | ✅ | ✅ | ✅ | ❌ |
 | purchasing.po.read | ✅ | ✅ | ✅ | ✅ | ✅ |
 | purchasing.po.update | ✅ | ✅ | ✅ | ❌ | ❌ |
@@ -377,15 +379,32 @@ sss-corp-erp/
 | hr.roster.create | ✅ | ✅ | ✅ | ✅ | ❌ |
 | hr.roster.read | ✅ | ✅ | ✅ | ✅ | ❌ |
 
+### Asset (12 permissions)
+
+| Permission | owner | manager | supervisor | staff | viewer |
+|-----------|:-----:|:-------:|:----------:|:-----:|:------:|
+| asset.category.create | ✅ | ❌ | ❌ | ❌ | ❌ |
+| asset.category.read | ✅ | ✅ | ✅ | ✅ | ✅ |
+| asset.category.update | ✅ | ❌ | ❌ | ❌ | ❌ |
+| asset.category.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
+| asset.asset.create | ✅ | ✅ | ❌ | ❌ | ❌ |
+| asset.asset.read | ✅ | ✅ | ✅ | ✅ | ✅ |
+| asset.asset.update | ✅ | ✅ | ❌ | ❌ | ❌ |
+| asset.asset.delete | ✅ | ❌ | ❌ | ❌ | ❌ |
+| asset.asset.export | ✅ | ✅ | ✅ | ✅ | ✅ |
+| asset.depreciation.read | ✅ | ✅ | ✅ | ✅ | ✅ |
+| asset.depreciation.execute | ✅ | ❌ | ❌ | ❌ | ❌ |
+| asset.depreciation.export | ✅ | ❌ | ❌ | ❌ | ❌ |
+
 ### Permission Count Summary
 
 | Role | Count | Description |
 |------|-------|-------------|
-| owner | 161 | ALL permissions |
-| manager | ~99 | ไม่มี admin.*, ไม่มี *.delete + planning create/update + recharge CRUD/execute + invoice CRUD/approve + AR CRUD/approve + delivery create/update/approve |
-| supervisor | ~73 | read + approve + limited create + planning read + recharge read + invoice read + AR read + delivery create/update/approve |
-| staff | ~41 | read + own create (timesheet, leave, movement, dailyreport, roster, PR, withdrawal, delivery) |
-| viewer | ~31 | read + selected export only + recharge read + invoice read + AR read + delivery read/export |
+| owner | 173 | ALL permissions |
+| manager | ~104 | ไม่มี admin.*, ไม่มี *.delete + planning create/update + recharge CRUD/execute + invoice CRUD/approve + AR CRUD/approve + delivery create/update/approve + asset create/read/update/export |
+| supervisor | ~78 | read + approve + limited create + planning read + recharge read + invoice read + AR read + delivery create/update/approve + asset read/export |
+| staff | ~46 | read + own create (timesheet, leave, movement, dailyreport, roster, PR, withdrawal, delivery) + asset read/export |
+| viewer | ~36 | read + selected export only + recharge read + invoice read + AR read + delivery read/export + asset read/export |
 
 ### Permission Usage Pattern
 ```python
@@ -541,7 +560,7 @@ Manager จองเครื่องมือ → POST /api/planning/reservati
 
 ---
 
-## Business Rules (Complete — 136 Rules)
+## Business Rules (Complete — 144 Rules)
 
 | # | Module | Feature | Rule | Enforcement |
 |---|--------|---------|------|-------------|
@@ -681,6 +700,14 @@ Manager จองเครื่องมือ → POST /api/planning/reservati
 | 134 | sales | DO | Edit ได้เฉพาะ DRAFT | Service check |
 | 135 | sales | DO | Ship ต้องมี shipped_qty > 0 อย่างน้อย 1 line | Service check |
 | 136 | sales | DO | AR Invoice สร้างจาก DO ได้ (optional do_id) — auto-inherit so_id จาก DO | Service logic |
+| 137 | asset | Depreciation | Straight-Line: monthly = (cost - salvage) / (life_years × 12) | Formula Auto |
+| 138 | asset | Depreciation | ห้าม generate ซ้ำเดือนเดียวกัน (UNIQUE constraint) | DB UNIQUE |
+| 139 | asset | Status | DISPOSED/RETIRED → หยุดค่าเสื่อม | Service check |
+| 140 | asset | Update | ห้ามเปลี่ยน acquisition_cost/date ถ้ามี depreciation entries | Service check |
+| 141 | asset | Code | asset_code unique per org | DB UNIQUE |
+| 142 | asset | Delete | Soft delete, ไม่ต้องมี depreciation entries | Service check |
+| 143 | asset | Dispose | ต้อง ACTIVE status, auto calc gain/loss | Service check |
+| 144 | asset | Tool Link | 1 tool = 1 asset only (partial unique index) | DB UNIQUE |
 
 ---
 
@@ -786,6 +813,7 @@ GET    /api/work-orders/{id}/materials      workorder.order.read         (CONSUM
 ```
 GET    /api/purchasing/pr                    purchasing.pr.read      (?search, status, pr_type, limit, offset)
 POST   /api/purchasing/pr                    purchasing.pr.create
+GET    /api/purchasing/pr/export             purchasing.pr.export    (Phase 10 — xlsx)
 GET    /api/purchasing/pr/{id}               purchasing.pr.read
 PUT    /api/purchasing/pr/{id}               purchasing.pr.update    (DRAFT/SUBMITTED only)
 DELETE /api/purchasing/pr/{id}               purchasing.pr.delete    (DRAFT only, owner only)
@@ -809,6 +837,7 @@ POST   /api/purchasing/po/{id}/receive      purchasing.po.update    (GOODS→sto
 ```
 GET    /api/sales/orders                    sales.order.read
 POST   /api/sales/orders                    sales.order.create
+GET    /api/sales/orders/export             sales.order.export      (Phase 10 — xlsx)
 GET    /api/sales/orders/{id}              sales.order.read
 PUT    /api/sales/orders/{id}              sales.order.update   (DRAFT/SUBMITTED, supports line replacement)
 DELETE /api/sales/orders/{id}              sales.order.delete   (DRAFT only)
@@ -821,6 +850,7 @@ POST   /api/sales/orders/{id}/cancel       sales.order.update   (DRAFT/SUBMITTED
 ```
 GET    /api/sales/delivery                     sales.delivery.read     (?search, status, limit, offset)
 POST   /api/sales/delivery                     sales.delivery.create
+GET    /api/sales/delivery/export              sales.delivery.export   (Phase 10 — xlsx)
 GET    /api/sales/delivery/remaining/{so_id}   sales.delivery.read     → remaining qty per SO line
 GET    /api/sales/delivery/{id}                sales.delivery.read
 PUT    /api/sales/delivery/{id}                sales.delivery.update   (DRAFT only)
@@ -833,6 +863,7 @@ POST   /api/sales/delivery/{id}/cancel         sales.delivery.update   (DRAFT→
 ```
 GET    /api/finance/reports                 finance.report.read
 GET    /api/finance/reports/export          finance.report.export
+GET    /api/finance/reports/monthly-summary finance.report.read          (?months=6, max 12)
 GET    /api/finance/reports/cost-center-summary  finance.report.read
 ```
 
@@ -840,6 +871,7 @@ GET    /api/finance/reports/cost-center-summary  finance.report.read
 ```
 GET    /api/finance/invoices                     finance.invoice.read    (?status, supplier_id, search, overdue, limit, offset)
 POST   /api/finance/invoices                     finance.invoice.create
+GET    /api/finance/invoices/export              finance.invoice.export  (Phase 10 — xlsx)
 GET    /api/finance/invoices/summary             finance.invoice.read    → APSummaryResponse
 GET    /api/finance/invoices/{id}                finance.invoice.read
 PUT    /api/finance/invoices/{id}                finance.invoice.update  (DRAFT/PENDING only)
@@ -1088,6 +1120,25 @@ POST   /api/admin/performance/analyze       admin.config.read    (body: {period,
 GET    /api/admin/performance/analysis/latest  admin.config.read
 POST   /api/admin/performance/analyze/endpoint admin.config.read (body: {path, period})
 POST   /api/admin/performance/ask           admin.config.read    (body: {question})
+```
+
+### Fixed Asset (C13)
+```
+GET    /api/asset/categories                asset.category.read
+POST   /api/asset/categories                asset.category.create
+PUT    /api/asset/categories/{id}           asset.category.update
+DELETE /api/asset/categories/{id}           asset.category.delete
+GET    /api/asset/assets                    asset.asset.read         (?search, status, category_id, cost_center_id, limit, offset)
+GET    /api/asset/assets/summary            asset.asset.read         → AssetSummaryResponse
+POST   /api/asset/assets                    asset.asset.create
+GET    /api/asset/assets/{id}              asset.asset.read
+PUT    /api/asset/assets/{id}              asset.asset.update
+DELETE /api/asset/assets/{id}              asset.asset.delete       (soft-delete)
+POST   /api/asset/assets/{id}/dispose       asset.asset.delete       (ACTIVE→DISPOSED, gain/loss calc)
+POST   /api/asset/assets/{id}/retire        asset.asset.update       (ACTIVE→RETIRED)
+GET    /api/asset/depreciation              asset.depreciation.read  (?asset_id, year, month, limit, offset)
+POST   /api/asset/depreciation/generate     asset.depreciation.execute (batch monthly run)
+GET    /api/asset/depreciation/summary      asset.depreciation.read  (?year)
 ```
 
 ### System
@@ -1344,13 +1395,23 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **C3.10** Frontend — DOPrintView + ARInvoicePrintView + ARDetailPage print button
 - [x] **C3.11** Wiring — App.jsx routes + StatusBadge SHIPPED + permissionMeta + SODetailPage DO button
 
-### Phase 8 — Dashboard & Analytics 📊 (Planned)
-- [ ] **8.1** KPI Dashboard — real-time stat cards (ยอดขาย, ต้นทุน WO, สถานะ stock, pending approvals)
-- [ ] **8.2** Charts — Recharts/Ant Charts (WO Cost Trend, Inventory Turnover, Revenue)
-- [ ] **8.3** Manager Dashboard v2 — department comparison, cost center breakdown, employee productivity
-- [ ] **8.4** Staff Dashboard v2 — personal KPIs (WO assigned, hours logged, leave balance)
-- [ ] **8.5** Finance Dashboard — P&L summary, cost analysis, budget vs actual
-- [ ] **8.6** Backend: aggregation APIs for dashboard data (materialized views / on-the-fly)
+### C13 — Fixed Asset Management ✅
+- [x] **C13.1** Models — AssetCategory + FixedAsset + DepreciationEntry + AssetStatus/DepreciationMethod enums
+- [x] **C13.2** Migration — o5p6q7r8s9t0 (3 tables: asset_categories, fixed_assets, depreciation_entries)
+- [x] **C13.3** Permissions — 12 new (asset.category.*, asset.asset.*, asset.depreciation.*) → 161→173
+- [x] **C13.4** Schemas — AssetCategory/Asset/Depreciation Create/Update/Response + Dispose + Summary
+- [x] **C13.5** Service — Category CRUD + Asset CRUD + dispose/retire + Depreciation generate/summary (BR#137-144)
+- [x] **C13.6** API Routes — 15 endpoints under /api/asset/* (4 category + 7 asset + 4 depreciation)
+- [x] **C13.7** Frontend — AssetPage (3 tabs) + AssetRegisterTab + AssetDetailPage + AssetFormModal + AssetCategoryTab + AssetCategoryFormModal + DepreciationTab + GenerateDepreciationModal
+- [x] **C13.8** Tool-Asset Linking — tool_id FK with partial unique index (1 tool = 1 asset)
+
+### Phase 8 — Dashboard & Analytics 📊 ✅
+- [x] **8.1** AdminDashboard Upgrade — 8 stat cards: AP/AR/Sales/Asset (financial) + WO/Low Stock/Pending Approvals/Employees (operations)
+- [x] **8.2** Charts — Recharts (Line: รายรับ vs รายจ่าย 6 เดือน, Bar: WO ปิดต่อเดือน) + Backend monthly-summary endpoint
+- [x] **8.3** SupervisorDashboard Enhancement — click navigation + approval breakdown (Daily Report/Timesheet/Leave) + auto-refresh
+- [x] **8.4** Interactive — StatCard onClick navigation, auto-refresh 5 min, last-updated timestamp, time-based greeting
+- [ ] **8.5** Finance Dashboard — P&L summary, cost analysis, budget vs actual (future)
+- [ ] **8.6** More Charts — WO Cost Trend, Inventory Turnover, employee productivity (future)
 
 ### Phase 9 — Notification Center 🔔 (Planned)
 - [ ] **9.1** Model: `Notification` (user_id, type, title, message, is_read, link, created_at)
@@ -1367,8 +1428,14 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **10.3** PO Print View — `POPrintView.jsx` (forwardRef, inline styles, company header, lines table, signatures) + Print button in PODetailPage
 - [x] **10.4** WO Report Print View — `WOReportPrintView.jsx` (cost summary, materials, manhour breakdown) + Print button in WorkOrderDetailPage
 - [x] **10.5** Payslip Print View — `PayslipPrintView.jsx` (earnings breakdown, confidentiality note) + Print button in MyPayslipTab detail modal
-- [x] **10.6** Excel Export Backend — `openpyxl` + shared `export.py` helper + 3 endpoints: Products (.xlsx), Employees (.xlsx), Work Orders (.xlsx with cost summary)
-- [x] **10.7** Excel Export Frontend — `download.js` shared helper + Export buttons wired: ProductListPage, EmployeeTab, WorkOrderListPage
+- [x] **10.6** Excel Export Backend — `openpyxl` + shared `export.py` helper + 7 endpoints: Products, Employees, Work Orders, PR, AP Invoices, SO, DO (.xlsx)
+- [x] **10.7** Excel Export Frontend — `download.js` shared helper + Export buttons wired: ProductListPage, EmployeeTab, WorkOrderListPage, PRTab, APTab, SOTab, DOTab
+- [x] **10.10** PR Print View — `PRPrintView.jsx` (lines table, estimated costs, signatures) + Print button in PRDetailPage
+- [x] **10.11** Supplier Invoice Print View — `SupplierInvoicePrintView.jsx` (amount breakdown, payment history, signatures) + Print button in InvoiceDetailPage
+- [x] **10.12** SO Print View — `SOPrintView.jsx` (lines, VAT breakdown, signatures) + Print button in SODetailPage
+- [x] **10.13** DO Print Button — DODetailPage print button visible on all statuses (was SHIPPED-only)
+- [x] **10.14** Legacy PrintView Refactor — WithdrawalSlipPrintView + ToolCheckoutSlipPrintView migrated to shared PS/CompanyHeader/SignatureSection/PrintFooter
+- [x] **10.15** PR Export Permission — `purchasing.pr.export` added (161→162 permissions)
 - [ ] **10.8** PDF generation — backend (WeasyPrint or ReportLab) for server-side PDF
 - [ ] **10.9** Report templates — admin-configurable headers (company logo)
 
@@ -1469,6 +1536,10 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 41. ❌ อย่าให้ DO ship ตัด stock เกิน SO line qty — partial delivery ต้องเช็ค remaining (BR#132)
 42. ❌ อย่าแก้ไข DO ที่ SHIPPED แล้ว — corrections ผ่าน movement REVERSAL (BR#130)
 43. ❌ อย่าลืม DO ship ต้อง reuse `create_movement()` สำหรับ ISSUE — ไม่ duplicate stock logic (BR#131)
+44. ❌ อย่าเปลี่ยน acquisition_cost/date ถ้ามี depreciation entries — ต้อง lock (BR#140)
+45. ❌ อย่า generate depreciation ซ้ำเดือนเดียวกัน — 409 Conflict (BR#138)
+46. ❌ อย่า dispose/retire asset ที่ไม่ใช่ ACTIVE — ต้องเช็ค status ก่อน (BR#139, 143)
+47. ❌ อย่าลืม tool_id unique บน FixedAsset — 1 tool = 1 asset เท่านั้น (BR#144)
 
 ---
 
@@ -1595,6 +1666,23 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/sales/DODetailPage.jsx` | DO detail: info + lines + ship/cancel/delete/print actions (C3) |
 | `frontend/src/pages/sales/DOShipModal.jsx` | Ship confirmation: per-line shipped_qty + warehouse/location picker (C3) |
 | `frontend/src/pages/sales/DOPrintView.jsx` | DO print view: company header + lines table + signatures (C3) |
+| `frontend/src/pages/purchasing/PRPrintView.jsx` | Phase 10: PR print view (lines, estimated costs, signatures) |
+| `frontend/src/pages/finance/SupplierInvoicePrintView.jsx` | Phase 10: AP invoice print view (amounts, payments, signatures) |
+| `frontend/src/pages/sales/SOPrintView.jsx` | Phase 10: SO print view (lines, VAT breakdown, signatures) |
+| `frontend/src/components/BarChartCard.jsx` | Recharts BarChart wrapper (dark theme, formatCompact, empty state) (Phase 8) |
+| `frontend/src/components/LineChartCard.jsx` | Recharts LineChart wrapper (dark theme, Thai currency format) (Phase 8) |
+| `backend/app/models/asset.py` | Fixed Asset models: AssetCategory, FixedAsset, DepreciationEntry, AssetStatus/DepreciationMethod enums (C13) |
+| `backend/app/schemas/asset.py` | Asset Pydantic schemas: Category/Asset/Depreciation CRUD + Dispose + Summary (C13) |
+| `backend/app/services/asset.py` | Asset business logic: CRUD + dispose/retire + depreciation generate/summary (BR#137-144) (C13) |
+| `backend/app/api/asset.py` | Asset 15 API endpoints: /api/asset/* (category + asset + depreciation) (C13) |
+| `frontend/src/pages/asset/AssetPage.jsx` | Asset main page: 3 tabs (register/depreciation/category) + stat cards (C13) |
+| `frontend/src/pages/asset/AssetRegisterTab.jsx` | Asset list with CRUD + filters + status badges (C13) |
+| `frontend/src/pages/asset/AssetDetailPage.jsx` | Asset detail: info + financial summary + depreciation history + dispose/retire (C13) |
+| `frontend/src/pages/asset/AssetFormModal.jsx` | Asset create/edit: category/CC/employee/tool/PO pickers (C13) |
+| `frontend/src/pages/asset/AssetCategoryTab.jsx` | Category master data list (C13) |
+| `frontend/src/pages/asset/AssetCategoryFormModal.jsx` | Category create/edit modal (C13) |
+| `frontend/src/pages/asset/DepreciationTab.jsx` | Depreciation entries viewer + generate button (C13) |
+| `frontend/src/pages/asset/GenerateDepreciationModal.jsx` | Monthly depreciation batch run modal (C13) |
 | `SYSTEM_OVERVIEW_V3.md` | PRD ฉบับสมบูรณ์ — 4 ส่วน (A:ระบบปัจจุบัน, B:แผน, C:ช่องว่าง, D:ลำดับ) + UX assessment ต่อ module |
 | `SYSTEM_OVERVIEW_V3.docx` | Word export สำหรับ Owner review ด้วย Track Changes |
 | `convert_to_docx.py` | Python script แปลง MD → Word (.docx) ด้วย python-docx |
@@ -1620,4 +1708,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v24 (Phase 0-7.9 complete + Phase 10 partial + Phase 11 partial + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete, Phase 8-14 planned)*
+*End of CLAUDE.md — SSS Corp ERP v25 (Phase 0-8 complete + Phase 10 partial + Phase 11 partial + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete, Phase 9-14 planned)*

@@ -19,6 +19,8 @@ export default function ToolCheckoutSlipDetailPage() {
   const navigate = useNavigate();
   const { can } = usePermission();
   const orgName = useAuthStore((s) => s.orgName);
+  const orgAddress = useAuthStore((s) => s.orgAddress);
+  const orgTaxId = useAuthStore((s) => s.orgTaxId);
   const { message } = App.useApp();
   const [slip, setSlip] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -381,7 +383,7 @@ export default function ToolCheckoutSlipDetailPage() {
         width={700}
         destroyOnHidden
       >
-        <ToolCheckoutSlipPrintView slip={slip} orgName={orgName} />
+        <ToolCheckoutSlipPrintView slip={slip} orgName={orgName} orgAddress={orgAddress} orgTaxId={orgTaxId} />
       </Modal>
     </div>
   );

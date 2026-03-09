@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Table, Button, App, Space, Select, Tag, Popconfirm } from 'antd';
-import { Plus, Eye, Trash2 } from 'lucide-react';
+import { Plus, Eye, Trash2, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
+import { downloadExcel } from '../../utils/download';
 import SearchInput from '../../components/SearchInput';
 import StatusBadge from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
@@ -27,6 +28,19 @@ export default function PRTab() {
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
   const [modalOpen, setModalOpen] = useState(false);
   const [editRecord, setEditRecord] = useState(null);
+  const [exportLoading, setExportLoading] = useState(false);
+
+  const handleExport = async () => {
+    setExportLoading(true);
+    try {
+      await downloadExcel('/api/purchasing/pr/export', 'purchase_requisitions');
+      message.success('Export สำเร็จ');
+    } catch {
+      message.error('ไม่สามารถ Export ได้');
+    } finally {
+      setExportLoading(false);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -123,11 +137,16 @@ export default function PRTab() {
             options={[{ value: 'STANDARD', label: 'STANDARD' }, { value: 'BLANKET', label: 'BLANKET' }]}
           />
         </div>
-        {can('purchasing.pr.create') && (
-          <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditRecord(null); setModalOpen(true); }}>
-            สร้าง PR
-          </Button>
-        )}
+        <Space>
+          {can('purchasing.pr.export') && (
+            <Button icon={<Download size={14} />} loading={exportLoading} onClick={handleExport}>Export</Button>
+          )}
+          {can('purchasing.pr.create') && (
+            <Button type="primary" icon={<Plus size={14} />} onClick={() => { setEditRecord(null); setModalOpen(true); }}>
+              สร้าง PR
+            </Button>
+          )}
+        </Space>
       </div>
       <Table
         loading={loading}

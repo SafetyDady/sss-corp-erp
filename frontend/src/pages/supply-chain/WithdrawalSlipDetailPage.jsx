@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Table, Descriptions, Button, App, Space, Popconfirm, Spin, Modal } from 'antd';
 import { ArrowLeft, Pencil, Send, CheckCircle, X, Printer } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
+import useAuthStore from '../../stores/authStore';
 import api from '../../services/api';
 import StatusBadge from '../../components/StatusBadge';
 import PageHeader from '../../components/PageHeader';
@@ -21,6 +22,9 @@ export default function WithdrawalSlipDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { can } = usePermission();
+  const orgName = useAuthStore((s) => s.orgName);
+  const orgAddress = useAuthStore((s) => s.orgAddress);
+  const orgTaxId = useAuthStore((s) => s.orgTaxId);
   const { message } = App.useApp();
   const [slip, setSlip] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -335,7 +339,7 @@ export default function WithdrawalSlipDetailPage() {
         width={700}
         destroyOnHidden
       >
-        <WithdrawalSlipPrintView slip={slip} />
+        <WithdrawalSlipPrintView slip={slip} orgName={orgName} orgAddress={orgAddress} orgTaxId={orgTaxId} />
       </Modal>
     </div>
   );

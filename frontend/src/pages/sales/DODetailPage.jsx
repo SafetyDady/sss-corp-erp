@@ -171,12 +171,10 @@ export default function DODetailPage() {
               </Popconfirm>
             )}
 
-            {/* SHIPPED actions */}
-            {isShipped && (
-              <Button icon={<Printer size={14} />} onClick={handlePrint}>
-                พิมพ์
-              </Button>
-            )}
+            {/* Print — always visible */}
+            <Button icon={<Printer size={14} />} onClick={handlePrint}>
+              พิมพ์
+            </Button>
           </Space>
         }
       />

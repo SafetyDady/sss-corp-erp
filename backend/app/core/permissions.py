@@ -72,12 +72,13 @@ ALL_PERMISSIONS: list[str] = [
     "workorder.reservation.create",
     "workorder.reservation.read",
 
-    # --- purchasing (6 + 5 = 11) ---
+    # --- purchasing (7 + 5 = 12) ---
     "purchasing.pr.create",
     "purchasing.pr.read",
     "purchasing.pr.update",
     "purchasing.pr.delete",
     "purchasing.pr.approve",
+    "purchasing.pr.export",
     "purchasing.po.create",
     "purchasing.po.read",
     "purchasing.po.update",
@@ -237,8 +238,8 @@ ALL_PERMISSIONS: list[str] = [
     "asset.depreciation.export",
 ]
 
-assert len(ALL_PERMISSIONS) == 173, f"Expected 173 permissions, got {len(ALL_PERMISSIONS)}"
-assert len(set(ALL_PERMISSIONS)) == 173, "Duplicate permissions found!"
+assert len(ALL_PERMISSIONS) == 174, f"Expected 174 permissions, got {len(ALL_PERMISSIONS)}"
+assert len(set(ALL_PERMISSIONS)) == 174, "Duplicate permissions found!"
 
 
 # ============================================================
@@ -295,6 +296,7 @@ PERMISSION_DESCRIPTIONS: dict[str, str] = {
     "purchasing.pr.update": "แก้ไขใบขอซื้อ (DRAFT/SUBMITTED)",
     "purchasing.pr.delete": "ลบใบขอซื้อ DRAFT (Owner เท่านั้น)",
     "purchasing.pr.approve": "อนุมัติ/ปฏิเสธ/Convert to PO",
+    "purchasing.pr.export": "ส่งออกข้อมูลใบขอซื้อ",
     "purchasing.po.create": "สร้างใบสั่งซื้อ (PO) ใหม่",
     "purchasing.po.read": "ดูรายการใบสั่งซื้อและรายละเอียด",
     "purchasing.po.update": "แก้ไขใบสั่งซื้อ / รับสินค้า (GR)",
@@ -452,7 +454,7 @@ assert set(PERMISSION_DESCRIPTIONS.keys()) == set(ALL_PERMISSIONS), \
 # Legend:  ✅ = granted  ❌ = denied
 
 def _owner() -> set[str]:
-    """Owner: ALL 173 permissions."""
+    """Owner: ALL 174 permissions."""
     return set(ALL_PERMISSIONS)
 
 
@@ -494,9 +496,13 @@ def _manager() -> set[str]:
         "customer.customer.delete",
         "tools.tool.delete",
         "hr.employee.delete",
-        # Asset: owner only deletes
+        # Asset: owner only (category CUD, depre execute/export)
+        "asset.category.create",
+        "asset.category.update",
         "asset.category.delete",
         "asset.asset.delete",
+        "asset.depreciation.execute",
+        "asset.depreciation.export",
         # Finance: owner only
         "finance.report.export",
         "finance.recharge.delete",
@@ -553,6 +559,7 @@ def _supervisor() -> set[str]:
         "purchasing.pr.read",
         "purchasing.pr.update",
         "purchasing.pr.approve",
+        "purchasing.pr.export",
         # Purchasing — PO
         "purchasing.po.create",
         "purchasing.po.read",
@@ -623,11 +630,9 @@ def _supervisor() -> set[str]:
         "master.schedule.read",
         "hr.roster.create",
         "hr.roster.read",
-        # Asset (C13)
+        # Asset (C13) — supervisor: read + export + depreciation.read
         "asset.category.read",
-        "asset.asset.create",
         "asset.asset.read",
-        "asset.asset.update",
         "asset.depreciation.read",
         "asset.asset.export",
     }
@@ -697,9 +702,11 @@ def _staff() -> set[str]:
         "master.schedule.read",
         "hr.roster.create",
         "hr.roster.read",
-        # Asset (C13) — staff can read
+        # Asset (C13) — staff: read + export + depreciation.read
         "asset.category.read",
         "asset.asset.read",
+        "asset.depreciation.read",
+        "asset.asset.export",
     }
 
 
@@ -723,6 +730,7 @@ def _viewer() -> set[str]:
         "workorder.reservation.read",
         # Purchasing
         "purchasing.pr.read",
+        "purchasing.pr.export",
         "purchasing.po.read",
         "purchasing.po.export",
         # Sales
@@ -755,12 +763,11 @@ def _viewer() -> set[str]:
         # Shift Management (Phase 4.9) — read only
         "master.shifttype.read",
         "master.schedule.read",
-        # Asset (C13) — viewer can read + export
+        # Asset (C13) — viewer: read + asset export only
         "asset.category.read",
         "asset.asset.read",
         "asset.depreciation.read",
         "asset.asset.export",
-        "asset.depreciation.export",
     }
 
 

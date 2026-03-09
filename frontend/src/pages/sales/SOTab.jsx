@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Table, Button, App, Space, Popconfirm, Select, Tooltip } from 'antd';
-import { Plus, Eye, Trash2, Check, Pencil, Send } from 'lucide-react';
+import { Plus, Eye, Trash2, Check, Pencil, Send, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
+import { downloadExcel } from '../../utils/download';
 import SearchInput from '../../components/SearchInput';
 import StatusBadge from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
@@ -23,6 +24,19 @@ export default function SOTab() {
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
   const [modalOpen, setModalOpen] = useState(false);
   const [editRecord, setEditRecord] = useState(null);
+  const [exportLoading, setExportLoading] = useState(false);
+
+  const handleExport = async () => {
+    setExportLoading(true);
+    try {
+      await downloadExcel('/api/sales/orders/export', 'sales_orders');
+      message.success('Export สำเร็จ');
+    } catch {
+      message.error('ไม่สามารถ Export ได้');
+    } finally {
+      setExportLoading(false);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -163,6 +177,9 @@ export default function SOTab() {
           options={['DRAFT', 'SUBMITTED', 'APPROVED', 'INVOICED', 'CANCELLED'].map((v) => ({ value: v, label: v }))}
         />
         <div style={{ flex: 1 }} />
+        {can('sales.order.export') && (
+          <Button icon={<Download size={14} />} loading={exportLoading} onClick={handleExport}>Export</Button>
+        )}
         {can('sales.order.create') && (
           <Button type="primary" icon={<Plus size={14} />} onClick={openCreate}>
             {'\u0E2A\u0E23\u0E49\u0E32\u0E07 SO'}

@@ -17,6 +17,7 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import DEFAULT_ORG_ID
@@ -97,6 +98,59 @@ async def api_create_order(
     )
     enriched = await enrich_sales_orders(db, [so])
     return enriched[0]
+
+
+# ── SO Export (Phase 10) ── must be before /orders/{so_id}
+@sales_router.get(
+    "/orders/export",
+    dependencies=[Depends(require("sales.order.export"))],
+)
+async def api_export_orders(
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Export sales orders as .xlsx"""
+    from sqlalchemy import select as sa_select
+    from app.models.organization import Organization
+    from app.services.export import create_excel_workbook
+
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+
+    # Fetch org name for header
+    org_result = await db.execute(
+        sa_select(Organization.name).where(Organization.id == org_id)
+    )
+    org_name = org_result.scalar_one_or_none() or ""
+
+    items, _ = await list_sales_orders(db, limit=10000, offset=0, org_id=org_id)
+    enriched = await enrich_sales_orders(db, items)
+
+    headers = ["SO Number", "ลูกค้า", "สถานะ", "ยอดรวม", "วันที่สั่ง", "วันที่อนุมัติ"]
+    rows = []
+    for so_dict in enriched:
+        rows.append([
+            so_dict.get("so_number", ""),
+            so_dict.get("customer_name", ""),
+            so_dict.get("status", ""),
+            float(so_dict.get("total_amount") or 0),
+            str(so_dict.get("order_date", "")),
+            str(so_dict.get("approved_at", "")) if so_dict.get("approved_at") else "",
+        ])
+
+    buf = create_excel_workbook(
+        title="ใบสั่งขาย (Sales Orders)",
+        headers=headers,
+        rows=rows,
+        org_name=org_name,
+        col_widths=[18, 25, 14, 16, 14, 14],
+        money_cols=[3],
+    )
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=so_export.xlsx"},
+    )
 
 
 @sales_router.get(

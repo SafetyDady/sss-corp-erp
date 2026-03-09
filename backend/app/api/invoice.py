@@ -9,8 +9,10 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import DEFAULT_ORG_ID
 from app.core.database import get_db
 from app.core.permissions import require
 from app.core.security import get_token_payload
@@ -97,6 +99,84 @@ async def api_ap_summary(
 ):
     org_id = UUID(token["org_id"])
     return await get_ap_summary(db, org_id)
+
+
+# ── Export invoices (Phase 10) ── must be before /invoices/{invoice_id}
+@invoice_router.get(
+    "/invoices/export",
+    dependencies=[Depends(require("finance.invoice.export"))],
+)
+async def api_export_invoices(
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Export supplier invoices as .xlsx"""
+    from sqlalchemy import select as sa_select
+    from app.models.organization import Organization
+    from app.models.purchasing import PurchaseOrder
+    from app.models.master import Supplier
+    from app.services.export import create_excel_workbook
+
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+
+    # Fetch org name for header
+    org_result = await db.execute(
+        sa_select(Organization.name).where(Organization.id == org_id)
+    )
+    org_name = org_result.scalar_one_or_none() or ""
+
+    items, _ = await list_invoices(db, org_id, limit=10000, offset=0)
+
+    # Lookup PO numbers and supplier names
+    po_ids = {inv.po_id for inv in items}
+    supplier_ids = {inv.supplier_id for inv in items if inv.supplier_id}
+    po_map = {}
+    supplier_map = {}
+    if po_ids:
+        result = await db.execute(
+            sa_select(PurchaseOrder.id, PurchaseOrder.po_number).where(PurchaseOrder.id.in_(po_ids))
+        )
+        po_map = {row.id: row.po_number for row in result.fetchall()}
+    if supplier_ids:
+        result = await db.execute(
+            sa_select(Supplier.id, Supplier.name).where(Supplier.id.in_(supplier_ids))
+        )
+        supplier_map = {row.id: row.name for row in result.fetchall()}
+
+    headers = [
+        "Invoice No", "PO No", "Supplier", "ยอดก่อนภาษี", "VAT",
+        "ยอดรวม", "หัก ณ ที่จ่าย", "ยอดสุทธิ", "จ่ายแล้ว", "สถานะ", "ครบกำหนด",
+    ]
+    rows = []
+    for inv in items:
+        rows.append([
+            inv.invoice_number,
+            po_map.get(inv.po_id, ""),
+            supplier_map.get(inv.supplier_id, ""),
+            float(inv.subtotal_amount),
+            float(inv.vat_amount),
+            float(inv.total_amount),
+            float(inv.wht_amount),
+            float(inv.net_payment),
+            float(inv.paid_amount),
+            inv.status.value if hasattr(inv.status, "value") else str(inv.status or ""),
+            str(inv.due_date) if inv.due_date else "",
+        ])
+
+    buf = create_excel_workbook(
+        title="ใบวางบิลซัพพลายเออร์ (Supplier Invoices)",
+        headers=headers,
+        rows=rows,
+        org_name=org_name,
+        col_widths=[18, 18, 25, 14, 14, 14, 14, 14, 14, 12, 14],
+        money_cols=[3, 4, 5, 6, 7, 8],
+    )
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=ap_invoices_export.xlsx"},
+    )
 
 
 # ── Get single invoice ──

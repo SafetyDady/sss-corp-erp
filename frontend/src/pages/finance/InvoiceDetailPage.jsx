@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Descriptions, Button, Space, App, Spin, Table, Popconfirm, Alert, Divider, Tag } from 'antd';
-import { ArrowLeft, Send, CheckCircle, XCircle, DollarSign, Ban, AlertTriangle } from 'lucide-react';
+import { Card, Descriptions, Button, Space, App, Spin, Table, Popconfirm, Alert, Divider, Tag, Modal } from 'antd';
+import { ArrowLeft, Send, CheckCircle, XCircle, DollarSign, Ban, AlertTriangle, Printer } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
+import useAuthStore from '../../stores/authStore';
 import api from '../../services/api';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
 import PaymentModal from './PaymentModal';
+import SupplierInvoicePrintView from './SupplierInvoicePrintView';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
 
@@ -19,6 +21,10 @@ export default function InvoiceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [paymentModal, setPaymentModal] = useState(false);
+  const [printModalOpen, setPrintModalOpen] = useState(false);
+  const orgName = useAuthStore((s) => s.orgName);
+  const orgAddress = useAuthStore((s) => s.orgAddress);
+  const orgTaxId = useAuthStore((s) => s.orgTaxId);
 
   const fetchInvoice = useCallback(async () => {
     setLoading(true);
@@ -117,6 +123,10 @@ export default function InvoiceDetailPage() {
               <Button icon={<Ban size={14} />} danger loading={actionLoading}>ยกเลิก</Button>
             </Popconfirm>
           )}
+          <Button icon={<Printer size={14} />} onClick={() => {
+            setPrintModalOpen(true);
+            setTimeout(() => window.print(), 400);
+          }}>พิมพ์</Button>
         </Space>
       </div>
 
@@ -220,6 +230,28 @@ export default function InvoiceDetailPage() {
         onSuccess={() => { setPaymentModal(false); fetchInvoice(); }}
         invoice={inv}
       />
+
+      {/* Print Modal */}
+      <Modal
+        open={printModalOpen}
+        onCancel={() => setPrintModalOpen(false)}
+        footer={[
+          <Button key="close" onClick={() => setPrintModalOpen(false)}>ปิด</Button>,
+          <Button key="print" type="primary" icon={<Printer size={14} />} onClick={() => window.print()}>
+            พิมพ์
+          </Button>,
+        ]}
+        title="ใบวางบิล / Supplier Invoice"
+        width={700}
+        destroyOnHidden
+      >
+        <SupplierInvoicePrintView
+          invoice={inv}
+          orgName={orgName}
+          orgAddress={orgAddress}
+          orgTaxId={orgTaxId}
+        />
+      </Modal>
     </div>
   );
 }
