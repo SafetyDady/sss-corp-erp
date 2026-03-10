@@ -1,180 +1,136 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import axios from 'axios';
 import api, { registerAuthStore } from '../services/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+// Security: tokens stored in-memory only — NOT persisted to sessionStorage/localStorage
+// This means page refresh = logout, which is the secure approach for ERP systems
 const useAuthStore = create(
-  persist(
-    (set, get) => ({
-      // State
-      user: null,
-      accessToken: null,
-      refreshToken: null,
-      permissions: [],
-      isAuthenticated: false,
-      isLoading: false,
-      _hasHydrated: false,
-      // Phase 5: employee data
-      employeeId: null,
-      employeeName: null,
-      employeeCode: null,
-      departmentId: null,
-      departmentName: null,
-      hireDate: null,
-      workScheduleId: null,
-      workingDays: null, // OrgWorkConfig: ISO weekdays [1-7], e.g. [1,2,3,4,5,6]
-      hoursPerDay: null,
-      deptMenu: null, // Go-Live G6: per-dept menu visibility
-      // Phase 10: Organization info for print headers
-      orgName: null,
-      orgAddress: null,
-      orgTaxId: null,
-      // Phase 13: 2FA status
-      is2FAEnabled: false,
+  (set, get) => ({
+    // State
+    user: null,
+    accessToken: null,
+    refreshToken: null,
+    permissions: [],
+    isAuthenticated: false,
+    isLoading: false,
+    _hasHydrated: true, // No persist middleware — always ready immediately
+    // Phase 5: employee data
+    employeeId: null,
+    employeeName: null,
+    employeeCode: null,
+    departmentId: null,
+    departmentName: null,
+    hireDate: null,
+    workScheduleId: null,
+    workingDays: null, // OrgWorkConfig: ISO weekdays [1-7], e.g. [1,2,3,4,5,6]
+    hoursPerDay: null,
+    deptMenu: null, // Go-Live G6: per-dept menu visibility
+    // Phase 10: Organization info for print headers
+    orgName: null,
+    orgAddress: null,
+    orgTaxId: null,
+    // Phase 13: 2FA status
+    is2FAEnabled: false,
 
-      // Actions
-      setTokens: (accessToken, refreshToken) => {
-        set({ accessToken, refreshToken, isAuthenticated: true });
-      },
+    // Actions
+    setTokens: (accessToken, refreshToken) => {
+      set({ accessToken, refreshToken, isAuthenticated: true });
+    },
 
-      login: async (email, password) => {
-        set({ isLoading: true });
-        try {
-          // Use axios directly — login doesn't need auth interceptor
-          const { data } = await axios.post(`${API_URL}/api/auth/login`, { email, password });
-          set({
-            accessToken: data.access_token,
-            refreshToken: data.refresh_token,
-            isAuthenticated: true,
-          });
-          // Fetch user info
-          await get().fetchMe();
-          return { success: true };
-        } catch (error) {
-          const message = error.response?.data?.detail || 'Login failed';
-          return { success: false, error: message };
-        } finally {
-          set({ isLoading: false });
-        }
-      },
-
-      fetchMe: async () => {
-        try {
-          const { data } = await api.get('/api/auth/me');
-          set({
-            user: data,
-            permissions: data.permissions || [],
-            // Phase 5: employee data from /me
-            employeeId: data.employee_id || null,
-            employeeName: data.employee_name || null,
-            employeeCode: data.employee_code || null,
-            departmentId: data.department_id || null,
-            departmentName: data.department_name || null,
-            hireDate: data.hire_date || null,
-            workScheduleId: data.work_schedule_id || null,
-            workingDays: data.working_days || null,
-            hoursPerDay: data.hours_per_day || null,
-            deptMenu: data.dept_menu || null,
-            orgName: data.org_name || null,
-            orgAddress: data.org_address || null,
-            orgTaxId: data.org_tax_id || null,
-            is2FAEnabled: data.is_2fa_enabled || false,
-          });
-        } catch {
-          get().logout();
-        }
-      },
-
-      logout: () => {
-        const refreshToken = get().refreshToken;
-        if (refreshToken) {
-          api.post('/api/auth/logout', { refresh_token: refreshToken }).catch(() => {});
-        }
-        // Phase 9: reset notification store on logout
-        try {
-          import('../stores/notificationStore').then(({ default: store }) => {
-            store.getState().reset();
-          }).catch(() => {});
-        } catch { /* ignore if not loaded */ }
+    login: async (email, password) => {
+      set({ isLoading: true });
+      try {
+        // Use axios directly — login doesn't need auth interceptor
+        const { data } = await axios.post(`${API_URL}/api/auth/login`, { email, password });
         set({
-          user: null,
-          accessToken: null,
-          refreshToken: null,
-          permissions: [],
-          isAuthenticated: false,
-          employeeId: null,
-          employeeName: null,
-          employeeCode: null,
-          departmentId: null,
-          departmentName: null,
-          hireDate: null,
-          workScheduleId: null,
-          workingDays: null,
-          hoursPerDay: null,
-          deptMenu: null,
-          orgName: null,
-          orgAddress: null,
-          orgTaxId: null,
-          is2FAEnabled: false,
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token,
+          isAuthenticated: true,
         });
-      },
+        // Fetch user info
+        await get().fetchMe();
+        return { success: true };
+      } catch (error) {
+        const message = error.response?.data?.detail || 'Login failed';
+        return { success: false, error: message };
+      } finally {
+        set({ isLoading: false });
+      }
+    },
 
-      // Permission check
-      hasPermission: (permission) => {
-        return get().permissions.includes(permission);
-      },
+    fetchMe: async () => {
+      try {
+        const { data } = await api.get('/api/auth/me');
+        set({
+          user: data,
+          permissions: data.permissions || [],
+          // Phase 5: employee data from /me
+          employeeId: data.employee_id || null,
+          employeeName: data.employee_name || null,
+          employeeCode: data.employee_code || null,
+          departmentId: data.department_id || null,
+          departmentName: data.department_name || null,
+          hireDate: data.hire_date || null,
+          workScheduleId: data.work_schedule_id || null,
+          workingDays: data.working_days || null,
+          hoursPerDay: data.hours_per_day || null,
+          deptMenu: data.dept_menu || null,
+          orgName: data.org_name || null,
+          orgAddress: data.org_address || null,
+          orgTaxId: data.org_tax_id || null,
+          is2FAEnabled: data.is_2fa_enabled || false,
+        });
+      } catch {
+        get().logout();
+      }
+    },
 
-      hasAnyPermission: (...perms) => {
-        const current = get().permissions;
-        return perms.some((p) => current.includes(p));
-      },
-    }),
-    {
-      name: 'sss-auth',
-      onRehydrateStorage: () => {
-        return () => {
-          useAuthStore.setState({ _hasHydrated: true });
-        };
-      },
-      storage: {
-        getItem: (name) => {
-          const str = sessionStorage.getItem(name);
-          return str ? JSON.parse(str) : null;
-        },
-        setItem: (name, value) => sessionStorage.setItem(name, JSON.stringify(value)),
-        removeItem: (name) => sessionStorage.removeItem(name),
-      },
-      // Only persist tokens + auth state — not loading flags
-      partialize: (state) => ({
-        accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
-        user: state.user,
-        permissions: state.permissions,
-        isAuthenticated: state.isAuthenticated,
-        employeeId: state.employeeId,
-        employeeName: state.employeeName,
-        employeeCode: state.employeeCode,
-        departmentId: state.departmentId,
-        departmentName: state.departmentName,
-        hireDate: state.hireDate,
-        workScheduleId: state.workScheduleId,
-        workingDays: state.workingDays,
-        hoursPerDay: state.hoursPerDay,
-        deptMenu: state.deptMenu,
-        orgName: state.orgName,
-        orgAddress: state.orgAddress,
-        orgTaxId: state.orgTaxId,
-        is2FAEnabled: state.is2FAEnabled,
-      }),
-      merge: (persisted, current) => ({
-        ...current,
-        ...(persisted || {}),
-        _hasHydrated: true,
-      }),
-    }
-  )
+    logout: () => {
+      const refreshToken = get().refreshToken;
+      if (refreshToken) {
+        api.post('/api/auth/logout', { refresh_token: refreshToken }).catch(() => {});
+      }
+      // Phase 9: reset notification store on logout
+      try {
+        import('../stores/notificationStore').then(({ default: store }) => {
+          store.getState().reset();
+        }).catch(() => {});
+      } catch { /* ignore if not loaded */ }
+      set({
+        user: null,
+        accessToken: null,
+        refreshToken: null,
+        permissions: [],
+        isAuthenticated: false,
+        employeeId: null,
+        employeeName: null,
+        employeeCode: null,
+        departmentId: null,
+        departmentName: null,
+        hireDate: null,
+        workScheduleId: null,
+        workingDays: null,
+        hoursPerDay: null,
+        deptMenu: null,
+        orgName: null,
+        orgAddress: null,
+        orgTaxId: null,
+        is2FAEnabled: false,
+      });
+    },
+
+    // Permission check
+    hasPermission: (permission) => {
+      return get().permissions.includes(permission);
+    },
+
+    hasAnyPermission: (...perms) => {
+      const current = get().permissions;
+      return perms.some((p) => current.includes(p));
+    },
+  })
 );
 
 // Register store with api.js to break circular dependency

@@ -113,9 +113,10 @@ async def update_warehouse(
     warehouse_id: UUID,
     *,
     update_data: dict,
+    org_id: Optional[UUID] = None,
 ) -> Warehouse:
     """Update a warehouse."""
-    warehouse = await get_warehouse(db, warehouse_id)
+    warehouse = await get_warehouse(db, warehouse_id, org_id=org_id)
 
     # If code is changing, check uniqueness
     if "code" in update_data and update_data["code"] is not None:
@@ -141,12 +142,12 @@ async def update_warehouse(
     return warehouse
 
 
-async def delete_warehouse(db: AsyncSession, warehouse_id: UUID) -> None:
+async def delete_warehouse(db: AsyncSession, warehouse_id: UUID, *, org_id: Optional[UUID] = None) -> None:
     """
     Soft-delete a warehouse.
     Cannot delete if any locations have stock movements referencing them.
     """
-    warehouse = await get_warehouse(db, warehouse_id)
+    warehouse = await get_warehouse(db, warehouse_id, org_id=org_id)
 
     # Check if warehouse has active locations
     loc_count = await db.execute(
@@ -285,9 +286,10 @@ async def update_location(
     location_id: UUID,
     *,
     update_data: dict,
+    org_id: Optional[UUID] = None,
 ) -> Location:
     """Update a location. Zone type change checked against BR#34."""
-    location = await get_location(db, location_id)
+    location = await get_location(db, location_id, org_id=org_id)
 
     # BR#34: If zone_type is changing, check uniqueness within warehouse
     if "zone_type" in update_data and update_data["zone_type"] is not None:
@@ -315,9 +317,9 @@ async def update_location(
     return location
 
 
-async def delete_location(db: AsyncSession, location_id: UUID) -> None:
+async def delete_location(db: AsyncSession, location_id: UUID, *, org_id: Optional[UUID] = None) -> None:
     """Soft-delete a location. Cannot delete if referenced by stock movements."""
-    location = await get_location(db, location_id)
+    location = await get_location(db, location_id, org_id=org_id)
 
     # TODO: When stock movements reference locations (Phase 2+),
     # add check here: if location has movements, reject delete.

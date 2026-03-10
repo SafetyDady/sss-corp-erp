@@ -19,7 +19,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -157,11 +157,25 @@ async def delete_budget(
 )
 async def activate_budget(
     budget_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     org_id = UUID(token["org_id"])
+    user_id = UUID(token["sub"])
     budget = await recharge_svc.activate_budget(db, budget_id, org_id)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="update", resource_type="recharge_budget",
+        resource_id=str(budget_id),
+        description=f"Activated recharge budget {budget_id}",
+        changes={"status": "ACTIVE"},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
     enriched = await recharge_svc.enrich_budgets(db, [budget])
     return FixedRechargeBudgetResponse(**enriched[0])
 
@@ -194,6 +208,7 @@ async def close_budget(
 )
 async def generate_entries(
     body: RechargeGenerateRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -207,6 +222,17 @@ async def generate_entries(
         generated_by=user_id,
         org_id=org_id,
     )
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="execute", resource_type="recharge_entry",
+        description=f"Generated {len(entries)} recharge entries for {body.year}/{body.month:02d}",
+        changes={"budget_id": str(body.budget_id), "year": body.year, "month": body.month, "count": len(entries)},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
     enriched = await recharge_svc.enrich_entries(db, entries)
     return [FixedRechargeEntryResponse(**row) for row in enriched]
 

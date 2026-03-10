@@ -219,10 +219,12 @@ async def api_update_product(
     product_id: UUID,
     body: ProductUpdate,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Update an existing product."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
-    return await update_product(db, product_id, update_data=update_data)
+    return await update_product(db, product_id, update_data=update_data, org_id=org_id)
 
 
 @product_router.delete(
@@ -233,9 +235,11 @@ async def api_update_product(
 async def api_delete_product(
     product_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Soft-delete a product (Business Rule #4)."""
-    await delete_product(db, product_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    await delete_product(db, product_id, org_id=org_id)
 
 
 # ============================================================

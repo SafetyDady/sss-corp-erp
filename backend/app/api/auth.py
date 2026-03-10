@@ -23,7 +23,7 @@ from app.core.security import (
     verify_password,
 )
 from app.core.permissions import ROLE_PERMISSIONS, require
-from app.core.rate_limit import limiter
+from app.core.rate_limit import limiter, get_login_rate_limit, _refresh_rate_limits
 from app.models import User, RefreshToken
 from app.models.security import LoginStatus
 from app.schemas import (
@@ -116,13 +116,15 @@ def _create_tokens_and_refresh(user, ip: str | None = None, user_agent: str | No
 
 
 @router.post("/login", response_model=LoginResponse)
-@limiter.limit("5/minute")
+@limiter.limit(get_login_rate_limit)
 async def login(
     body: LoginRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """Authenticate user. Handles lockout, 2FA, and password expiry."""
+    # Refresh rate-limit cache from DB (non-blocking, every 5 min)
+    await _refresh_rate_limits()
     ip, user_agent = _get_client_info(request)
 
     # Find user (include inactive for recording purposes)

@@ -137,13 +137,14 @@ async def update_work_order(
     wo_id: UUID,
     *,
     update_data: dict,
+    org_id: Optional[UUID] = None,
 ) -> WorkOrder:
     """
     Update a work order.
     - CLOSED WO cannot be edited.
     - wo_number is immutable (not in update schema).
     """
-    wo = await get_work_order(db, wo_id)
+    wo = await get_work_order(db, wo_id, org_id=org_id)
 
     if wo.status == WOStatus.CLOSED:
         raise HTTPException(
@@ -166,6 +167,7 @@ async def delete_work_order(
     *,
     user_id: UUID,
     user_role: str,
+    org_id: Optional[UUID] = None,
 ) -> None:
     """
     Soft-delete a work order.
@@ -173,7 +175,7 @@ async def delete_work_order(
     - Cannot delete if stock movements reference this WO
     - Owner of the WO or user with owner role
     """
-    wo = await get_work_order(db, wo_id)
+    wo = await get_work_order(db, wo_id, org_id=org_id)
 
     if wo.status != WOStatus.DRAFT:
         raise HTTPException(

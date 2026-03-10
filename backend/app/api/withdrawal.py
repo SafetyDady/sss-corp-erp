@@ -16,7 +16,7 @@ Endpoints:
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import DEFAULT_ORG_ID
@@ -302,6 +302,7 @@ async def api_submit_withdrawal_slip(
 async def api_issue_withdrawal_slip(
     slip_id: UUID,
     body: WithdrawalSlipIssueRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(require("inventory.withdrawal.approve")),
 ):
@@ -311,6 +312,17 @@ async def api_issue_withdrawal_slip(
         db, slip_id, issue_data=body.model_dump(),
         issued_by=user_id, org_id=org_id,
     )
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="approve", resource_type="withdrawal_slip",
+        resource_id=str(slip_id),
+        description=f"Issued withdrawal slip {slip_id}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
     return await _slip_to_response(db, slip)
 
 

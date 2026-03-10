@@ -353,66 +353,74 @@ async def issue_withdrawal_slip(
     Issue a PENDING slip -- creates stock movements for each line.
     WO_CONSUME -> movement_type=CONSUME, work_order_id from slip
     CC_ISSUE   -> movement_type=ISSUE, cost_center_id from slip
+    Wrapped in try/except to ensure rollback on failure (multi-step atomic).
     """
-    slip = await get_withdrawal_slip(db, slip_id, org_id=org_id)
-    if slip.status != WithdrawalStatus.PENDING:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Can only issue PENDING slips (current: {slip.status.value})",
-        )
-
-    # For WO_CONSUME, validate WO is still OPEN
-    if slip.withdrawal_type == WithdrawalType.WO_CONSUME:
-        await _validate_work_order(db, slip.work_order_id, org_id)
-
-    lines_by_id = {line.id: line for line in slip.lines}
-    issue_lines = issue_data.get("lines", [])
-    issue_note = issue_data.get("note")
-
-    for issue_line in issue_lines:
-        line_id = issue_line["line_id"]
-        issued_qty = issue_line["issued_qty"]
-        line = lines_by_id.get(line_id)
-        if not line:
+    try:
+        slip = await get_withdrawal_slip(db, slip_id, org_id=org_id)
+        if slip.status != WithdrawalStatus.PENDING:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Slip line {line_id} not found",
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Can only issue PENDING slips (current: {slip.status.value})",
             )
-        line.issued_qty = issued_qty
 
-        if issued_qty > 0:
-            location_id = issue_line.get("location_id") or line.location_id
-            prod_result = await db.execute(
-                select(Product).where(Product.id == line.product_id)
-            )
-            product = prod_result.scalar_one_or_none()
-            unit_cost = product.cost if product else Decimal("0.00")
+        # For WO_CONSUME, validate WO is still OPEN
+        if slip.withdrawal_type == WithdrawalType.WO_CONSUME:
+            await _validate_work_order(db, slip.work_order_id, org_id)
 
-            if slip.withdrawal_type == WithdrawalType.WO_CONSUME:
-                movement = await create_movement(
-                    db, product_id=line.product_id, movement_type="CONSUME",
-                    quantity=issued_qty, unit_cost=unit_cost,
-                    reference=f"SW {slip.slip_number} line #{line.line_number}",
-                    note=issue_note or line.note, created_by=issued_by,
-                    org_id=org_id, location_id=location_id,
-                    work_order_id=slip.work_order_id,
+        lines_by_id = {line.id: line for line in slip.lines}
+        issue_lines = issue_data.get("lines", [])
+        issue_note = issue_data.get("note")
+
+        for issue_line in issue_lines:
+            line_id = issue_line["line_id"]
+            issued_qty = issue_line["issued_qty"]
+            line = lines_by_id.get(line_id)
+            if not line:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Slip line {line_id} not found",
                 )
-            elif slip.withdrawal_type == WithdrawalType.CC_ISSUE:
-                movement = await create_movement(
-                    db, product_id=line.product_id, movement_type="ISSUE",
-                    quantity=issued_qty, unit_cost=unit_cost,
-                    reference=f"SW {slip.slip_number} line #{line.line_number}",
-                    note=issue_note or line.note, created_by=issued_by,
-                    org_id=org_id, location_id=location_id,
-                    cost_center_id=slip.cost_center_id,
-                    cost_element_id=slip.cost_element_id,
-                )
-            line.movement_id = movement.id
+            line.issued_qty = issued_qty
 
-    slip.status = WithdrawalStatus.ISSUED
-    slip.issued_by = issued_by
-    slip.issued_at = datetime.now(timezone.utc)
-    await db.commit()
+            if issued_qty > 0:
+                location_id = issue_line.get("location_id") or line.location_id
+                prod_result = await db.execute(
+                    select(Product).where(Product.id == line.product_id)
+                )
+                product = prod_result.scalar_one_or_none()
+                unit_cost = product.cost if product else Decimal("0.00")
+
+                if slip.withdrawal_type == WithdrawalType.WO_CONSUME:
+                    movement = await create_movement(
+                        db, product_id=line.product_id, movement_type="CONSUME",
+                        quantity=issued_qty, unit_cost=unit_cost,
+                        reference=f"SW {slip.slip_number} line #{line.line_number}",
+                        note=issue_note or line.note, created_by=issued_by,
+                        org_id=org_id, location_id=location_id,
+                        work_order_id=slip.work_order_id,
+                    )
+                elif slip.withdrawal_type == WithdrawalType.CC_ISSUE:
+                    movement = await create_movement(
+                        db, product_id=line.product_id, movement_type="ISSUE",
+                        quantity=issued_qty, unit_cost=unit_cost,
+                        reference=f"SW {slip.slip_number} line #{line.line_number}",
+                        note=issue_note or line.note, created_by=issued_by,
+                        org_id=org_id, location_id=location_id,
+                        cost_center_id=slip.cost_center_id,
+                        cost_element_id=slip.cost_element_id,
+                    )
+                line.movement_id = movement.id
+
+        slip.status = WithdrawalStatus.ISSUED
+        slip.issued_by = issued_by
+        slip.issued_at = datetime.now(timezone.utc)
+        await db.commit()
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception:
+        await db.rollback()
+        raise
 
     # Phase 9: Notification — DOCUMENT_APPROVED (issued) for slip creator
     try:

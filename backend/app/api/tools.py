@@ -108,9 +108,11 @@ async def api_update_tool(
     tool_id: UUID,
     body: ToolUpdate,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
-    return await update_tool(db, tool_id, update_data=update_data)
+    return await update_tool(db, tool_id, update_data=update_data, org_id=org_id)
 
 
 @tools_router.delete(
@@ -121,8 +123,10 @@ async def api_update_tool(
 async def api_delete_tool(
     tool_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
-    await delete_tool(db, tool_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    await delete_tool(db, tool_id, org_id=org_id)
 
 
 # ============================================================

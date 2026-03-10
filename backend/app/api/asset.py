@@ -6,7 +6,7 @@ Phase C13: 16 endpoints (Category 4 + Asset 7 + Depreciation 5)
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -194,11 +194,26 @@ async def delete_asset(
 async def dispose_asset(
     asset_id: UUID,
     req: AssetDisposeRequest,
+    request: Request,
     token_payload: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
     org_id = token_payload.get("org_id")
-    return await asset_service.dispose_asset(db, asset_id, org_id, req)
+    user_id = UUID(token_payload.get("sub"))
+    result = await asset_service.dispose_asset(db, asset_id, org_id, req)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="delete", resource_type="asset",
+        resource_id=str(asset_id),
+        description=f"Disposed asset {asset_id}, amount={req.disposal_amount}",
+        changes={"disposal_amount": str(req.disposal_amount), "disposed_date": str(req.disposed_date)},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return result
 
 
 @router.post(
@@ -247,6 +262,7 @@ async def list_depreciation(
 )
 async def generate_depreciation(
     req: DepreciationGenerateRequest,
+    request: Request,
     token_payload: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
@@ -255,6 +271,17 @@ async def generate_depreciation(
     entries = await asset_service.generate_depreciation_entries(
         db, org_id, req.year, req.month, user_id
     )
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="execute", resource_type="depreciation",
+        description=f"Generated {len(entries)} depreciation entries for {req.year}/{req.month:02d}",
+        changes={"year": req.year, "month": req.month, "count": len(entries)},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
     return {
         "message": f"Generated {len(entries)} depreciation entries for {req.year}/{req.month:02d}",
         "count": len(entries),

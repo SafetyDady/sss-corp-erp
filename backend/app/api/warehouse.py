@@ -132,10 +132,12 @@ async def api_update_warehouse(
     warehouse_id: UUID,
     body: WarehouseUpdate,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Update an existing warehouse."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
-    return await update_warehouse(db, warehouse_id, update_data=update_data)
+    return await update_warehouse(db, warehouse_id, update_data=update_data, org_id=org_id)
 
 
 @warehouse_router.delete(
@@ -146,9 +148,11 @@ async def api_update_warehouse(
 async def api_delete_warehouse(
     warehouse_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Soft-delete a warehouse."""
-    await delete_warehouse(db, warehouse_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    await delete_warehouse(db, warehouse_id, org_id=org_id)
 
 
 # ============================================================
@@ -225,10 +229,12 @@ async def api_update_location(
     location_id: UUID,
     body: LocationUpdate,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Update an existing location."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
-    return await update_location(db, location_id, update_data=update_data)
+    return await update_location(db, location_id, update_data=update_data, org_id=org_id)
 
 
 @warehouse_router.delete(
@@ -239,9 +245,11 @@ async def api_update_location(
 async def api_delete_location(
     location_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Soft-delete a location."""
-    await delete_location(db, location_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    await delete_location(db, location_id, org_id=org_id)
 
 
 # ============================================================

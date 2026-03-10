@@ -95,8 +95,9 @@ async def update_customer(
     cust_id: UUID,
     *,
     update_data: dict,
+    org_id: Optional[UUID] = None,
 ) -> Customer:
-    cust = await get_customer(db, cust_id)
+    cust = await get_customer(db, cust_id, org_id=org_id)
     for field, value in update_data.items():
         if value is not None:
             setattr(cust, field, value)
@@ -105,7 +106,7 @@ async def update_customer(
     return cust
 
 
-async def delete_customer(db: AsyncSession, cust_id: UUID) -> None:
-    cust = await get_customer(db, cust_id)
+async def delete_customer(db: AsyncSession, cust_id: UUID, *, org_id: Optional[UUID] = None) -> None:
+    cust = await get_customer(db, cust_id, org_id=org_id)
     cust.is_active = False
     await db.commit()

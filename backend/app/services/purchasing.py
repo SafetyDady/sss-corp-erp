@@ -361,170 +361,179 @@ async def convert_pr_to_po(
     created_by: UUID,
     org_id: UUID,
 ) -> PurchaseOrder:
-    """Convert an approved PR to a PO (auto-approved)."""
-    pr = await get_purchase_requisition(db, pr_id, org_id=org_id)
+    """Convert an approved PR to a PO (auto-approved).
+    Wrapped in try/except to ensure rollback on failure (multi-step atomic).
+    """
+    try:
+        pr = await get_purchase_requisition(db, pr_id, org_id=org_id)
 
-    if pr.status != PRStatus.APPROVED:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Can only convert APPROVED PR (current: {pr.status.value})",
-        )
-
-    # Check PR not already converted
-    existing_po = await db.execute(
-        select(PurchaseOrder).where(PurchaseOrder.pr_id == pr_id, PurchaseOrder.is_active == True)
-    )
-    if existing_po.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="This PR has already been converted to a PO",
-        )
-
-    # Build PR line lookup
-    pr_lines_by_id = {line.id: line for line in pr.lines}
-    convert_lines = body["lines"]
-
-    # Validate all PR lines are covered
-    convert_line_ids = {cl["pr_line_id"] for cl in convert_lines}
-    for line_id in convert_line_ids:
-        if line_id not in pr_lines_by_id:
+        if pr.status != PRStatus.APPROVED:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"PR line {line_id} not found in this PR",
+                detail=f"Can only convert APPROVED PR (current: {pr.status.value})",
             )
 
-    # Create PO
-    po_number = await _next_po_number(db, org_id)
-    subtotal = Decimal("0.00")
-
-    for cl in convert_lines:
-        pr_line = pr_lines_by_id[cl["pr_line_id"]]
-        subtotal += Decimal(str(pr_line.quantity)) * Decimal(str(cl["unit_cost"]))
-
-    # C5 Tax: resolve VAT rate → calculate vat_amount → grand total
-    tax_config = await get_or_create_tax_config(db, org_id)
-    vat_rate = body.get("vat_rate")
-    if vat_rate is None:
-        if tax_config.vat_enabled:
-            vat_rate = tax_config.default_vat_rate
-        else:
-            vat_rate = Decimal("0.00")
-    else:
-        vat_rate = Decimal(str(vat_rate))
-
-    vat_amount = (subtotal * vat_rate / Decimal("100")).quantize(Decimal("0.01"))
-    total_amount = subtotal + vat_amount
-
-    # C5.2 WHT: resolve WHT type → calc wht_amount → net_payment
-    # BR#111: WHT base = subtotal (ก่อน VAT) ตามกฎหมายไทย
-    wht_type_id = body.get("wht_type_id")
-    wht_rate = Decimal("0.00")
-
-    # Check org wht_enabled
-    if tax_config.wht_enabled:
-        if wht_type_id:
-            # User explicitly chose a WHT type
-            from app.models.master import WHTType
-            wht_result = await db.execute(
-                select(WHTType).where(WHTType.id == wht_type_id, WHTType.org_id == org_id, WHTType.is_active == True)
+        # Check PR not already converted
+        existing_po = await db.execute(
+            select(PurchaseOrder).where(PurchaseOrder.pr_id == pr_id, PurchaseOrder.is_active == True)
+        )
+        if existing_po.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="This PR has already been converted to a PO",
             )
-            wht_type = wht_result.scalar_one_or_none()
-            if wht_type:
-                wht_rate = Decimal(str(wht_type.rate))
+
+        # Build PR line lookup
+        pr_lines_by_id = {line.id: line for line in pr.lines}
+        convert_lines = body["lines"]
+
+        # Validate all PR lines are covered
+        convert_line_ids = {cl["pr_line_id"] for cl in convert_lines}
+        for line_id in convert_line_ids:
+            if line_id not in pr_lines_by_id:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"PR line {line_id} not found in this PR",
+                )
+
+        # Create PO
+        po_number = await _next_po_number(db, org_id)
+        subtotal = Decimal("0.00")
+
+        for cl in convert_lines:
+            pr_line = pr_lines_by_id[cl["pr_line_id"]]
+            subtotal += Decimal(str(pr_line.quantity)) * Decimal(str(cl["unit_cost"]))
+
+        # C5 Tax: resolve VAT rate → calculate vat_amount → grand total
+        tax_config = await get_or_create_tax_config(db, org_id)
+        vat_rate = body.get("vat_rate")
+        if vat_rate is None:
+            if tax_config.vat_enabled:
+                vat_rate = tax_config.default_vat_rate
             else:
-                wht_type_id = None  # Invalid WHT type → skip
-        elif body.get("supplier_id"):
-            # BR#112: Auto-fill from supplier default
-            from app.models.master import Supplier, WHTType
-            sup_result = await db.execute(
-                select(Supplier).where(Supplier.id == body["supplier_id"], Supplier.org_id == org_id)
-            )
-            supplier_obj = sup_result.scalar_one_or_none()
-            if supplier_obj and supplier_obj.default_wht_type_id:
+                vat_rate = Decimal("0.00")
+        else:
+            vat_rate = Decimal(str(vat_rate))
+
+        vat_amount = (subtotal * vat_rate / Decimal("100")).quantize(Decimal("0.01"))
+        total_amount = subtotal + vat_amount
+
+        # C5.2 WHT: resolve WHT type → calc wht_amount → net_payment
+        # BR#111: WHT base = subtotal (ก่อน VAT) ตามกฎหมายไทย
+        wht_type_id = body.get("wht_type_id")
+        wht_rate = Decimal("0.00")
+
+        # Check org wht_enabled
+        if tax_config.wht_enabled:
+            if wht_type_id:
+                # User explicitly chose a WHT type
+                from app.models.master import WHTType
                 wht_result = await db.execute(
-                    select(WHTType).where(WHTType.id == supplier_obj.default_wht_type_id, WHTType.is_active == True)
+                    select(WHTType).where(WHTType.id == wht_type_id, WHTType.org_id == org_id, WHTType.is_active == True)
                 )
                 wht_type = wht_result.scalar_one_or_none()
                 if wht_type:
-                    wht_type_id = wht_type.id
                     wht_rate = Decimal(str(wht_type.rate))
-    else:
-        # WHT disabled at org level
-        wht_type_id = None
-        wht_rate = Decimal("0.00")
-
-    wht_amount = (subtotal * wht_rate / Decimal("100")).quantize(Decimal("0.01"))
-    net_payment = total_amount - wht_amount
-
-    po = PurchaseOrder(
-        po_number=po_number,
-        pr_id=pr.id,
-        supplier_name=body["supplier_name"],
-        supplier_id=body.get("supplier_id"),
-        status=POStatus.APPROVED,  # Auto-approved since PR is approved
-        order_date=date.today(),
-        expected_date=body.get("expected_date"),
-        subtotal_amount=subtotal,
-        vat_rate=vat_rate,
-        vat_amount=vat_amount,
-        total_amount=total_amount,
-        wht_type_id=wht_type_id,
-        wht_rate=wht_rate,
-        wht_amount=wht_amount,
-        net_payment=net_payment,
-        cost_center_id=pr.cost_center_id,
-        note=body.get("note"),
-        created_by=created_by,
-        approved_by=created_by,
-        org_id=org_id,
-    )
-    db.add(po)
-    await db.flush()
-
-    # Create PO Lines from PR Lines
-    for cl in convert_lines:
-        pr_line = pr_lines_by_id[cl["pr_line_id"]]
-
-        # §5: Validate DIRECT_GR allocation at service layer
-        gr_mode = cl.get("gr_mode", "STOCK_GR")
-        wo_id = cl.get("work_order_id")
-        cc_id = cl.get("direct_cost_center_id")
-        if gr_mode == "DIRECT_GR":
-            if not wo_id and not cc_id:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"DIRECT_GR requires work_order_id or direct_cost_center_id (PR line {pr_line.line_number})",
+                else:
+                    wht_type_id = None  # Invalid WHT type → skip
+            elif body.get("supplier_id"):
+                # BR#112: Auto-fill from supplier default
+                from app.models.master import Supplier, WHTType
+                sup_result = await db.execute(
+                    select(Supplier).where(Supplier.id == body["supplier_id"], Supplier.org_id == org_id)
                 )
-            if wo_id and cc_id:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"DIRECT_GR: provide work_order_id OR direct_cost_center_id, not both (PR line {pr_line.line_number})",
-                )
-        elif gr_mode == "STOCK_GR":
-            # STOCK_GR must not have allocation fields
-            wo_id = None
-            cc_id = None
+                supplier_obj = sup_result.scalar_one_or_none()
+                if supplier_obj and supplier_obj.default_wht_type_id:
+                    wht_result = await db.execute(
+                        select(WHTType).where(WHTType.id == supplier_obj.default_wht_type_id, WHTType.is_active == True)
+                    )
+                    wht_type = wht_result.scalar_one_or_none()
+                    if wht_type:
+                        wht_type_id = wht_type.id
+                        wht_rate = Decimal(str(wht_type.rate))
+        else:
+            # WHT disabled at org level
+            wht_type_id = None
+            wht_rate = Decimal("0.00")
 
-        po_line = PurchaseOrderLine(
-            po_id=po.id,
-            pr_line_id=pr_line.id,
-            product_id=pr_line.product_id,
-            item_type=pr_line.item_type,
-            description=pr_line.description,
-            quantity=pr_line.quantity,
-            unit=pr_line.unit,
-            unit_cost=cl["unit_cost"],
-            cost_element_id=pr_line.cost_element_id,
-            gr_mode=gr_mode,
-            work_order_id=wo_id,
-            direct_cost_center_id=cc_id,
+        wht_amount = (subtotal * wht_rate / Decimal("100")).quantize(Decimal("0.01"))
+        net_payment = total_amount - wht_amount
+
+        po = PurchaseOrder(
+            po_number=po_number,
+            pr_id=pr.id,
+            supplier_name=body["supplier_name"],
+            supplier_id=body.get("supplier_id"),
+            status=POStatus.APPROVED,  # Auto-approved since PR is approved
+            order_date=date.today(),
+            expected_date=body.get("expected_date"),
+            subtotal_amount=subtotal,
+            vat_rate=vat_rate,
+            vat_amount=vat_amount,
+            total_amount=total_amount,
+            wht_type_id=wht_type_id,
+            wht_rate=wht_rate,
+            wht_amount=wht_amount,
+            net_payment=net_payment,
+            cost_center_id=pr.cost_center_id,
+            note=body.get("note"),
+            created_by=created_by,
+            approved_by=created_by,
+            org_id=org_id,
         )
-        db.add(po_line)
+        db.add(po)
+        await db.flush()
 
-    # Update PR status
-    pr.status = PRStatus.PO_CREATED
+        # Create PO Lines from PR Lines
+        for cl in convert_lines:
+            pr_line = pr_lines_by_id[cl["pr_line_id"]]
 
-    await db.commit()
+            # §5: Validate DIRECT_GR allocation at service layer
+            gr_mode = cl.get("gr_mode", "STOCK_GR")
+            wo_id = cl.get("work_order_id")
+            cc_id = cl.get("direct_cost_center_id")
+            if gr_mode == "DIRECT_GR":
+                if not wo_id and not cc_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"DIRECT_GR requires work_order_id or direct_cost_center_id (PR line {pr_line.line_number})",
+                    )
+                if wo_id and cc_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"DIRECT_GR: provide work_order_id OR direct_cost_center_id, not both (PR line {pr_line.line_number})",
+                    )
+            elif gr_mode == "STOCK_GR":
+                # STOCK_GR must not have allocation fields
+                wo_id = None
+                cc_id = None
+
+            po_line = PurchaseOrderLine(
+                po_id=po.id,
+                pr_line_id=pr_line.id,
+                product_id=pr_line.product_id,
+                item_type=pr_line.item_type,
+                description=pr_line.description,
+                quantity=pr_line.quantity,
+                unit=pr_line.unit,
+                unit_cost=cl["unit_cost"],
+                cost_element_id=pr_line.cost_element_id,
+                gr_mode=gr_mode,
+                work_order_id=wo_id,
+                direct_cost_center_id=cc_id,
+            )
+            db.add(po_line)
+
+        # Update PR status
+        pr.status = PRStatus.PO_CREATED
+
+        await db.commit()
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception:
+        await db.rollback()
+        raise
     return await get_purchase_order(db, po.id, org_id=org_id)
 
 
@@ -729,75 +738,83 @@ async def receive_goods(
     Goods Receipt: receive items from PO.
     GOODS items → creates RECEIVE stock movements.
     SERVICE items → marks received (no stock movement).
+    Wrapped in try/except to ensure rollback on failure (multi-step atomic).
     """
-    po = await get_purchase_order(db, po_id, org_id=org_id)
+    try:
+        po = await get_purchase_order(db, po_id, org_id=org_id)
 
-    if po.status != POStatus.APPROVED:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Can only receive goods for APPROVED purchase orders",
-        )
-
-    # Store delivery note number if provided
-    if delivery_note_number:
-        po.delivery_note_number = delivery_note_number
-
-    lines_by_id = {line.id: line for line in po.lines}
-
-    for rl in receipt_lines:
-        line = lines_by_id.get(rl["line_id"])
-        if not line:
-            raise HTTPException(status_code=404, detail=f"PO line {rl['line_id']} not found")
-
-        remaining = line.quantity - line.received_qty
-        if rl["received_qty"] > remaining:
+        if po.status != POStatus.APPROVED:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Received qty ({rl['received_qty']}) exceeds remaining ({remaining})",
+                detail="Can only receive goods for APPROVED purchase orders",
             )
 
-        # Handle by item type
-        item_type = getattr(line, "item_type", PRItemType.GOODS)
-        if isinstance(item_type, str):
-            item_type = PRItemType(item_type)
+        # Store delivery note number if provided
+        if delivery_note_number:
+            po.delivery_note_number = delivery_note_number
 
-        if item_type == PRItemType.GOODS and line.product_id:
-            # Check GR mode — STOCK_GR vs DIRECT_GR (§5)
-            gr_mode = getattr(line, "gr_mode", None)
-            if gr_mode and hasattr(gr_mode, "value"):
-                gr_mode = gr_mode.value
-            gr_mode = gr_mode or "STOCK_GR"
+        lines_by_id = {line.id: line for line in po.lines}
 
-            if gr_mode == "STOCK_GR":
-                # STOCK_GR → create RECEIVE stock movement (normal flow)
-                await create_movement(
-                    db,
-                    product_id=line.product_id,
-                    movement_type="RECEIVE",
-                    quantity=rl["received_qty"],
-                    unit_cost=line.unit_cost,
-                    reference=f"GR from {po.po_number}",
-                    note=rl.get("note"),
-                    created_by=received_by,
-                    org_id=org_id,
-                    location_id=rl.get("location_id"),
+        for rl in receipt_lines:
+            line = lines_by_id.get(rl["line_id"])
+            if not line:
+                raise HTTPException(status_code=404, detail=f"PO line {rl['line_id']} not found")
+
+            remaining = line.quantity - line.received_qty
+            if rl["received_qty"] > remaining:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Received qty ({rl['received_qty']}) exceeds remaining ({remaining})",
                 )
-            else:
-                # DIRECT_GR → no stock movement, cost charges WO or CostCenter directly
-                # Log as reference on PO line (no inventory impact)
-                pass
-        # SERVICE → no stock movement, just update received_qty
 
-        line.received_qty += rl["received_qty"]
-        line.received_by = received_by
-        line.received_at = datetime.now(timezone.utc)
+            # Handle by item type
+            item_type = getattr(line, "item_type", PRItemType.GOODS)
+            if isinstance(item_type, str):
+                item_type = PRItemType(item_type)
 
-    # Check if all lines fully received
-    all_received = all(l.received_qty >= l.quantity for l in po.lines)
-    if all_received:
-        po.status = POStatus.RECEIVED
+            if item_type == PRItemType.GOODS and line.product_id:
+                # Check GR mode — STOCK_GR vs DIRECT_GR (§5)
+                gr_mode = getattr(line, "gr_mode", None)
+                if gr_mode and hasattr(gr_mode, "value"):
+                    gr_mode = gr_mode.value
+                gr_mode = gr_mode or "STOCK_GR"
 
-    await db.commit()
+                if gr_mode == "STOCK_GR":
+                    # STOCK_GR → create RECEIVE stock movement (normal flow)
+                    await create_movement(
+                        db,
+                        product_id=line.product_id,
+                        movement_type="RECEIVE",
+                        quantity=rl["received_qty"],
+                        unit_cost=line.unit_cost,
+                        reference=f"GR from {po.po_number}",
+                        note=rl.get("note"),
+                        created_by=received_by,
+                        org_id=org_id,
+                        location_id=rl.get("location_id"),
+                    )
+                else:
+                    # DIRECT_GR → no stock movement, cost charges WO or CostCenter directly
+                    # Log as reference on PO line (no inventory impact)
+                    pass
+            # SERVICE → no stock movement, just update received_qty
+
+            line.received_qty += rl["received_qty"]
+            line.received_by = received_by
+            line.received_at = datetime.now(timezone.utc)
+
+        # Check if all lines fully received
+        all_received = all(l.received_qty >= l.quantity for l in po.lines)
+        if all_received:
+            po.status = POStatus.RECEIVED
+
+        await db.commit()
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception:
+        await db.rollback()
+        raise
 
     # Phase 9: Notification — PO_RECEIVED when all lines received
     if all_received:

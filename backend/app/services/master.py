@@ -112,8 +112,9 @@ async def update_cost_center(
     cc_id: UUID,
     *,
     update_data: dict,
+    org_id: Optional[UUID] = None,
 ) -> CostCenter:
-    cc = await get_cost_center(db, cc_id)
+    cc = await get_cost_center(db, cc_id, org_id=org_id)
 
     for field, value in update_data.items():
         if value is not None:
@@ -124,8 +125,8 @@ async def update_cost_center(
     return cc
 
 
-async def delete_cost_center(db: AsyncSession, cc_id: UUID) -> None:
-    cc = await get_cost_center(db, cc_id)
+async def delete_cost_center(db: AsyncSession, cc_id: UUID, *, org_id: Optional[UUID] = None) -> None:
+    cc = await get_cost_center(db, cc_id, org_id=org_id)
     cc.is_active = False
     await db.commit()
 
@@ -213,8 +214,9 @@ async def update_cost_element(
     ce_id: UUID,
     *,
     update_data: dict,
+    org_id: Optional[UUID] = None,
 ) -> CostElement:
-    ce = await get_cost_element(db, ce_id)
+    ce = await get_cost_element(db, ce_id, org_id=org_id)
 
     for field, value in update_data.items():
         if value is not None:
@@ -225,8 +227,8 @@ async def update_cost_element(
     return ce
 
 
-async def delete_cost_element(db: AsyncSession, ce_id: UUID) -> None:
-    ce = await get_cost_element(db, ce_id)
+async def delete_cost_element(db: AsyncSession, ce_id: UUID, *, org_id: Optional[UUID] = None) -> None:
+    ce = await get_cost_element(db, ce_id, org_id=org_id)
     ce.is_active = False
     await db.commit()
 
@@ -321,8 +323,9 @@ async def update_ot_type(
     ot_id: UUID,
     *,
     update_data: dict,
+    org_id: Optional[UUID] = None,
 ) -> OTType:
-    ot = await get_ot_type(db, ot_id)
+    ot = await get_ot_type(db, ot_id, org_id=org_id)
 
     for field, value in update_data.items():
         if value is not None:
@@ -340,8 +343,8 @@ async def update_ot_type(
     return ot
 
 
-async def delete_ot_type(db: AsyncSession, ot_id: UUID) -> None:
-    ot = await get_ot_type(db, ot_id)
+async def delete_ot_type(db: AsyncSession, ot_id: UUID, *, org_id: Optional[UUID] = None) -> None:
+    ot = await get_ot_type(db, ot_id, org_id=org_id)
     ot.is_active = False
     await db.commit()
 
@@ -431,8 +434,9 @@ async def update_leave_type(
     lt_id: UUID,
     *,
     update_data: dict,
+    org_id: Optional[UUID] = None,
 ) -> LeaveType:
-    lt = await get_leave_type(db, lt_id)
+    lt = await get_leave_type(db, lt_id, org_id=org_id)
 
     for field, value in update_data.items():
         if value is not None:
@@ -443,8 +447,8 @@ async def update_leave_type(
     return lt
 
 
-async def delete_leave_type(db: AsyncSession, lt_id: UUID) -> None:
-    lt = await get_leave_type(db, lt_id)
+async def delete_leave_type(db: AsyncSession, lt_id: UUID, *, org_id: Optional[UUID] = None) -> None:
+    lt = await get_leave_type(db, lt_id, org_id=org_id)
     lt.is_active = False
     await db.commit()
 

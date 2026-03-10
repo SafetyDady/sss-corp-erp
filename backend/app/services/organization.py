@@ -185,8 +185,8 @@ async def update_department(
     return dept
 
 
-async def delete_department(db: AsyncSession, dept_id: UUID) -> None:
-    dept = await get_department(db, dept_id)
+async def delete_department(db: AsyncSession, dept_id: UUID, *, org_id: Optional[UUID] = None) -> None:
+    dept = await get_department(db, dept_id, org_id=org_id)
     dept.is_active = False
     await db.commit()
 

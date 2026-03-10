@@ -147,9 +147,10 @@ async def update_product(
     product_id: UUID,
     *,
     update_data: dict,
+    org_id: Optional[UUID] = None,
 ) -> Product:
     """Update a product. Business Rule #1 & #3."""
-    product = await get_product(db, product_id)
+    product = await get_product(db, product_id, org_id=org_id)
 
     # BR#3: SKU immutable if product has movements
     if "sku" in update_data and update_data["sku"] is not None:
@@ -187,12 +188,12 @@ async def update_product(
     return product
 
 
-async def delete_product(db: AsyncSession, product_id: UUID) -> None:
+async def delete_product(db: AsyncSession, product_id: UUID, *, org_id: Optional[UUID] = None) -> None:
     """
     Soft-delete a product. Business Rule #4:
     Cannot delete if has movements or on_hand > 0
     """
-    product = await get_product(db, product_id)
+    product = await get_product(db, product_id, org_id=org_id)
 
     # BR#4: Check movements
     has_movements = await _product_has_movements(db, product_id)
@@ -240,7 +241,57 @@ async def create_movement(
     """
     Create a stock movement and update on_hand.
     Business Rules #5, #6, #13, #65, #69-72.
+    Wrapped in try/except to ensure rollback on failure.
     """
+    try:
+        return await _create_movement_inner(
+            db,
+            product_id=product_id,
+            movement_type=movement_type,
+            quantity=quantity,
+            unit_cost=unit_cost,
+            reference=reference,
+            note=note,
+            created_by=created_by,
+            org_id=org_id,
+            location_id=location_id,
+            work_order_id=work_order_id,
+            cost_center_id=cost_center_id,
+            cost_element_id=cost_element_id,
+            to_location_id=to_location_id,
+            adjust_type=adjust_type,
+            bin_id=bin_id,
+            skip_cc_validation=skip_cc_validation,
+        )
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception:
+        await db.rollback()
+        raise
+
+
+async def _create_movement_inner(
+    db: AsyncSession,
+    *,
+    product_id: UUID,
+    movement_type: str,
+    quantity: int,
+    unit_cost: Decimal,
+    reference: Optional[str],
+    note: Optional[str],
+    created_by: UUID,
+    org_id: UUID,
+    location_id: Optional[UUID] = None,
+    work_order_id: Optional[UUID] = None,
+    cost_center_id: Optional[UUID] = None,
+    cost_element_id: Optional[UUID] = None,
+    to_location_id: Optional[UUID] = None,
+    adjust_type: Optional[str] = None,
+    bin_id: Optional[UUID] = None,
+    skip_cc_validation: bool = False,
+) -> StockMovement:
+    """Inner implementation — all DB mutations + single commit."""
     # Get product with row lock (must be active)
     # SELECT FOR UPDATE prevents concurrent movements from causing lost updates on on_hand
     result = await db.execute(
@@ -458,7 +509,29 @@ async def reverse_movement(
 ) -> StockMovement:
     """
     Create a REVERSAL movement for an existing movement. Business Rule #8.
+    Wrapped in try/except to ensure rollback on failure.
     """
+    try:
+        return await _reverse_movement_inner(
+            db, movement_id, created_by=created_by, org_id=org_id, note=note,
+        )
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception:
+        await db.rollback()
+        raise
+
+
+async def _reverse_movement_inner(
+    db: AsyncSession,
+    movement_id: UUID,
+    *,
+    created_by: UUID,
+    org_id: UUID,
+    note: Optional[str] = None,
+) -> StockMovement:
+    """Inner implementation — all DB mutations + single commit."""
     # Get original movement
     result = await db.execute(
         select(StockMovement).where(StockMovement.id == movement_id)

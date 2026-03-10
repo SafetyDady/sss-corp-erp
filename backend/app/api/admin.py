@@ -412,7 +412,19 @@ async def api_update_user_department(
             raise HTTPException(status_code=404, detail="Department not found")
         dept_name = dept.name
 
+    old_dept_id = str(employee.department_id) if employee.department_id else None
     employee.department_id = body.department_id
+
+    # Audit log — department change affects data scope
+    from app.services.security import create_audit_log
+    await create_audit_log(
+        db, user_id=UUID(token["sub"]), org_id=org_id,
+        action="UPDATE", resource_type="user",
+        resource_id=str(user_id),
+        description=f"เปลี่ยนแผนก {user.full_name} → {dept_name or 'ไม่ระบุ'}",
+        changes={"department_id": {"old": old_dept_id, "new": str(body.department_id) if body.department_id else None}},
+    )
+
     await db.commit()
 
     return UserResponse(
@@ -462,6 +474,7 @@ async def api_audit_log(
     dependencies=[Depends(require("admin.role.update"))],
 )
 async def api_seed_permissions(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -475,6 +488,18 @@ async def api_seed_permissions(
     await db.execute(
         sql_delete(RolePermissionOverride).where(RolePermissionOverride.org_id == org_id)
     )
+
+    # Audit log — destructive operation
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=UUID(token["sub"]), org_id=org_id,
+        action="UPDATE", resource_type="role_permissions",
+        description="รีเซ็ตสิทธิ์ทุก Role กลับเป็นค่าเริ่มต้น (seed-permissions)",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+
     await db.commit()
 
     # Reset in-memory to hardcoded defaults
@@ -514,13 +539,29 @@ async def api_get_organization(
 )
 async def api_update_organization(
     body: OrganizationUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     """Update organization details (name, tax_id, address)."""
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
-    return await update_organization(db, org_id, update_data=update_data)
+    result = await update_organization(db, org_id, update_data=update_data)
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=UUID(token["sub"]), org_id=org_id,
+        action="UPDATE", resource_type="organization",
+        description=f"อัปเดตข้อมูลองค์กร ({', '.join(update_data.keys())})",
+        changes=update_data,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
+    return result
 
 
 @admin_router.get(
@@ -544,13 +585,29 @@ async def api_get_work_config(
 )
 async def api_update_work_config(
     body: OrgWorkConfigUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     """Update org work configuration."""
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
-    return await update_work_config(db, org_id, update_data=update_data)
+    result = await update_work_config(db, org_id, update_data=update_data)
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=UUID(token["sub"]), org_id=org_id,
+        action="UPDATE", resource_type="work_config",
+        description=f"อัปเดตตั้งค่าการทำงาน ({', '.join(update_data.keys())})",
+        changes=update_data,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
+    return result
 
 
 @admin_router.get(
@@ -575,6 +632,7 @@ async def api_get_approval_config(
 )
 async def api_update_approval_config(
     body: OrgApprovalConfigUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -582,6 +640,21 @@ async def api_update_approval_config(
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     configs_data = [item.model_dump() for item in body.configs]
     items = await update_approval_configs(db, org_id, configs=configs_data)
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    modules_changed = [c.module for c in body.configs]
+    await create_audit_log(
+        db, user_id=UUID(token["sub"]), org_id=org_id,
+        action="UPDATE", resource_type="approval_config",
+        description=f"อัปเดตนโยบายอนุมัติ ({', '.join(modules_changed)})",
+        changes={"modules": modules_changed},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
     return OrgApprovalConfigListResponse(items=items)
 
 
@@ -886,13 +959,29 @@ async def api_get_tax_config(
 )
 async def api_update_tax_config(
     body: OrgTaxConfigUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     """Update org tax configuration."""
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
-    return await update_tax_config(db, org_id, update_data=update_data)
+    result = await update_tax_config(db, org_id, update_data=update_data)
+
+    # Audit log — financial config change
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=UUID(token["sub"]), org_id=org_id,
+        action="UPDATE", resource_type="tax_config",
+        description=f"อัปเดตตั้งค่าภาษี ({', '.join(update_data.keys())})",
+        changes=update_data,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
+    return result
 
 
 # ============================================================

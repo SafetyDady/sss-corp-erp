@@ -218,10 +218,12 @@ async def api_update_work_order(
     wo_id: UUID,
     body: WorkOrderUpdate,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Update work order fields. Cannot edit CLOSED WO."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
-    return await update_work_order(db, wo_id, update_data=update_data)
+    return await update_work_order(db, wo_id, update_data=update_data, org_id=org_id)
 
 
 @workorder_router.delete(
@@ -237,7 +239,8 @@ async def api_delete_work_order(
     """Soft-delete a work order. Only DRAFT + no movements + creator/owner."""
     user_id = UUID(token["sub"])
     user_role = token.get("role", "")
-    await delete_work_order(db, wo_id, user_id=user_id, user_role=user_role)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    await delete_work_order(db, wo_id, user_id=user_id, user_role=user_role, org_id=org_id)
 
 
 # ============================================================

@@ -205,10 +205,12 @@ async def api_update_cost_center(
     cc_id: UUID,
     body: CostCenterUpdate,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Update a cost center (BR#30: overhead rate per cost center)."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
-    cc = await update_cost_center(db, cc_id, update_data=update_data)
+    cc = await update_cost_center(db, cc_id, update_data=update_data, org_id=org_id)
     return await _cost_center_to_response(db, cc)
 
 
@@ -220,9 +222,11 @@ async def api_update_cost_center(
 async def api_delete_cost_center(
     cc_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Soft-delete a cost center."""
-    await delete_cost_center(db, cc_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    await delete_cost_center(db, cc_id, org_id=org_id)
 
 
 # ============================================================
@@ -293,10 +297,12 @@ async def api_update_cost_element(
     ce_id: UUID,
     body: CostElementUpdate,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Update a cost element."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
-    return await update_cost_element(db, ce_id, update_data=update_data)
+    return await update_cost_element(db, ce_id, update_data=update_data, org_id=org_id)
 
 
 @master_router.delete(
@@ -307,9 +313,11 @@ async def api_update_cost_element(
 async def api_delete_cost_element(
     ce_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Soft-delete a cost element."""
-    await delete_cost_element(db, ce_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    await delete_cost_element(db, ce_id, org_id=org_id)
 
 
 # ============================================================
@@ -381,10 +389,12 @@ async def api_update_ot_type(
     ot_id: UUID,
     body: OTTypeUpdate,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Update an OT type (BR#24: factor ≤ max_ceiling, BR#29)."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
-    return await update_ot_type(db, ot_id, update_data=update_data)
+    return await update_ot_type(db, ot_id, update_data=update_data, org_id=org_id)
 
 
 @master_router.delete(
@@ -395,9 +405,11 @@ async def api_update_ot_type(
 async def api_delete_ot_type(
     ot_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Soft-delete an OT type."""
-    await delete_ot_type(db, ot_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    await delete_ot_type(db, ot_id, org_id=org_id)
 
 
 # ============================================================
@@ -485,9 +497,11 @@ async def api_update_department(
 async def api_delete_department(
     dept_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
     """Soft-delete a department."""
-    await delete_department(db, dept_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    await delete_department(db, dept_id, org_id=org_id)
 
 
 # ============================================================
@@ -556,9 +570,11 @@ async def api_update_leave_type(
     lt_id: UUID,
     body: LeaveTypeUpdate,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
-    return await update_leave_type(db, lt_id, update_data=update_data)
+    return await update_leave_type(db, lt_id, update_data=update_data, org_id=org_id)
 
 
 @master_router.delete(
@@ -569,8 +585,10 @@ async def api_update_leave_type(
 async def api_delete_leave_type(
     lt_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
-    await delete_leave_type(db, lt_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    await delete_leave_type(db, lt_id, org_id=org_id)
 
 
 # ============================================================

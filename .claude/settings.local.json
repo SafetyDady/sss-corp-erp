@@ -54,7 +54,13 @@
       "Bash(node -e \"const fs = require\\(''fs''\\); fs.writeFileSync\\(''C:/web_project/sss-corp/sss-corp-erp/frontend/src/pages/tools/_writer.py'', ''import sys\\\\npath = sys.argv[1]\\\\ncontent = sys.stdin.buffer.read\\(\\).decode\\(\"\"utf-8\"\"\\)\\\\nwith open\\(path, \"\"w\"\", encoding=\"\"utf-8\"\", newline=\"\"\\\\n\"\"\\) as f:\\\\n    f.write\\(content\\)\\\\nprint\\(f\"\"Written {len\\(content\\)} chars to {path}\"\"\\)\\\\n''\\); console.log\\(''writer script created''\\);\")",
       "Bash(node -e \":*)",
       "Bash(node -e \"const fs = require\\(''fs''\\); const c = fs.readFileSync\\(''C:/web_project/sss-corp/sss-corp-erp/frontend/src/pages/tools/ToolCheckoutSlipFormModal.jsx'', ''utf8''\\); console.log\\(c\\);\")",
-      "Bash(cmd.exe /c \"cd /d C:\\\\web_project\\\\sss-corp\\\\sss-corp-erp\\\\frontend && npm run build\")"
+      "Bash(cmd.exe /c \"cd /d C:\\\\web_project\\\\sss-corp\\\\sss-corp-erp\\\\frontend && npm run build\")",
+      "Bash(wc -l *.md)",
+      "Bash(pandoc SSS_Corp_ERP_Improvement_Checklist.docx -o checklist_review.md --track-changes=all)",
+      "Bash(pip install python-docx)",
+      "Bash(py -3 -c \":*)",
+      "Bash(node SSS_Corp_ERP_Checklist.js)",
+      "Bash(docker compose -f docker-compose.dev.yml exec backend python -m tests.test_workflow_rules)"
     ]
   }
 }

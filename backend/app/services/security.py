@@ -570,7 +570,8 @@ async def log_export(
         db.add(entry)
         await db.commit()
     except Exception:
-        pass  # Never break an export due to audit logging failure
+        import logging as _log
+        _log.getLogger("audit").warning("Export audit log creation failed", exc_info=True)
 
 
 async def get_export_audit_log(

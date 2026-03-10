@@ -343,11 +343,25 @@ async def api_update_employee(
 )
 async def api_delete_employee(
     emp_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    user_id = UUID(token["sub"])
     await delete_employee(db, emp_id, org_id=org_id)
+    # Audit log (separate tx — business op already committed)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="delete", resource_type="employee",
+        resource_id=str(emp_id),
+        description=f"Deleted employee {emp_id}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
 
 
 # ============================================================
@@ -479,12 +493,26 @@ async def api_update_timesheet(
 )
 async def api_approve_timesheet(
     ts_id: UUID,
+    request: Request,
     token: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
     """Supervisor approve (BR#23)."""
     user_id = UUID(token["sub"])
-    return await approve_timesheet(db, ts_id, approved_by=user_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    result = await approve_timesheet(db, ts_id, approved_by=user_id)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="approve", resource_type="timesheet",
+        resource_id=str(ts_id),
+        description=f"Supervisor approved timesheet {ts_id}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return result
 
 
 @hr_router.post(
@@ -494,12 +522,26 @@ async def api_approve_timesheet(
 )
 async def api_final_approve_timesheet(
     ts_id: UUID,
+    request: Request,
     token: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
     """HR final approve (BR#26)."""
     user_id = UUID(token["sub"])
-    return await final_approve_timesheet(db, ts_id, final_approved_by=user_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    result = await final_approve_timesheet(db, ts_id, final_approved_by=user_id)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="execute", resource_type="timesheet",
+        resource_id=str(ts_id),
+        description=f"HR final approved timesheet {ts_id}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return result
 
 
 @hr_router.post(
@@ -509,12 +551,26 @@ async def api_final_approve_timesheet(
 )
 async def api_unlock_timesheet(
     ts_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     """HR unlock a locked timesheet (BR#22)."""
+    user_id = UUID(token["sub"])
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
-    return await unlock_timesheet(db, ts_id, org_id=org_id)
+    result = await unlock_timesheet(db, ts_id, org_id=org_id)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="execute", resource_type="timesheet",
+        resource_id=str(ts_id),
+        description=f"HR unlocked timesheet {ts_id}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return result
 
 
 @hr_router.post(
@@ -743,14 +799,29 @@ class LeaveApproveRequest(BaseModel):
 async def api_approve_leave(
     leave_id: UUID,
     body: LeaveApproveRequest,
+    request: Request,
     token: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
     user_id = UUID(token["sub"])
-    return await approve_leave(
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    result = await approve_leave(
         db, leave_id, approved_by=user_id,
         approve=(body.action == "approve"),
     )
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="approve", resource_type="leave",
+        resource_id=str(leave_id),
+        description=f"Leave {leave_id} {body.action}d",
+        changes={"action": body.action},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return result
 
 
 # ============================================================
@@ -861,13 +932,27 @@ async def api_create_payroll_run(
     dependencies=[Depends(require("hr.payroll.execute"))],
 )
 async def api_execute_payroll(
+    request: Request,
     payroll_id: UUID = Query(...),
     token: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
     """Execute payroll run (BR#26: uses only FINAL timesheets)."""
     user_id = UUID(token["sub"])
-    return await execute_payroll(db, payroll_id, executed_by=user_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    result = await execute_payroll(db, payroll_id, executed_by=user_id)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="execute", resource_type="payroll",
+        resource_id=str(payroll_id),
+        description=f"Executed payroll run {payroll_id}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return result
 
 
 @hr_router.get(
@@ -1091,10 +1176,24 @@ async def api_get_payslips_for_run(
 )
 async def api_release_payslips(
     payroll_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     """Release all DRAFT payslips for a payroll run → visible to staff."""
+    user_id = UUID(token["sub"])
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     count = await release_payslips(db, payroll_id, org_id=org_id)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="execute", resource_type="payroll",
+        resource_id=str(payroll_id),
+        description=f"Released {count} payslips for payroll {payroll_id}",
+        changes={"released_count": count},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
     return {"released_count": count}

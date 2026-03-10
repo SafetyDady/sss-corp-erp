@@ -6,6 +6,7 @@ export const COLORS = {
   warning: '#f59e0b',
   danger: '#ef4444',
   purple: '#8b5cf6',
+  info: '#3b82f6',
   bg: '#0a0a0f',
   surface: '#111118',
   surfaceHover: '#1a1a24',

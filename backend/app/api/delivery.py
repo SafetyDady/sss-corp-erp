@@ -274,6 +274,7 @@ async def api_delete_delivery_order(
 async def api_ship_delivery_order(
     do_id: UUID,
     body: DOShipRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(require("sales.delivery.approve")),
 ):
@@ -283,6 +284,18 @@ async def api_ship_delivery_order(
         db, do_id, ship_data=body.model_dump(),
         shipped_by=user_id, org_id=org_id,
     )
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="execute", resource_type="delivery_order",
+        resource_id=str(do_id),
+        description=f"Shipped delivery order {do_id}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
     enriched = await enrich_delivery_orders(db, [do])
     return enriched[0]
 

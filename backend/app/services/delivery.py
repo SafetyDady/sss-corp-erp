@@ -386,71 +386,79 @@ async def ship_delivery_order(
     """
     Confirm shipment: DRAFT → SHIPPED.
     Creates ISSUE stock movements per line with shipped_qty > 0.
+    Wrapped in try/except to ensure rollback on failure (multi-step atomic).
     """
-    do = await get_delivery_order(db, do_id, org_id=org_id)
-    if do.status != DOStatus.DRAFT:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Can only ship DRAFT DOs (current: {do.status.value})",
-        )
-
-    lines_by_id = {line.id: line for line in do.lines}
-    ship_lines = ship_data.get("lines", [])
-    ship_note = ship_data.get("note")
-
-    for ship_line in ship_lines:
-        line_id = ship_line["line_id"]
-        shipped_qty = ship_line["shipped_qty"]
-        line = lines_by_id.get(line_id)
-
-        if not line:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"DO line {line_id} not found",
-            )
-
-        if shipped_qty > line.ordered_qty:
+    try:
+        do = await get_delivery_order(db, do_id, org_id=org_id)
+        if do.status != DOStatus.DRAFT:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=(
-                    f"Shipped qty ({shipped_qty}) exceeds ordered qty ({line.ordered_qty}) "
-                    f"for line #{line.line_number}"
-                ),
+                detail=f"Can only ship DRAFT DOs (current: {do.status.value})",
             )
 
-        line.shipped_qty = shipped_qty
+        lines_by_id = {line.id: line for line in do.lines}
+        ship_lines = ship_data.get("lines", [])
+        ship_note = ship_data.get("note")
 
-        if shipped_qty > 0:
-            location_id = ship_line.get("location_id") or line.location_id
+        for ship_line in ship_lines:
+            line_id = ship_line["line_id"]
+            shipped_qty = ship_line["shipped_qty"]
+            line = lines_by_id.get(line_id)
 
-            # Get product unit_cost for movement
-            prod_result = await db.execute(
-                select(Product).where(Product.id == line.product_id)
-            )
-            product = prod_result.scalar_one_or_none()
-            unit_cost = product.cost if product else Decimal("0.00")
+            if not line:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"DO line {line_id} not found",
+                )
 
-            # Create ISSUE movement for this line
-            movement = await create_movement(
-                db,
-                product_id=line.product_id,
-                movement_type="ISSUE",
-                quantity=shipped_qty,
-                unit_cost=unit_cost,
-                reference=f"DO {do.do_number} line #{line.line_number}",
-                note=ship_note or line.note,
-                created_by=shipped_by,
-                org_id=org_id,
-                location_id=location_id,
-                cost_center_id=None,
-                skip_cc_validation=True,  # DO ISSUE is sales fulfillment, not CC charge
-            )
-            line.movement_id = movement.id
+            if shipped_qty > line.ordered_qty:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        f"Shipped qty ({shipped_qty}) exceeds ordered qty ({line.ordered_qty}) "
+                        f"for line #{line.line_number}"
+                    ),
+                )
 
-    do.status = DOStatus.SHIPPED
-    do.shipped_by = shipped_by
-    do.shipped_at = datetime.now(timezone.utc)
-    await db.commit()
+            line.shipped_qty = shipped_qty
+
+            if shipped_qty > 0:
+                location_id = ship_line.get("location_id") or line.location_id
+
+                # Get product unit_cost for movement
+                prod_result = await db.execute(
+                    select(Product).where(Product.id == line.product_id)
+                )
+                product = prod_result.scalar_one_or_none()
+                unit_cost = product.cost if product else Decimal("0.00")
+
+                # Create ISSUE movement for this line
+                movement = await create_movement(
+                    db,
+                    product_id=line.product_id,
+                    movement_type="ISSUE",
+                    quantity=shipped_qty,
+                    unit_cost=unit_cost,
+                    reference=f"DO {do.do_number} line #{line.line_number}",
+                    note=ship_note or line.note,
+                    created_by=shipped_by,
+                    org_id=org_id,
+                    location_id=location_id,
+                    cost_center_id=None,
+                    skip_cc_validation=True,  # DO ISSUE is sales fulfillment, not CC charge
+                )
+                line.movement_id = movement.id
+
+        do.status = DOStatus.SHIPPED
+        do.shipped_by = shipped_by
+        do.shipped_at = datetime.now(timezone.utc)
+        await db.commit()
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception:
+        await db.rollback()
+        raise
     return await get_delivery_order(db, do_id, org_id=org_id)
 
 

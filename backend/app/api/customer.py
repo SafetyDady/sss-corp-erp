@@ -101,9 +101,11 @@ async def api_update_customer(
     cust_id: UUID,
     body: CustomerUpdate,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
-    return await update_customer(db, cust_id, update_data=update_data)
+    return await update_customer(db, cust_id, update_data=update_data, org_id=org_id)
 
 
 @customer_router.delete(
@@ -114,5 +116,7 @@ async def api_update_customer(
 async def api_delete_customer(
     cust_id: UUID,
     db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
 ):
-    await delete_customer(db, cust_id)
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    await delete_customer(db, cust_id, org_id=org_id)

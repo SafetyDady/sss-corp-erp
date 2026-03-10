@@ -100,8 +100,9 @@ async def update_tool(
     tool_id: UUID,
     *,
     update_data: dict,
+    org_id: Optional[UUID] = None,
 ) -> Tool:
-    tool = await get_tool(db, tool_id)
+    tool = await get_tool(db, tool_id, org_id=org_id)
     for field, value in update_data.items():
         if value is not None:
             setattr(tool, field, value)
@@ -110,8 +111,8 @@ async def update_tool(
     return tool
 
 
-async def delete_tool(db: AsyncSession, tool_id: UUID) -> None:
-    tool = await get_tool(db, tool_id)
+async def delete_tool(db: AsyncSession, tool_id: UUID, *, org_id: Optional[UUID] = None) -> None:
+    tool = await get_tool(db, tool_id, org_id=org_id)
     if tool.status == ToolStatus.CHECKED_OUT:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

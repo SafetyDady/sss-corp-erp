@@ -249,6 +249,7 @@ async def api_submit_order(
 async def api_approve_order(
     so_id: UUID,
     body: SOApproveRequest,
+    request: Request,
     token: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
@@ -262,6 +263,19 @@ async def api_approve_order(
         reason=body.reason,
         org_id=org_id,
     )
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="approve", resource_type="sales_order",
+        resource_id=str(so_id),
+        description=f"Sales order {so_id} {body.action}d",
+        changes={"action": body.action, "reason": body.reason},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
     enriched = await enrich_sales_orders(db, [so])
     return enriched[0]
 

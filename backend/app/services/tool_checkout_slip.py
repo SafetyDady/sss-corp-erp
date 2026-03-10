@@ -389,64 +389,72 @@ async def issue_tool_checkout_slip(
     Issue selected lines of a PENDING slip — cut off at issue time.
     Only selected lines get issued. Un-selected lines are skipped (no future issue).
     If more tools needed later, create a new slip.
+    Wrapped in try/except to ensure rollback on failure (multi-step atomic).
     """
-    slip = await get_tool_checkout_slip(db, slip_id, org_id=org_id)
-    if slip.status != ToolCheckoutSlipStatus.PENDING:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Can only issue PENDING slips (current: {slip.status.value})",
-        )
-
-    # Validate WO is still OPEN
-    await _validate_work_order(db, slip.work_order_id, org_id)
-
-    lines_by_id = {line.id: line for line in slip.lines}
-    issue_lines = issue_data.get("lines", [])
-    issue_note = issue_data.get("note")
-
-    if not issue_lines:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="At least one line must be selected for issue",
-        )
-
-    # Pre-validate all tools are AVAILABLE before issuing any
-    issue_tool_ids = []
-    for issue_line in issue_lines:
-        line_id = issue_line["line_id"]
-        line = lines_by_id.get(line_id)
-        if not line:
+    try:
+        slip = await get_tool_checkout_slip(db, slip_id, org_id=org_id)
+        if slip.status != ToolCheckoutSlipStatus.PENDING:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Slip line {line_id} not found",
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Can only issue PENDING slips (current: {slip.status.value})",
             )
-        issue_tool_ids.append(line.tool_id)
 
-    tools = await _validate_tools(db, issue_tool_ids, org_id)
-    await _validate_tools_available(tools)
+        # Validate WO is still OPEN
+        await _validate_work_order(db, slip.work_order_id, org_id)
 
-    # Issue each line — reuse checkout_tool()
-    for issue_line in issue_lines:
-        line_id = issue_line["line_id"]
-        line = lines_by_id[line_id]
+        lines_by_id = {line.id: line for line in slip.lines}
+        issue_lines = issue_data.get("lines", [])
+        issue_note = issue_data.get("note")
 
-        checkout = await checkout_tool(
-            db, line.tool_id,
-            employee_id=line.employee_id,
-            work_order_id=slip.work_order_id,
-            checked_out_by=issued_by,
-            org_id=org_id,
-        )
-        line.checkout_id = checkout.id
+        if not issue_lines:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="At least one line must be selected for issue",
+            )
 
-    # Always CHECKED_OUT — cut off at issue time
-    slip.status = ToolCheckoutSlipStatus.CHECKED_OUT
-    slip.issued_by = issued_by
-    slip.issued_at = datetime.now(timezone.utc)
-    if issue_note:
-        slip.note = (slip.note + "\n" + issue_note) if slip.note else issue_note
+        # Pre-validate all tools are AVAILABLE before issuing any
+        issue_tool_ids = []
+        for issue_line in issue_lines:
+            line_id = issue_line["line_id"]
+            line = lines_by_id.get(line_id)
+            if not line:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Slip line {line_id} not found",
+                )
+            issue_tool_ids.append(line.tool_id)
 
-    await db.commit()
+        tools = await _validate_tools(db, issue_tool_ids, org_id)
+        await _validate_tools_available(tools)
+
+        # Issue each line — reuse checkout_tool()
+        for issue_line in issue_lines:
+            line_id = issue_line["line_id"]
+            line = lines_by_id[line_id]
+
+            checkout = await checkout_tool(
+                db, line.tool_id,
+                employee_id=line.employee_id,
+                work_order_id=slip.work_order_id,
+                checked_out_by=issued_by,
+                org_id=org_id,
+            )
+            line.checkout_id = checkout.id
+
+        # Always CHECKED_OUT — cut off at issue time
+        slip.status = ToolCheckoutSlipStatus.CHECKED_OUT
+        slip.issued_by = issued_by
+        slip.issued_at = datetime.now(timezone.utc)
+        if issue_note:
+            slip.note = (slip.note + "\n" + issue_note) if slip.note else issue_note
+
+        await db.commit()
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception:
+        await db.rollback()
+        raise
 
     # Phase 9: Notification — DOCUMENT_APPROVED (issued) for slip creator
     try:
@@ -480,75 +488,83 @@ async def return_tool_checkout_slip_lines(
     Return selected lines — reuses existing checkin_tool() from services/tools.py.
     Auto-charges hours × rate_per_hour on each return (BR#28).
     Status after return depends on whether all lines issued and all issued lines returned.
+    Wrapped in try/except to ensure rollback on failure (multi-step atomic).
     """
-    slip = await get_tool_checkout_slip(db, slip_id, org_id=org_id)
-    if slip.status not in (
-        ToolCheckoutSlipStatus.CHECKED_OUT,
-        ToolCheckoutSlipStatus.PARTIAL_RETURN,
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Can only return tools from CHECKED_OUT or PARTIAL_RETURN slips (current: {slip.status.value})",
-        )
-
-    lines_by_id = {line.id: line for line in slip.lines}
-    return_lines = return_data.get("lines", [])
-    return_note = return_data.get("note")
-
-    if not return_lines:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="At least one line must be selected for return",
-        )
-
-    for return_line in return_lines:
-        line_id = return_line["line_id"]
-        line = lines_by_id.get(line_id)
-        if not line:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Slip line {line_id} not found",
-            )
-        if line.is_returned:
+    try:
+        slip = await get_tool_checkout_slip(db, slip_id, org_id=org_id)
+        if slip.status not in (
+            ToolCheckoutSlipStatus.CHECKED_OUT,
+            ToolCheckoutSlipStatus.PARTIAL_RETURN,
+        ):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Line {line.line_number} is already returned",
+                detail=f"Can only return tools from CHECKED_OUT or PARTIAL_RETURN slips (current: {slip.status.value})",
             )
-        if not line.checkout_id:
+
+        lines_by_id = {line.id: line for line in slip.lines}
+        return_lines = return_data.get("lines", [])
+        return_note = return_data.get("note")
+
+        if not return_lines:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Line {line.line_number} has not been issued yet",
+                detail="At least one line must be selected for return",
             )
 
-        # Reuse checkin_tool() — handles auto-charge (BR#28) + tool status
-        checkout = await checkin_tool(
-            db, line.tool_id,
-            checked_in_by=returned_by,
+        for return_line in return_lines:
+            line_id = return_line["line_id"]
+            line = lines_by_id.get(line_id)
+            if not line:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Slip line {line_id} not found",
+                )
+            if line.is_returned:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Line {line.line_number} is already returned",
+                )
+            if not line.checkout_id:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Line {line.line_number} has not been issued yet",
+                )
+
+            # Reuse checkin_tool() — handles auto-charge (BR#28) + tool status
+            checkout = await checkin_tool(
+                db, line.tool_id,
+                checked_in_by=returned_by,
+            )
+
+            # Update slip line with return info
+            line.is_returned = True
+            line.returned_at = datetime.now(timezone.utc)
+            line.returned_by = returned_by
+            line.charge_amount = checkout.charge_amount
+
+        # Determine new slip status based on line states
+        all_lines_issued = all(line.checkout_id is not None for line in slip.lines)
+        all_issued_returned = all(
+            line.is_returned for line in slip.lines if line.checkout_id is not None
         )
 
-        # Update slip line with return info
-        line.is_returned = True
-        line.returned_at = datetime.now(timezone.utc)
-        line.returned_by = returned_by
-        line.charge_amount = checkout.charge_amount
+        if all_issued_returned:
+            # All issued lines returned → RETURNED (un-issued lines = skipped)
+            slip.status = ToolCheckoutSlipStatus.RETURNED
+        else:
+            # Some issued lines still checked out
+            slip.status = ToolCheckoutSlipStatus.PARTIAL_RETURN
 
-    # Determine new slip status based on line states
-    all_lines_issued = all(line.checkout_id is not None for line in slip.lines)
-    all_issued_returned = all(
-        line.is_returned for line in slip.lines if line.checkout_id is not None
-    )
+        if return_note:
+            slip.note = (slip.note + "\n" + return_note) if slip.note else return_note
 
-    if all_issued_returned:
-        # All issued lines returned → RETURNED (un-issued lines = skipped)
-        slip.status = ToolCheckoutSlipStatus.RETURNED
-    else:
-        # Some issued lines still checked out
-        slip.status = ToolCheckoutSlipStatus.PARTIAL_RETURN
-
-    if return_note:
-        slip.note = (slip.note + "\n" + return_note) if slip.note else return_note
-
-    await db.commit()
+        await db.commit()
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception:
+        await db.rollback()
+        raise
     return await get_tool_checkout_slip(db, slip_id, org_id=org_id)
 
 
