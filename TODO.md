@@ -1459,11 +1459,15 @@
 - [ ] Print label: SKU + barcode + product name
 - [ ] QR code option: encode product URL for mobile scanning
 
-### 11.14 Stock Take (Cycle Count)
-- [ ] Model: `StockTake` (date, warehouse_id, status DRAFT/IN_PROGRESS/COMPLETED)
-- [ ] Model: `StockTakeLine` (product_id, system_qty, counted_qty, variance)
-- [ ] Workflow: create → count → review variances → approve → auto ADJUST movements
-- [ ] Permission: `inventory.movement.create` for creating, `inventory.movement.delete` for approving adjustments
+### 11.14 Stock Take (Cycle Count) ✅ DONE
+- [x] Model: `StockTake` + `StockTakeLine` (status: DRAFT→SUBMITTED→APPROVED/REJECTED/CANCELLED)
+- [x] Migration: u1v2w3x4y5z6 (stock_takes + stock_take_lines tables)
+- [x] Permissions: 6 new (inventory.stocktake.{create,read,update,delete,approve,export}) → 174→180
+- [x] Schemas: StockTakeCreate/Update/Approve/LineUpdate/Response/ListResponse/ProductResponse
+- [x] Service: CRUD + submit (re-snapshot system_qty) + approve (auto ADJUST movements) + reject (→DRAFT) + cancel
+- [x] API: 9 endpoints under /api/inventory/stock-take/*
+- [x] Frontend: StockTakeTab + StockTakeFormModal + StockTakeDetailPage (inline counting + variance) + StockTakePrintView
+- [x] Wiring: SupplyChainPage tab + App.jsx route /stock-take/:id
 
 ### 11.15 Multi-warehouse Transfer
 - [ ] TRANSFER movement type: source_warehouse_id → destination_warehouse_id
@@ -1925,7 +1929,7 @@
 - Phase 8: Dashboard KPI + Charts + Manager/Staff/Finance dashboards
 - Phase 9: In-app notifications + bell icon + WebSocket/SSE + email integration
 - Phase 10: PDF/Excel export + print-friendly + report templates
-- Phase 11 (remaining): Stock aging + batch tracking + barcode + stock take + multi-warehouse transfer
+- Phase 11 (remaining): Stock aging + batch tracking + barcode + multi-warehouse transfer (stock take ✅ done)
 - Phase 12: Mobile responsive + PWA + touch UI + mobile approval
 - Phase 13: Enhanced audit trail + login history + 2FA + password policy
 - Phase 14: AI Performance Monitoring — Claude API + middleware + query profiler + dashboard + NL query + scheduled reports

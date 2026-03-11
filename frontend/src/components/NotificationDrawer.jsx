@@ -14,7 +14,7 @@ import 'dayjs/locale/th';
 dayjs.extend(relativeTime);
 dayjs.locale('th');
 
-const { Text } = Typography;
+const { Text, Paragraph } = Typography;
 
 // ── Type → Icon mapping ──
 const TYPE_ICONS = {
@@ -148,17 +148,17 @@ export default function NotificationDrawer({ open, onClose }) {
                     >
                       {notif.title}
                     </Text>
-                    <Text
+                    <Paragraph
                       style={{
                         fontSize: 12,
                         color: COLORS.textMuted,
-                        display: 'block',
                         marginTop: 2,
+                        marginBottom: 0,
                       }}
                       ellipsis={{ rows: 2 }}
                     >
                       {notif.message}
-                    </Text>
+                    </Paragraph>
                     <Text
                       style={{
                         fontSize: 11,

@@ -42,6 +42,13 @@ ALL_PERMISSIONS: list[str] = [
     "inventory.withdrawal.delete",
     "inventory.withdrawal.approve",  # issue (cut stock)
     "inventory.withdrawal.export",   # print
+    # Phase 11.14: Stock Take (Cycle Count)
+    "inventory.stocktake.create",
+    "inventory.stocktake.read",
+    "inventory.stocktake.update",
+    "inventory.stocktake.delete",
+    "inventory.stocktake.approve",   # approve + auto-post ADJUST
+    "inventory.stocktake.export",
 
     # --- warehouse (12) ---
     "warehouse.warehouse.create",
@@ -238,8 +245,8 @@ ALL_PERMISSIONS: list[str] = [
     "asset.depreciation.export",
 ]
 
-assert len(ALL_PERMISSIONS) == 174, f"Expected 174 permissions, got {len(ALL_PERMISSIONS)}"
-assert len(set(ALL_PERMISSIONS)) == 174, "Duplicate permissions found!"
+assert len(ALL_PERMISSIONS) == 180, f"Expected 180 permissions, got {len(ALL_PERMISSIONS)}"
+assert len(set(ALL_PERMISSIONS)) == 180, "Duplicate permissions found!"
 
 
 # ============================================================
@@ -264,6 +271,13 @@ PERMISSION_DESCRIPTIONS: dict[str, str] = {
     "inventory.withdrawal.delete": "ลบใบเบิกของ DRAFT (Owner เท่านั้น)",
     "inventory.withdrawal.approve": "ยืนยันเบิกจ่าย (Issue — ตัดสต็อก)",
     "inventory.withdrawal.export": "พิมพ์ใบเบิกของ",
+    # Phase 11.14: Stock Take
+    "inventory.stocktake.create": "สร้างใบตรวจนับสต็อก (Stock Take)",
+    "inventory.stocktake.read": "ดูใบตรวจนับสต็อกและรายละเอียด",
+    "inventory.stocktake.update": "แก้ไขใบตรวจนับสต็อก (DRAFT เท่านั้น)",
+    "inventory.stocktake.delete": "ลบใบตรวจนับสต็อก DRAFT (Owner เท่านั้น)",
+    "inventory.stocktake.approve": "อนุมัติ/ปฏิเสธใบตรวจนับสต็อก (auto-ADJUST)",
+    "inventory.stocktake.export": "พิมพ์ใบตรวจนับสต็อก",
     # --- warehouse (12) ---
     "warehouse.warehouse.create": "สร้างคลังสินค้าใหม่",
     "warehouse.warehouse.read": "ดูข้อมูลคลังสินค้า",
@@ -454,7 +468,7 @@ assert set(PERMISSION_DESCRIPTIONS.keys()) == set(ALL_PERMISSIONS), \
 # Legend:  ✅ = granted  ❌ = denied
 
 def _owner() -> set[str]:
-    """Owner: ALL 174 permissions."""
+    """Owner: ALL 180 permissions."""
     return set(ALL_PERMISSIONS)
 
 
@@ -475,6 +489,7 @@ def _manager() -> set[str]:
         "inventory.product.delete",
         "inventory.movement.delete",
         "inventory.withdrawal.delete",
+        "inventory.stocktake.delete",
         "warehouse.warehouse.delete",
         "warehouse.zone.delete",
         "warehouse.location.delete",
@@ -532,6 +547,11 @@ def _supervisor() -> set[str]:
         "inventory.withdrawal.update",
         "inventory.withdrawal.approve",
         "inventory.withdrawal.export",
+        # Stock Take
+        "inventory.stocktake.create",
+        "inventory.stocktake.read",
+        "inventory.stocktake.update",
+        "inventory.stocktake.export",
         # Warehouse
         "warehouse.warehouse.create",
         "warehouse.warehouse.read",
@@ -649,6 +669,8 @@ def _staff() -> set[str]:
         # Withdrawal Slip
         "inventory.withdrawal.create",
         "inventory.withdrawal.read",
+        # Stock Take
+        "inventory.stocktake.read",
         # Warehouse
         "warehouse.warehouse.read",
         "warehouse.zone.read",
@@ -720,6 +742,9 @@ def _viewer() -> set[str]:
         # Withdrawal Slip
         "inventory.withdrawal.read",
         "inventory.withdrawal.export",
+        # Stock Take
+        "inventory.stocktake.read",
+        "inventory.stocktake.export",
         # Warehouse
         "warehouse.warehouse.read",
         "warehouse.zone.read",

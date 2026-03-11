@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Tabs, Row, Col } from 'antd';
-import { Package, Warehouse, ArrowRightLeft, MapPin, AlertTriangle } from 'lucide-react';
+import { Package, Warehouse, ArrowRightLeft, MapPin, AlertTriangle, ClipboardCheck } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import StatCard from '../../components/StatCard';
 import { COLORS } from '../../utils/constants';
@@ -11,6 +11,7 @@ import ProductListPage from '../inventory/ProductListPage';
 import MovementListPage from '../inventory/MovementListPage';
 import WarehouseListPage from '../warehouse/WarehouseListPage';
 import LocationListPage from '../warehouse/LocationListPage';
+import StockTakeTab from './StockTakeTab';
 
 /**
  * SupplyChainPage — Inventory, Movements, Warehouse, Locations
@@ -101,6 +102,16 @@ export default function SupplyChainPage() {
         <span><MapPin size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Locations</span>
       ),
       children: <LocationListPage embedded />,
+    });
+  }
+
+  if (can('inventory.stocktake.read')) {
+    tabItems.push({
+      key: 'stocktake',
+      label: (
+        <span><ClipboardCheck size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Stock Take</span>
+      ),
+      children: <StockTakeTab />,
     });
   }
 

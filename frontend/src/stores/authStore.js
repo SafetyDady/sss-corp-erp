@@ -4,8 +4,11 @@ import api, { registerAuthStore } from '../services/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-// Security: tokens stored in-memory only — NOT persisted to sessionStorage/localStorage
-// This means page refresh = logout, which is the secure approach for ERP systems
+// Security: only refreshToken is persisted to sessionStorage (cleared on tab close).
+// accessToken stays in-memory only. On page refresh, the app performs a silent
+// refresh via /api/auth/refresh to restore the session without forcing re-login.
+const RT_KEY = 'rt'; // sessionStorage key for refresh token
+
 const useAuthStore = create(
   (set, get) => ({
     // State
@@ -15,7 +18,7 @@ const useAuthStore = create(
     permissions: [],
     isAuthenticated: false,
     isLoading: false,
-    _hasHydrated: true, // No persist middleware — always ready immediately
+    _hasHydrated: false, // Starts false — set to true after hydrate() completes
     // Phase 5: employee data
     employeeId: null,
     employeeName: null,
@@ -37,6 +40,8 @@ const useAuthStore = create(
     // Actions
     setTokens: (accessToken, refreshToken) => {
       set({ accessToken, refreshToken, isAuthenticated: true });
+      // Persist refreshToken for session survival across page refresh
+      try { sessionStorage.setItem(RT_KEY, refreshToken); } catch { /* quota/private */ }
     },
 
     login: async (email, password) => {
@@ -49,6 +54,7 @@ const useAuthStore = create(
           refreshToken: data.refresh_token,
           isAuthenticated: true,
         });
+        try { sessionStorage.setItem(RT_KEY, data.refresh_token); } catch { /* ignore */ }
         // Fetch user info
         await get().fetchMe();
         return { success: true };
@@ -92,6 +98,8 @@ const useAuthStore = create(
       if (refreshToken) {
         api.post('/api/auth/logout', { refresh_token: refreshToken }).catch(() => {});
       }
+      // Clear persisted refresh token
+      try { sessionStorage.removeItem(RT_KEY); } catch { /* ignore */ }
       // Phase 9: reset notification store on logout
       try {
         import('../stores/notificationStore').then(({ default: store }) => {
@@ -121,6 +129,33 @@ const useAuthStore = create(
       });
     },
 
+    // Hydrate on startup — attempt silent refresh from persisted refreshToken
+    hydrate: async () => {
+      try {
+        const storedRT = sessionStorage.getItem(RT_KEY);
+        if (!storedRT) return; // No stored token — stay unauthenticated
+
+        const { data } = await axios.post(`${API_URL}/api/auth/refresh`, {
+          refresh_token: storedRT,
+        });
+
+        set({
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token,
+          isAuthenticated: true,
+        });
+        try { sessionStorage.setItem(RT_KEY, data.refresh_token); } catch { /* ignore */ }
+
+        // Fetch full user info
+        await get().fetchMe();
+      } catch {
+        // Refresh failed (expired/revoked) — clear stale token, stay unauthenticated
+        try { sessionStorage.removeItem(RT_KEY); } catch { /* ignore */ }
+      } finally {
+        set({ _hasHydrated: true });
+      }
+    },
+
     // Permission check
     hasPermission: (permission) => {
       return get().permissions.includes(permission);
@@ -135,5 +170,8 @@ const useAuthStore = create(
 
 // Register store with api.js to break circular dependency
 registerAuthStore(useAuthStore);
+
+// Trigger silent refresh on app startup (runs once when module is first imported)
+useAuthStore.getState().hydrate();
 
 export default useAuthStore;

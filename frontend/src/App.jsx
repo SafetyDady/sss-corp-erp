@@ -55,6 +55,7 @@ const StoreRoomPage = lazy(() => import('./pages/store/StoreRoomPage'));
 const ToolCheckoutSlipDetailPage = lazy(() => import('./pages/tools/ToolCheckoutSlipDetailPage'));
 const AssetPage = lazy(() => import('./pages/asset/AssetPage'));
 const AssetDetailPage = lazy(() => import('./pages/asset/AssetDetailPage'));
+const StockTakeDetailPage = lazy(() => import('./pages/supply-chain/StockTakeDetailPage'));
 
 // --- Sidebar Menu Groups ---
 
@@ -198,7 +199,7 @@ function AppLayout() {
     if (path === '/common-act') return '/common-act';
     if (path === '/approval') return '/approval';
     if (path === '/store') return '/store';
-    if (path.startsWith('/supply-chain') || path.startsWith('/inventory') || path.startsWith('/warehouse')) return '/supply-chain';
+    if (path.startsWith('/supply-chain') || path.startsWith('/inventory') || path.startsWith('/warehouse') || path.startsWith('/stock-take')) return '/supply-chain';
     if (path.startsWith('/withdrawal-slips')) return '/store';
     if (path.startsWith('/tool-checkout-slips')) return '/store';
     if (path.startsWith('/asset')) return '/asset';
@@ -377,6 +378,7 @@ function AppLayout() {
               <Route path="/warehouse/locations" element={<Navigate to="/supply-chain" replace />} />
               <Route path="/tools" element={<Navigate to="/store" replace />} />
               <Route path="/withdrawal-slips/:id" element={<WithdrawalSlipDetailPage />} />
+              <Route path="/stock-take/:id" element={<StockTakeDetailPage />} />
               <Route path="/tool-checkout-slips/:id" element={<ToolCheckoutSlipDetailPage />} />
               <Route path="/work-orders" element={<WorkOrderListPage />} />
               <Route path="/work-orders/:id" element={<WorkOrderDetailPage />} />

@@ -23,6 +23,7 @@ from app.api.tool_checkout_slip import tool_checkout_slip_router
 from app.api.asset import router as asset_router
 from app.api.notification import notification_router
 from app.api.performance import router as performance_router
+from app.api.stocktake import router as stocktake_router
 
 all_routers = [
     auth_router,
@@ -46,6 +47,7 @@ all_routers = [
     setup_router,
     daily_report_router,
     withdrawal_router,
+    stocktake_router,
     recharge_router,
     invoice_router,
     ar_router,

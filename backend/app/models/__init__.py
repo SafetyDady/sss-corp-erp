@@ -30,6 +30,7 @@ from app.models.asset import AssetCategory, FixedAsset, DepreciationEntry, Depre
 from app.models.notification import Notification, NotificationType
 from app.models.security import LoginHistory, LoginStatus, OrgSecurityConfig, ExportAuditLog, AuditLog, AuditAction
 from app.models.performance import PerformanceLog, PerformanceAnalysis, WebVitalLog, AnalysisSeverity
+from app.models.stocktake import StockTake, StockTakeLine, StockTakeStatus
 
 __all__ = [
     "User",
@@ -133,4 +134,7 @@ __all__ = [
     "PerformanceAnalysis",
     "WebVitalLog",
     "AnalysisSeverity",
+    "StockTake",
+    "StockTakeLine",
+    "StockTakeStatus",
 ]
