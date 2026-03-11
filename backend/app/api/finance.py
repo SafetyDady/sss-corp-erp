@@ -1,10 +1,12 @@
 """
 SSS Corp ERP — Finance API Routes
 Phase 3: Reports + export
+Phase 8.5: Finance Dashboard
 
 Endpoints (from CLAUDE.md):
-  GET    /api/finance/reports                 finance.report.read
-  GET    /api/finance/reports/export          finance.report.export
+  GET    /api/finance/reports                    finance.report.read
+  GET    /api/finance/reports/finance-dashboard  finance.report.read  (Phase 8.5)
+  GET    /api/finance/reports/export             finance.report.export
 """
 
 from datetime import date
@@ -106,6 +108,21 @@ async def api_finance_reports(
         },
         "inventory_movement_value": inventory_value,
     }
+
+
+@finance_router.get(
+    "/reports/finance-dashboard",
+    dependencies=[Depends(require("finance.report.read"))],
+)
+async def api_finance_dashboard(
+    months: int = Query(default=6, ge=1, le=12),
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Finance Dashboard — comprehensive financial overview (Phase 8.5)."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    from app.services.finance import get_finance_dashboard
+    return await get_finance_dashboard(db, org_id=org_id, months=months)
 
 
 @finance_router.get(

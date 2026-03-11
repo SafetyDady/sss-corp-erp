@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, Row, Col, Table, Button, App, DatePicker, Space, Tooltip, Spin, Divider, Alert, Tabs } from 'antd';
-import { Download, RefreshCw, DollarSign, TrendingUp, Layers, Banknote, BookOpen, ArrowDownLeft, ArrowUpRight, Repeat2 } from 'lucide-react';
+import { Download, RefreshCw, DollarSign, TrendingUp, Layers, Banknote, BookOpen, ArrowDownLeft, ArrowUpRight, Repeat2, BarChart3 } from 'lucide-react';
+import FinanceDashboardTab from './FinanceDashboardTab';
 import InternalRechargeTab from './InternalRechargeTab';
 import APTab from './APTab';
 import ARTab from './ARTab';
@@ -175,9 +176,16 @@ export default function FinancePage() {
 
           {/* Finance Tabs */}
           <Tabs
-            defaultActiveKey="job-costing"
+            defaultActiveKey="dashboard"
             type="card"
             items={[
+              {
+                key: 'dashboard',
+                label: (
+                  <span><BarChart3 size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Dashboard</span>
+                ),
+                children: <FinanceDashboardTab />,
+              },
               {
                 key: 'job-costing',
                 label: (
