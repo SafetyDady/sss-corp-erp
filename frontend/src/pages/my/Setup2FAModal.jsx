@@ -85,7 +85,7 @@ export default function Setup2FAModal({ open, onClose, onSuccess }) {
       }
       width={520}
       footer={null}
-      destroyOnClose
+      destroyOnHidden
     >
       <Steps current={step} items={steps} size="small" style={{ marginBottom: 24 }} />
 

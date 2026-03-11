@@ -79,7 +79,7 @@ export default function ChangePasswordModal({ open, onClose, onSuccess, forceCha
       }
       width={440}
       footer={null}
-      destroyOnClose
+      destroyOnHidden
     >
       {forceChange && (
         <Alert

@@ -169,7 +169,7 @@ export default function DOFormModal({ open, onClose, onSuccess }) {
       width={900}
       okText={'\u0E2A\u0E23\u0E49\u0E32\u0E07'}
       cancelText={'\u0E22\u0E01\u0E40\u0E25\u0E34\u0E01'}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical">
         <Form.Item
