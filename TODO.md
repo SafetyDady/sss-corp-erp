@@ -1453,11 +1453,14 @@
 - [ ] Frontend: batch_number input on RECEIVE movement form
 - [ ] Batch history: trace movements per batch number
 
-### 11.13 Barcode/QR Code (SKU)
-- [ ] Install: `python-barcode` (backend) or `react-barcode` (frontend)
-- [ ] Generate barcode from SKU — display on product detail
-- [ ] Print label: SKU + barcode + product name
-- [ ] QR code option: encode product URL for mobile scanning
+### 11.13 Barcode/QR Code (SKU) ✅ DONE
+- [x] Install: `react-barcode` v1.6.1 (Code128 SVG, lightweight JsBarcode wrapper)
+- [x] `ProductLabel.jsx` — Single label component: Code128 barcode + antd QRCode + SKU/Name/Model/Unit + orgName
+- [x] `ProductLabelModal.jsx` — Preview + print modal: barcode/QR toggle, 2/3 column selector, single/bulk mode
+- [x] `ProductListPage.jsx` — + QrCode per-row button, + row selection checkboxes, + bulk "Print Labels (N)" button
+- [x] QR content: structured text (SKU/Name/ID) — scanner-friendly
+- [x] Print: `window.print()` + existing `.qr-print-content` @media print CSS
+- [x] No backend changes — frontend-only, no new permissions/migration/API
 
 ### 11.14 Stock Take (Cycle Count) ✅ DONE
 - [x] Model: `StockTake` + `StockTakeLine` (status: DRAFT→SUBMITTED→APPROVED/REJECTED/CANCELLED)
@@ -1929,11 +1932,11 @@
 - Phase 8: Dashboard KPI + Charts + Manager/Staff/Finance dashboards
 - Phase 9: In-app notifications + bell icon + WebSocket/SSE + email integration
 - Phase 10: PDF/Excel export + print-friendly + report templates
-- Phase 11 (remaining): Stock aging + batch tracking + barcode + multi-warehouse transfer (stock take ✅ done)
+- Phase 11 (remaining): Stock aging + batch tracking + multi-warehouse transfer (stock take ✅, barcode/QR ✅ done)
 - Phase 12: Mobile responsive + PWA + touch UI + mobile approval
 - Phase 13: Enhanced audit trail + login history + 2FA + password policy
 - Phase 14: AI Performance Monitoring — Claude API + middleware + query profiler + dashboard + NL query + scheduled reports
 
 ---
 
-*Last updated: 2026-03-05 — C3 Delivery Order + AR Invoice Print complete (161 permissions, 136 BRs, ~250+ files)*
+*Last updated: 2026-03-11 — Phase 11.13 Barcode/QR Label complete (180 permissions, 144 BRs, ~260+ files)*

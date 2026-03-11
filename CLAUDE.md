@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-11 v30 (Phase 11.14 Stock Take)
+> อัปเดตล่าสุด: 2026-03-11 v31 (Phase 11.13 Barcode/QR)
 
 ---
 
@@ -28,6 +28,7 @@
 | Auth | **JWT Bearer Token** | Access 15min + Refresh 7d + rotation |
 | Charts | **Recharts** | Dashboard line/bar charts (lazy-loaded) |
 | Icons | **Lucide React** | ห้ามใช้ emoji / Ant Design Icons |
+| Barcode | **react-barcode** + antd QRCode | Code128 SVG + QR for product labels |
 | Monitoring | **Sentry** (optional) | Backend + Frontend error tracking |
 | Deploy | **Vercel** (frontend) + **Railway** (backend) | git push = deploy |
 
@@ -1494,7 +1495,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **11.10B** Stock Withdrawal Slip (ใบเบิกของ) — Multi-line withdrawal document (Header+Lines), DRAFT→PENDING→ISSUED workflow, WO_CONSUME/CC_ISSUE types, print, issue creates movements per line, 6 new permissions (127→133), 8 API endpoints (BR#80-88)
 - [ ] **11.11** Stock Aging Report — inventory value by age bracket (0-30, 31-60, 61-90, 90+ days)
 - [ ] **11.12** Batch/Lot Tracking — batch_number on StockMovement, FIFO/LIFO costing option
-- [ ] **11.13** Barcode/QR — generate barcode for SKU (frontend display + print label)
+- [x] **11.13** Barcode/QR — Code128 barcode + QR Code on product labels, react-barcode + antd QRCode, single/bulk print, row selection in ProductListPage, ProductLabel + ProductLabelModal components
 - [x] **11.14** Stock Take — StockTake + StockTakeLine models, DRAFT→SUBMITTED→APPROVED (auto ADJUST movements), re-snapshot system_qty on submit, inline counting + variance display, 6 new permissions (174→180), 9 API endpoints, StockTakeTab + DetailPage + PrintView
 - [ ] **11.15** Multi-warehouse Transfer — TRANSFER movement between warehouses with approval
 
@@ -1755,6 +1756,8 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/supply-chain/StockTakeFormModal.jsx` | Stock Take create modal — warehouse/location picker + product count preview (Phase 11.14) |
 | `frontend/src/pages/supply-chain/StockTakeDetailPage.jsx` | Stock Take detail — inline counting + variance display + status actions (Phase 11.14) |
 | `frontend/src/pages/supply-chain/StockTakePrintView.jsx` | Stock Take print layout — forwardRef + shared PrintStyles (Phase 11.14) |
+| `frontend/src/pages/inventory/ProductLabel.jsx` | Single product label: Code128 barcode + QR + SKU/Name/Model/Unit (Phase 11.13) |
+| `frontend/src/pages/inventory/ProductLabelModal.jsx` | Label preview + print modal: single/bulk, barcode/QR toggle, column selector (Phase 11.13) |
 | `SYSTEM_OVERVIEW_V3.md` | PRD ฉบับสมบูรณ์ — 4 ส่วน (A:ระบบปัจจุบัน, B:แผน, C:ช่องว่าง, D:ลำดับ) + UX assessment ต่อ module |
 | `SYSTEM_OVERVIEW_V3.docx` | Word export สำหรับ Owner review ด้วย Track Changes |
 | `convert_to_docx.py` | Python script แปลง MD → Word (.docx) ด้วย python-docx |
@@ -1780,4 +1783,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v30 (Phase 0-9 complete + Phase 10 partial + Phase 11 partial (11.1-11.10B + 11.14 Stock Take) + Phase 12 partial + Phase 13 partial (Login History + Password Policy + 2FA + Session Management + Export Audit) + Phase 14 partial (Performance Monitoring 14.1-14.10 complete) + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete + Mobile Responsive core complete, Phase 11.11-11.13,11.15/12.7-12.9/13.1,13.6/14.11-14.13 planned)*
+*End of CLAUDE.md — SSS Corp ERP v31 (Phase 0-9 complete + Phase 10 partial + Phase 11 partial (11.1-11.10B + 11.13 Barcode/QR + 11.14 Stock Take) + Phase 12 partial + Phase 13 partial (Login History + Password Policy + 2FA + Session Management + Export Audit) + Phase 14 partial (Performance Monitoring 14.1-14.10 complete) + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete + Mobile Responsive core complete, Phase 11.11-11.12,11.15/12.7-12.9/13.1,13.6/14.11-14.13 planned)*

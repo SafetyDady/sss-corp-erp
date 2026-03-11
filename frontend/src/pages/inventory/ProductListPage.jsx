@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Table, Button, App, Space, Popconfirm } from 'antd';
-import { Plus, Pencil, Trash2, ArrowRightLeft, AlertTriangle, Download } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowRightLeft, AlertTriangle, Download, QrCode } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
@@ -10,6 +10,7 @@ import SearchInput from '../../components/SearchInput';
 import StatusBadge from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
 import ProductFormModal from './ProductFormModal';
+import ProductLabelModal from './ProductLabelModal';
 import { formatCurrency } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
 
@@ -25,6 +26,9 @@ export default function ProductListPage({ embedded = false }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [exportLoading, setExportLoading] = useState(false);
+  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+  const [labelModalOpen, setLabelModalOpen] = useState(false);
+  const [labelProducts, setLabelProducts] = useState([]);
 
   const handleExport = async () => {
     setExportLoading(true);
@@ -100,9 +104,14 @@ export default function ProductListPage({ embedded = false }) {
       render: (v) => v > 0 ? v : <span style={{ color: COLORS.textSecondary }}>-</span>,
     },
     {
-      title: '', key: 'actions', width: 100, align: 'right',
+      title: '', key: 'actions', width: 130, align: 'right',
       render: (_, record) => (
         <Space size={4}>
+          {can('inventory.product.read') && (
+            <Button type="text" size="small" icon={<QrCode size={14} />}
+              title="Print Label"
+              onClick={() => { setLabelProducts([record]); setLabelModalOpen(true); }} />
+          )}
           {can('inventory.product.update') && (
             <Button type="text" size="small" icon={<Pencil size={14} />}
               onClick={() => { setEditItem(record); setModalOpen(true); }} />
@@ -125,6 +134,15 @@ export default function ProductListPage({ embedded = false }) {
           subtitle={'\u0E08\u0E31\u0E14\u0E01\u0E32\u0E23\u0E2A\u0E34\u0E19\u0E04\u0E49\u0E32\u0E41\u0E25\u0E30\u0E27\u0E31\u0E15\u0E16\u0E38\u0E14\u0E34\u0E1A'}
           actions={
             <Space>
+              {selectedRowKeys.length > 0 && can('inventory.product.read') && (
+                <Button icon={<QrCode size={14} />} onClick={() => {
+                  const selected = items.filter((item) => selectedRowKeys.includes(item.id));
+                  setLabelProducts(selected);
+                  setLabelModalOpen(true);
+                }}>
+                  Print Labels ({selectedRowKeys.length})
+                </Button>
+              )}
               {can('inventory.product.export') && (
                 <Button icon={<Download size={14} />} loading={exportLoading} onClick={handleExport}>Export</Button>
               )}
@@ -144,7 +162,16 @@ export default function ProductListPage({ embedded = false }) {
         />
       )}
       {embedded && (
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+          {selectedRowKeys.length > 0 && can('inventory.product.read') && (
+            <Button icon={<QrCode size={14} />} onClick={() => {
+              const selected = items.filter((item) => selectedRowKeys.includes(item.id));
+              setLabelProducts(selected);
+              setLabelModalOpen(true);
+            }}>
+              Print Labels ({selectedRowKeys.length})
+            </Button>
+          )}
           {can('inventory.product.export') && (
             <Button icon={<Download size={14} />} loading={exportLoading} onClick={handleExport}>Export</Button>
           )}
@@ -164,6 +191,7 @@ export default function ProductListPage({ embedded = false }) {
         dataSource={items}
         columns={columns}
         rowKey="id"
+        rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
         locale={{ emptyText: <EmptyState /> }}
         rowClassName={(record) =>
           (record.is_low_stock || (record.min_stock > 0 && record.on_hand <= record.min_stock))
@@ -184,6 +212,11 @@ export default function ProductListPage({ embedded = false }) {
         editItem={editItem}
         onClose={() => setModalOpen(false)}
         onSuccess={() => { setModalOpen(false); fetchData(); }}
+      />
+      <ProductLabelModal
+        open={labelModalOpen}
+        products={labelProducts}
+        onClose={() => { setLabelModalOpen(false); setLabelProducts([]); setSelectedRowKeys([]); }}
       />
     </div>
   );
