@@ -239,3 +239,48 @@ class StockByLocationListResponse(BaseModel):
 
 class LowStockCountResponse(BaseModel):
     count: int
+
+
+# ============================================================
+# STOCK AGING REPORT SCHEMAS (Phase 11.11)
+# ============================================================
+
+class StockAgingProduct(BaseModel):
+    """Per-product aging breakdown using FIFO."""
+    product_id: UUID
+    sku: str
+    name: str
+    model: Optional[str] = None
+    product_type: str
+    unit: str
+    on_hand: int
+    unit_cost: Decimal
+    total_value: Decimal
+    oldest_stock_date: Optional[datetime] = None
+    days_oldest: int = 0
+    qty_0_30: int = 0
+    qty_31_60: int = 0
+    qty_61_90: int = 0
+    qty_90_plus: int = 0
+    value_0_30: Decimal = Decimal("0.00")
+    value_31_60: Decimal = Decimal("0.00")
+    value_61_90: Decimal = Decimal("0.00")
+    value_90_plus: Decimal = Decimal("0.00")
+
+
+class StockAgingBracket(BaseModel):
+    """Summary per age bracket."""
+    bracket: str
+    product_count: int
+    total_qty: int
+    total_value: Decimal
+
+
+class StockAgingReportResponse(BaseModel):
+    """Full stock aging report."""
+    generated_at: datetime
+    total_products: int
+    total_value: Decimal
+    average_age_days: float
+    brackets: list[StockAgingBracket]
+    products: list[StockAgingProduct]

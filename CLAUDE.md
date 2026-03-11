@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-11 v31 (Phase 11.13 Barcode/QR)
+> อัปเดตล่าสุด: 2026-03-11 v32 (Phase 11.11 Stock Aging Report)
 
 ---
 
@@ -782,6 +782,8 @@ POST   /api/stock/movements/{id}/reverse    inventory.movement.delete
 ```
 GET    /api/inventory/stock-by-location     inventory.product.read       (?product_id=&location_id=&warehouse_id=)
 GET    /api/inventory/low-stock-count       inventory.product.read       → {count: int}
+GET    /api/inventory/stock-aging           inventory.product.read       (?warehouse_id, product_type) → StockAgingReportResponse
+GET    /api/inventory/stock-aging/export    inventory.product.export     (Phase 11.11 — xlsx)
 ```
 
 ### Stock Withdrawal Slips (ใบเบิกของ)
@@ -1493,7 +1495,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **11.9** Supplier Master Data — Supplier CRUD (code, name, contact, email, phone, address, tax_id) + PO.supplier_id FK + ConvertToPO dropdown + 4 permissions (127 total)
 - [x] **11.10** Stock Withdrawal Scenarios — 5 movement types fixed: CONSUME→WO (work_order_id), ISSUE→CostCenter, TRANSFER 2-way atomic, ADJUST INCREASE/DECREASE, RETURN new type + WO Material Cost = CONSUME−RETURN (BR#74-79)
 - [x] **11.10B** Stock Withdrawal Slip (ใบเบิกของ) — Multi-line withdrawal document (Header+Lines), DRAFT→PENDING→ISSUED workflow, WO_CONSUME/CC_ISSUE types, print, issue creates movements per line, 6 new permissions (127→133), 8 API endpoints (BR#80-88)
-- [ ] **11.11** Stock Aging Report — inventory value by age bracket (0-30, 31-60, 61-90, 90+ days)
+- [x] **11.11** Stock Aging Report — FIFO-based inventory age analysis (0-30, 31-60, 61-90, 90+ days), BarChart + detailed table, Excel export, warehouse/product type filters
 - [ ] **11.12** Batch/Lot Tracking — batch_number on StockMovement, FIFO/LIFO costing option
 - [x] **11.13** Barcode/QR — Code128 barcode + QR Code on product labels, react-barcode + antd QRCode, single/bulk print, row selection in ProductListPage, ProductLabel + ProductLabelModal components
 - [x] **11.14** Stock Take — StockTake + StockTakeLine models, DRAFT→SUBMITTED→APPROVED (auto ADJUST movements), re-snapshot system_qty on submit, inline counting + variance display, 6 new permissions (174→180), 9 API endpoints, StockTakeTab + DetailPage + PrintView
@@ -1758,6 +1760,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/supply-chain/StockTakePrintView.jsx` | Stock Take print layout — forwardRef + shared PrintStyles (Phase 11.14) |
 | `frontend/src/pages/inventory/ProductLabel.jsx` | Single product label: Code128 barcode + QR + SKU/Name/Model/Unit (Phase 11.13) |
 | `frontend/src/pages/inventory/ProductLabelModal.jsx` | Label preview + print modal: single/bulk, barcode/QR toggle, column selector (Phase 11.13) |
+| `frontend/src/pages/supply-chain/StockAgingTab.jsx` | Stock Aging Report: FIFO-based age analysis, BarChart + table + export + filters (Phase 11.11) |
 | `SYSTEM_OVERVIEW_V3.md` | PRD ฉบับสมบูรณ์ — 4 ส่วน (A:ระบบปัจจุบัน, B:แผน, C:ช่องว่าง, D:ลำดับ) + UX assessment ต่อ module |
 | `SYSTEM_OVERVIEW_V3.docx` | Word export สำหรับ Owner review ด้วย Track Changes |
 | `convert_to_docx.py` | Python script แปลง MD → Word (.docx) ด้วย python-docx |
@@ -1783,4 +1786,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v31 (Phase 0-9 complete + Phase 10 partial + Phase 11 partial (11.1-11.10B + 11.13 Barcode/QR + 11.14 Stock Take) + Phase 12 partial + Phase 13 partial (Login History + Password Policy + 2FA + Session Management + Export Audit) + Phase 14 partial (Performance Monitoring 14.1-14.10 complete) + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete + Mobile Responsive core complete, Phase 11.11-11.12,11.15/12.7-12.9/13.1,13.6/14.11-14.13 planned)*
+*End of CLAUDE.md — SSS Corp ERP v32 (Phase 0-9 complete + Phase 10 partial + Phase 11 partial (11.1-11.10B + 11.11 Stock Aging + 11.13 Barcode/QR + 11.14 Stock Take) + Phase 12 partial + Phase 13 partial (Login History + Password Policy + 2FA + Session Management + Export Audit) + Phase 14 partial (Performance Monitoring 14.1-14.10 complete) + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete + Mobile Responsive core complete, Phase 11.12,11.15/12.7-12.9/13.1,13.6/14.11-14.13 planned)*

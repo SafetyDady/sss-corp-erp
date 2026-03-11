@@ -976,6 +976,281 @@ async def get_low_stock_count(db: AsyncSession, *, org_id: UUID) -> int:
     return result.scalar() or 0
 
 
+# ============================================================
+# STOCK AGING REPORT (Phase 11.11) — FIFO-based
+# ============================================================
+
+async def get_stock_aging_report(
+    db: AsyncSession,
+    *,
+    org_id: UUID,
+    warehouse_id: Optional[UUID] = None,
+    product_type: Optional[str] = None,
+) -> dict:
+    """
+    Calculate Stock Aging Report using simplified FIFO.
+
+    For each product with on_hand > 0:
+    1. Get all IN movements (RECEIVE, RETURN, PRODUCE, ADJUST>0) sorted by created_at ASC
+    2. Get total OUT (ISSUE, CONSUME, ADJUST<0) as total consumed
+    3. FIFO: consume from oldest inflows first → remaining = current stock
+    4. Classify remaining qty into age brackets: 0-30, 31-60, 61-90, 90+ days
+    """
+    from datetime import datetime, date, timezone
+    from collections import defaultdict
+
+    today = date.today()
+
+    # ── Step 1: Get active products with on_hand > 0 ──
+    product_query = (
+        select(Product)
+        .where(
+            Product.org_id == org_id,
+            Product.is_active == True,  # noqa: E712
+            Product.on_hand > 0,
+            Product.product_type != ProductType.SERVICE,
+        )
+    )
+    if product_type:
+        product_query = product_query.where(Product.product_type == product_type)
+
+    # If warehouse_id filter, restrict to products that have stock in that warehouse
+    if warehouse_id:
+        sbl_sub = (
+            select(StockByLocation.product_id)
+            .join(Location, StockByLocation.location_id == Location.id)
+            .where(
+                Location.warehouse_id == warehouse_id,
+                StockByLocation.on_hand > 0,
+            )
+            .distinct()
+            .subquery()
+        )
+        product_query = product_query.where(Product.id.in_(select(sbl_sub.c.product_id)))
+
+    result = await db.execute(product_query.order_by(Product.sku))
+    products = result.scalars().all()
+
+    if not products:
+        return {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "total_products": 0,
+            "total_value": "0.00",
+            "average_age_days": 0.0,
+            "brackets": _empty_brackets(),
+            "products": [],
+        }
+
+    product_ids = [p.id for p in products]
+
+    # ── Step 2: Batch-fetch all non-reversed movements for these products ──
+    mv_result = await db.execute(
+        select(
+            StockMovement.product_id,
+            StockMovement.movement_type,
+            StockMovement.quantity,
+            StockMovement.unit_cost,
+            StockMovement.created_at,
+        )
+        .where(
+            StockMovement.product_id.in_(product_ids),
+            StockMovement.org_id == org_id,
+            StockMovement.is_reversed == False,  # noqa: E712
+            StockMovement.movement_type != MovementType.REVERSAL,
+            StockMovement.movement_type != MovementType.TRANSFER,
+        )
+        .order_by(StockMovement.product_id, StockMovement.created_at.asc())
+    )
+    all_movements = mv_result.all()
+
+    # Group movements by product
+    movements_by_product: dict[UUID, list] = defaultdict(list)
+    for row in all_movements:
+        movements_by_product[row.product_id].append(row)
+
+    # ── Step 3: FIFO calculation per product ──
+    aging_products = []
+    bracket_agg = {
+        "0-30 days": {"product_count": 0, "total_qty": 0, "total_value": Decimal("0.00")},
+        "31-60 days": {"product_count": 0, "total_qty": 0, "total_value": Decimal("0.00")},
+        "61-90 days": {"product_count": 0, "total_qty": 0, "total_value": Decimal("0.00")},
+        "90+ days": {"product_count": 0, "total_qty": 0, "total_value": Decimal("0.00")},
+    }
+    total_value = Decimal("0.00")
+    weighted_age_sum = 0  # sum of (qty * days) for average
+
+    for product in products:
+        movements = movements_by_product.get(product.id, [])
+        unit_cost = product.cost
+
+        # Separate IN and OUT movements
+        inflows = []   # (created_at, qty, unit_cost)
+        total_out = 0
+
+        for mv in movements:
+            mt = mv.movement_type
+            qty = mv.quantity
+
+            if mt in (MovementType.RECEIVE, MovementType.RETURN, MovementType.PRODUCE):
+                inflows.append((mv.created_at, qty, mv.unit_cost))
+            elif mt in (MovementType.ISSUE, MovementType.CONSUME):
+                total_out += qty
+            elif mt == MovementType.ADJUST:
+                # ADJUST: positive = INCREASE (inflow), negative = DECREASE (outflow)
+                if qty > 0:
+                    inflows.append((mv.created_at, qty, mv.unit_cost))
+                else:
+                    total_out += abs(qty)
+
+        # Sort inflows by date ASC (should already be sorted but ensure)
+        inflows.sort(key=lambda x: x[0])
+
+        # Apply FIFO: consume from oldest first
+        remaining_out = total_out
+        remaining_batches = []  # (created_at, remaining_qty, unit_cost)
+
+        for created_at, qty, mv_cost in inflows:
+            if remaining_out >= qty:
+                remaining_out -= qty
+                continue  # fully consumed
+            elif remaining_out > 0:
+                qty -= remaining_out
+                remaining_out = 0
+            remaining_batches.append((created_at, qty, mv_cost))
+
+        # Classify remaining stock into age brackets
+        qty_0_30 = 0
+        qty_31_60 = 0
+        qty_61_90 = 0
+        qty_90_plus = 0
+        oldest_date = None
+
+        for created_at, qty, mv_cost in remaining_batches:
+            stock_date = created_at.date() if hasattr(created_at, 'date') else created_at
+            days = (today - stock_date).days
+
+            if days <= 30:
+                qty_0_30 += qty
+            elif days <= 60:
+                qty_31_60 += qty
+            elif days <= 90:
+                qty_61_90 += qty
+            else:
+                qty_90_plus += qty
+
+            if oldest_date is None or stock_date < oldest_date:
+                oldest_date = stock_date
+
+            weighted_age_sum += qty * days
+
+        # If no remaining batches found (edge case: movements out of sync with on_hand)
+        # Fall back to product creation date
+        if not remaining_batches and product.on_hand > 0:
+            stock_date = product.created_at.date() if hasattr(product.created_at, 'date') else product.created_at
+            days = (today - stock_date).days
+            if days <= 30:
+                qty_0_30 = product.on_hand
+            elif days <= 60:
+                qty_31_60 = product.on_hand
+            elif days <= 90:
+                qty_61_90 = product.on_hand
+            else:
+                qty_90_plus = product.on_hand
+            oldest_date = stock_date
+            weighted_age_sum += product.on_hand * days
+
+        days_oldest = (today - oldest_date).days if oldest_date else 0
+        product_total_value = Decimal(str(product.on_hand)) * unit_cost
+        total_value += product_total_value
+
+        val_0_30 = Decimal(str(qty_0_30)) * unit_cost
+        val_31_60 = Decimal(str(qty_31_60)) * unit_cost
+        val_61_90 = Decimal(str(qty_61_90)) * unit_cost
+        val_90_plus = Decimal(str(qty_90_plus)) * unit_cost
+
+        aging_products.append({
+            "product_id": str(product.id),
+            "sku": product.sku,
+            "name": product.name,
+            "model": product.model,
+            "product_type": product.product_type.value if hasattr(product.product_type, 'value') else str(product.product_type),
+            "unit": product.unit,
+            "on_hand": product.on_hand,
+            "unit_cost": str(unit_cost),
+            "total_value": str(product_total_value),
+            "oldest_stock_date": oldest_date.isoformat() if oldest_date else None,
+            "days_oldest": days_oldest,
+            "qty_0_30": qty_0_30,
+            "qty_31_60": qty_31_60,
+            "qty_61_90": qty_61_90,
+            "qty_90_plus": qty_90_plus,
+            "value_0_30": str(val_0_30),
+            "value_31_60": str(val_31_60),
+            "value_61_90": str(val_61_90),
+            "value_90_plus": str(val_90_plus),
+        })
+
+        # Update bracket aggregates — track unique products per bracket
+        if qty_0_30 > 0:
+            bracket_agg["0-30 days"]["total_qty"] += qty_0_30
+            bracket_agg["0-30 days"]["total_value"] += val_0_30
+        if qty_31_60 > 0:
+            bracket_agg["31-60 days"]["total_qty"] += qty_31_60
+            bracket_agg["31-60 days"]["total_value"] += val_31_60
+        if qty_61_90 > 0:
+            bracket_agg["61-90 days"]["total_qty"] += qty_61_90
+            bracket_agg["61-90 days"]["total_value"] += val_61_90
+        if qty_90_plus > 0:
+            bracket_agg["90+ days"]["total_qty"] += qty_90_plus
+            bracket_agg["90+ days"]["total_value"] += val_90_plus
+
+    # Count products per bracket (product counts are products that HAVE stock in bracket)
+    for p in aging_products:
+        if p["qty_0_30"] > 0:
+            bracket_agg["0-30 days"]["product_count"] += 1
+        if p["qty_31_60"] > 0:
+            bracket_agg["31-60 days"]["product_count"] += 1
+        if p["qty_61_90"] > 0:
+            bracket_agg["61-90 days"]["product_count"] += 1
+        if p["qty_90_plus"] > 0:
+            bracket_agg["90+ days"]["product_count"] += 1
+
+    # Sort by days_oldest DESC (oldest stock first)
+    aging_products.sort(key=lambda x: x["days_oldest"], reverse=True)
+
+    total_qty = sum(p["on_hand"] for p in aging_products)
+    avg_age = weighted_age_sum / total_qty if total_qty > 0 else 0.0
+
+    brackets = [
+        {
+            "bracket": name,
+            "product_count": data["product_count"],
+            "total_qty": data["total_qty"],
+            "total_value": str(data["total_value"]),
+        }
+        for name, data in bracket_agg.items()
+    ]
+
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "total_products": len(aging_products),
+        "total_value": str(total_value),
+        "average_age_days": round(avg_age, 1),
+        "brackets": brackets,
+        "products": aging_products,
+    }
+
+
+def _empty_brackets() -> list[dict]:
+    """Return empty bracket structure for zero-stock report."""
+    return [
+        {"bracket": "0-30 days", "product_count": 0, "total_qty": 0, "total_value": "0.00"},
+        {"bracket": "31-60 days", "product_count": 0, "total_qty": 0, "total_value": "0.00"},
+        {"bracket": "61-90 days", "product_count": 0, "total_qty": 0, "total_value": "0.00"},
+        {"bracket": "90+ days", "product_count": 0, "total_qty": 0, "total_value": "0.00"},
+    ]
+
+
 async def get_movement_location_info(
     db: AsyncSession, movement_ids: list[UUID]
 ) -> dict[UUID, dict]:

@@ -1441,11 +1441,15 @@
 
 ## Phase 11 — Inventory Enhancement 📦 (Partial ✅ — Remaining)
 
-### 11.11 Stock Aging Report
-- [ ] Backend: `GET /api/inventory/reports/aging` — group by age bracket (0-30, 31-60, 61-90, 90+ days)
-- [ ] Calculate based on last RECEIVE movement date per product
-- [ ] Frontend: Aging report page with table + chart
-- [ ] Permission: `inventory.product.export`
+### 11.11 Stock Aging Report ✅ DONE
+- [x] Backend: FIFO aging algorithm in `get_stock_aging_report()` service function
+- [x] API: `GET /api/inventory/stock-aging` — 4 brackets (0-30, 31-60, 61-90, 90+ days) + per-product breakdown
+- [x] API: `GET /api/inventory/stock-aging/export` — Excel export with Phase 13.7 audit logging
+- [x] Schemas: StockAgingProduct, StockAgingBracket, StockAgingReportResponse
+- [x] Frontend: `StockAgingTab.jsx` — stat cards + BarChart + detail table + Table.Summary row
+- [x] Frontend: SupplyChainPage — new "Stock Aging" tab (Clock icon, inventory.product.read gated)
+- [x] Filters: product type (MATERIAL/CONSUMABLE/SPAREPART/FINISHED_GOODS) + warehouse
+- [x] No new permissions — reuses inventory.product.read/export
 
 ### 11.12 Batch/Lot Tracking
 - [ ] StockMovement model: + `batch_number` (string, nullable)

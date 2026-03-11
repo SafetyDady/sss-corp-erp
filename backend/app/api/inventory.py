@@ -50,6 +50,7 @@ from app.services.inventory import (
     get_movement_enrichment_info,
     get_movement_location_info,
     get_product,
+    get_stock_aging_report,
     list_movements,
     list_products,
     list_stock_by_location,
@@ -282,6 +283,119 @@ async def api_low_stock_count(
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     count = await get_low_stock_count(db, org_id=org_id)
     return LowStockCountResponse(count=count)
+
+
+# ============================================================
+# STOCK AGING REPORT (Phase 11.11)
+# ============================================================
+
+@product_router.get(
+    "/stock-aging",
+    dependencies=[Depends(require("inventory.product.read"))],
+)
+async def api_stock_aging_report(
+    warehouse_id: Optional[UUID] = Query(default=None),
+    product_type: Optional[str] = Query(
+        default=None,
+        pattern=r"^(MATERIAL|CONSUMABLE|SPAREPART|FINISHED_GOODS)$",
+    ),
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Stock Aging Report — FIFO-based inventory age analysis by bracket."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    return await get_stock_aging_report(
+        db, org_id=org_id, warehouse_id=warehouse_id, product_type=product_type
+    )
+
+
+@product_router.get(
+    "/stock-aging/export",
+    dependencies=[Depends(require("inventory.product.export"))],
+)
+async def api_stock_aging_export(
+    request: Request,
+    warehouse_id: Optional[UUID] = Query(default=None),
+    product_type: Optional[str] = Query(
+        default=None,
+        pattern=r"^(MATERIAL|CONSUMABLE|SPAREPART|FINISHED_GOODS)$",
+    ),
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Export Stock Aging Report as .xlsx"""
+    from sqlalchemy import select as sa_select
+    from app.models.organization import Organization
+
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+
+    # Fetch org name for header
+    org_result = await db.execute(
+        sa_select(Organization.name).where(Organization.id == org_id)
+    )
+    org_name = org_result.scalar_one_or_none() or ""
+
+    # Get aging report data
+    report = await get_stock_aging_report(
+        db, org_id=org_id, warehouse_id=warehouse_id, product_type=product_type
+    )
+
+    from app.services.export import create_excel_workbook
+
+    headers = [
+        "SKU", "ชื่อสินค้า", "Model", "ประเภท", "หน่วย",
+        "คงเหลือ", "ต้นทุน/หน่วย", "มูลค่ารวม",
+        "0-30 วัน", "31-60 วัน", "61-90 วัน", "90+ วัน",
+        "มูลค่า 0-30", "มูลค่า 31-60", "มูลค่า 61-90", "มูลค่า 90+",
+        "วันเก่าสุด",
+    ]
+    rows = []
+    for p in report.get("products", []):
+        rows.append([
+            p["sku"],
+            p["name"],
+            p.get("model") or "",
+            p["product_type"],
+            p["unit"],
+            p["on_hand"],
+            float(p["unit_cost"]),
+            float(p["total_value"]),
+            p["qty_0_30"],
+            p["qty_31_60"],
+            p["qty_61_90"],
+            p["qty_90_plus"],
+            float(p["value_0_30"]),
+            float(p["value_31_60"]),
+            float(p["value_61_90"]),
+            float(p["value_90_plus"]),
+            p["days_oldest"],
+        ])
+
+    buf = create_excel_workbook(
+        title="รายงานอายุสินค้าคงคลัง (Stock Aging)",
+        headers=headers,
+        rows=rows,
+        org_name=org_name,
+        col_widths=[15, 28, 18, 14, 8, 10, 14, 14, 10, 10, 10, 10, 14, 14, 14, 14, 10],
+        money_cols=[6, 7, 12, 13, 14, 15],
+    )
+
+    # Phase 13.7: Export audit log
+    from app.api._helpers import get_client_ip
+    from app.services.security import log_export
+    await log_export(
+        db, user_id=UUID(token["sub"]), org_id=org_id,
+        endpoint=request.url.path, resource_type="stock_aging",
+        record_count=len(rows), ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        filters_used=dict(request.query_params),
+    )
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=stock_aging_report.xlsx"},
+    )
 
 
 # ============================================================
