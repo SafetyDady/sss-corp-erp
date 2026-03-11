@@ -3,6 +3,7 @@ SSS Corp ERP — Main Application
 """
 
 import logging
+import time
 from contextlib import asynccontextmanager
 
 import sentry_sdk
@@ -58,6 +59,33 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("Could not load role overrides: %s (using defaults)", e)
 
+    # --- DB Query Profiler (Phase 14) ---
+    try:
+        from sqlalchemy import event
+        from app.middleware.performance import _request_query_stats
+
+        @event.listens_for(engine.sync_engine, "before_cursor_execute")
+        def _before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+            conn.info["query_start_time"] = time.perf_counter()
+
+        @event.listens_for(engine.sync_engine, "after_cursor_execute")
+        def _after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+            start = conn.info.pop("query_start_time", None)
+            if start is None:
+                return
+            elapsed_ms = (time.perf_counter() - start) * 1000
+            stats = _request_query_stats.get(None)
+            if stats is not None:
+                stats["count"] += 1
+                if elapsed_ms > stats["slowest_ms"]:
+                    stats["slowest_ms"] = elapsed_ms
+            if elapsed_ms > settings.PERF_SLOW_QUERY_MS:
+                logger.warning("Slow query (%.1fms): %s", elapsed_ms, statement[:200])
+
+        logger.info("DB query profiler enabled (slow threshold: %dms)", settings.PERF_SLOW_QUERY_MS)
+    except Exception as e:
+        logger.warning("Could not set up DB query profiler: %s", e)
+
     yield
     # Shutdown
     await engine.dispose()
@@ -85,6 +113,21 @@ app.add_middleware(
 # Rate Limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Performance Monitoring Middleware (Phase 14)
+try:
+    import redis.asyncio as aioredis
+    from app.middleware.performance import PerformanceMiddleware
+
+    _perf_redis = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    app.add_middleware(
+        PerformanceMiddleware,
+        redis_client=_perf_redis,
+        slow_threshold_ms=settings.PERF_SLOW_REQUEST_MS,
+    )
+    logger.info("Performance middleware enabled (slow threshold: %dms)", settings.PERF_SLOW_REQUEST_MS)
+except Exception as e:
+    logger.warning("Could not set up performance middleware: %s", e)
 
 
 # --- Register Routers ---

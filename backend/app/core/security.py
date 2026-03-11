@@ -6,6 +6,8 @@ from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from starlette.requests import Request
+
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -69,3 +71,18 @@ def get_token_payload(
             detail="Invalid token type",
         )
     return payload
+
+
+def get_token_payload_from_request(request: Request) -> dict | None:
+    """Extract JWT payload from request Authorization header. Non-raising."""
+    try:
+        auth = request.headers.get("authorization", "")
+        if not auth.startswith("Bearer "):
+            return None
+        token = auth.split(" ", 1)[1]
+        payload = jwt.decode(
+            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
+        )
+        return payload
+    except Exception:
+        return None

@@ -38,7 +38,11 @@ def test_2_get_dept_menu_default(token):
 
 def test_3_update_dept_menu(token):
     """G6: PUT /admin/dept-menu — toggle finance off then back on."""
-    # Hide finance
+    # First, get the user's department_id so we can also set dept-level override
+    me_before = httpx.get(f"{BASE}/auth/me", headers=hdr(token)).json()
+    user_dept_id = me_before.get("department_id")
+
+    # Hide finance at org-wide level
     r = httpx.put(f"{BASE}/admin/dept-menu", headers=hdr(token), json={
         "department_id": None,
         "items": [{"menu_key": "finance", "is_visible": False}],
@@ -49,6 +53,14 @@ def test_3_update_dept_menu(token):
     assert finance is not None
     assert finance["is_visible"] is False
 
+    # Also set dept-specific finance=false if user has a department
+    # (dept-specific overrides org-wide in the merge logic)
+    if user_dept_id:
+        httpx.put(f"{BASE}/admin/dept-menu", headers=hdr(token), json={
+            "department_id": user_dept_id,
+            "items": [{"menu_key": "finance", "is_visible": False}],
+        })
+
     # Verify it reflects in /me
     me = httpx.get(f"{BASE}/auth/me", headers=hdr(token)).json()
     assert me["dept_menu"]["finance"] is False
@@ -58,6 +70,11 @@ def test_3_update_dept_menu(token):
         "department_id": None,
         "items": [{"menu_key": "finance", "is_visible": True}],
     })
+    if user_dept_id:
+        httpx.put(f"{BASE}/admin/dept-menu", headers=hdr(token), json={
+            "department_id": user_dept_id,
+            "items": [{"menu_key": "finance", "is_visible": True}],
+        })
 
 
 def test_4_dept_menu_per_department(token):

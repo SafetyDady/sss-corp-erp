@@ -1499,17 +1499,17 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [ ] **13.6** API Rate Limiting per user — prevent abuse (beyond current global rate limit)
 - [x] **13.7** Data Export Audit — ExportAuditLog model, fire-and-forget log_export() on 9 export endpoints, admin query + ExportAuditTab in AdminPage
 
-### Phase 14 — AI-Powered Performance Monitoring ⚡🤖 (Planned)
-- [ ] **14.1** Backend Middleware — `PerformanceMiddleware` (response time, `X-Response-Time` header, slow request flagging)
-- [ ] **14.2** DB Query Profiler — SQLAlchemy event listeners, slow query logging (>100ms), N+1 detection
-- [ ] **14.3** Performance Data Storage — `PerformanceLog` model + Redis real-time buffer + 30-day retention
-- [ ] **14.4** Frontend Performance Collection — Web Vitals (LCP/FID/CLS), API call timing, beacon upload
-- [ ] **14.5** Aggregation API — `GET /api/admin/performance/summary` (avg/p95/p99, slowest endpoints, error rate)
-- [ ] **14.6** AI Analysis Engine — Claude API (`anthropic` SDK), aggregation→prompt→analysis, Thai language output
-- [ ] **14.7** AI Analysis API — `POST /api/admin/performance/analyze`, cached results, severity rating
-- [ ] **14.8** Natural Language Query — `POST /api/admin/performance/ask` (ถามเป็นภาษาคน → AI ตอบ)
-- [ ] **14.9** Performance Dashboard UI — `PerformancePage.jsx` (stat cards + AI card + charts + detail tables)
-- [ ] **14.10** AI Chat Panel — `PerformanceAIChat.jsx` (drawer, chat bubbles, quick questions, markdown rendering)
+### Phase 14 — AI-Powered Performance Monitoring ⚡🤖 (Partial ✅)
+- [x] **14.1** Backend Middleware — `PerformanceMiddleware` (response time, `X-Response-Time` header, slow request flagging)
+- [x] **14.2** DB Query Profiler — SQLAlchemy event listeners, slow query logging (>100ms), N+1 detection
+- [x] **14.3** Performance Data Storage — `PerformanceLog` model + Redis real-time buffer + 30-day retention
+- [x] **14.4** Frontend Performance Collection — Web Vitals (LCP/FID/CLS), API call timing, beacon upload
+- [x] **14.5** Aggregation API — `GET /api/admin/performance/summary` (avg/p95/p99, slowest endpoints, error rate)
+- [x] **14.6** AI Analysis Engine — Claude API (`anthropic` SDK), aggregation→prompt→analysis, Thai language output
+- [x] **14.7** AI Analysis API — `POST /api/admin/performance/analyze`, cached results, severity rating
+- [x] **14.8** Natural Language Query — `POST /api/admin/performance/ask` (ถามเป็นภาษาคน → AI ตอบ)
+- [x] **14.9** Performance Dashboard UI — `PerformancePage.jsx` (stat cards + AI card + charts + detail tables)
+- [x] **14.10** AI Chat Panel — `PerformanceAIChat.jsx` (drawer, chat bubbles, quick questions, markdown rendering)
 - [ ] **14.11** Sentry Integration Enhancement — transaction tracing, browser tracing, AI supplement
 - [ ] **14.12** Scheduled AI Report — daily 06:00 background job, email digest, critical severity notification
 - [ ] **14.13** Optimization Suggestions — Index Advisor, Cache Advisor, N+1 Resolver, Bundle Advisor
@@ -1753,4 +1753,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v29 (Phase 0-9 complete + Phase 10 partial + Phase 11 partial + Phase 12 partial + Phase 13 partial (Login History + Password Policy + 2FA + Session Management + Export Audit) + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete + Mobile Responsive core complete, Phase 12.7-12.9/13.1,13.6/14 planned)*
+*End of CLAUDE.md — SSS Corp ERP v29 (Phase 0-9 complete + Phase 10 partial + Phase 11 partial + Phase 12 partial + Phase 13 partial (Login History + Password Policy + 2FA + Session Management + Export Audit) + Phase 14 partial (Performance Monitoring 14.1-14.10 complete) + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete + Mobile Responsive core complete, Phase 12.7-12.9/13.1,13.6/14.11-14.13 planned)*

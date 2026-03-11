@@ -1,5 +1,5 @@
 import { Tabs } from 'antd';
-import { Users, Shield, FileText, Settings, LayoutGrid, Clock, ShieldCheck, Download } from 'lucide-react';
+import { Users, Shield, FileText, Settings, LayoutGrid, Clock, ShieldCheck, Download, Activity } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import { usePermission } from '../../hooks/usePermission';
 import UserTab from './UserTab';
@@ -10,6 +10,7 @@ import DeptMenuConfigTab from './DeptMenuConfigTab';
 import SecurityPolicyTab from './SecurityPolicyTab';
 import LoginHistoryTab from './LoginHistoryTab';
 import ExportAuditTab from './ExportAuditTab';
+import PerformancePage from './PerformancePage';
 import { COLORS } from '../../utils/constants';
 
 const tabLabel = (Icon, text) => (
@@ -56,6 +57,11 @@ export default function AdminPage() {
       key: 'export-audit',
       label: tabLabel(Download, 'Export Audit'),
       children: <ExportAuditTab />,
+    },
+    can('admin.config.read') && {
+      key: 'performance',
+      label: tabLabel(Activity, 'Performance'),
+      children: <PerformancePage />,
     },
     can('admin.role.read') && {
       key: 'audit',

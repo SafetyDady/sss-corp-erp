@@ -29,6 +29,7 @@ from app.models.ar import CustomerInvoice, CustomerInvoicePayment, CustomerInvoi
 from app.models.asset import AssetCategory, FixedAsset, DepreciationEntry, DepreciationMethod, AssetStatus
 from app.models.notification import Notification, NotificationType
 from app.models.security import LoginHistory, LoginStatus, OrgSecurityConfig, ExportAuditLog, AuditLog, AuditAction
+from app.models.performance import PerformanceLog, PerformanceAnalysis, WebVitalLog, AnalysisSeverity
 
 __all__ = [
     "User",
@@ -128,4 +129,8 @@ __all__ = [
     "ExportAuditLog",
     "AuditLog",
     "AuditAction",
+    "PerformanceLog",
+    "PerformanceAnalysis",
+    "WebVitalLog",
+    "AnalysisSeverity",
 ]

@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     # 2FA TOTP (Phase 13)
     TOTP_ENCRYPTION_KEY: str = "change-this-totp-encryption-key"
 
+    # AI Performance Monitoring (Phase 14)
+    ANTHROPIC_API_KEY: str = ""
+    PERF_SLOW_REQUEST_MS: int = 1000
+    PERF_SLOW_QUERY_MS: int = 100
+    PERF_RETENTION_DAYS: int = 30
+
     # Email (Phase 4.6 — disabled by default)
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587

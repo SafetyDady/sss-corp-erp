@@ -22,6 +22,7 @@ from app.api.ar import ar_router
 from app.api.tool_checkout_slip import tool_checkout_slip_router
 from app.api.asset import router as asset_router
 from app.api.notification import notification_router
+from app.api.performance import router as performance_router
 
 all_routers = [
     auth_router,
@@ -50,4 +51,5 @@ all_routers = [
     ar_router,
     asset_router,
     notification_router,
+    performance_router,
 ]
