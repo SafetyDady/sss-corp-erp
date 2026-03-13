@@ -2,8 +2,10 @@
 LINE Login Service — OAuth 2.0 + Link Code + Profile
 """
 
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlencode
 
 import httpx
 from sqlalchemy import select
@@ -13,6 +15,7 @@ from app.core.config import DEFAULT_ORG_ID, get_settings
 from app.models.user import User
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 # Characters for link code (exclude ambiguous: O, I, L, 0, 1)
 _LINK_CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
@@ -39,24 +42,28 @@ def generate_authorize_url(state: str) -> str:
         "state": state,
         "scope": "profile openid",
     }
-    query = "&".join(f"{k}={v}" for k, v in params.items())
-    return f"{_LINE_AUTH_URL}?{query}"
+    return f"{_LINE_AUTH_URL}?{urlencode(params)}"
 
 
 async def exchange_code_for_token(code: str) -> dict:
     """Exchange authorization code for LINE access token."""
     async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.post(
-            _LINE_TOKEN_URL,
-            data={
-                "grant_type": "authorization_code",
-                "code": code,
-                "redirect_uri": settings.LINE_CALLBACK_URL,
-                "client_id": settings.LINE_CHANNEL_ID,
-                "client_secret": settings.LINE_CHANNEL_SECRET,
-            },
-        )
-        resp.raise_for_status()
+        payload = {
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": settings.LINE_CALLBACK_URL,
+            "client_id": settings.LINE_CHANNEL_ID,
+            "client_secret": settings.LINE_CHANNEL_SECRET,
+        }
+        logger.info("[LINE] Token exchange redirect_uri=%s", settings.LINE_CALLBACK_URL)
+        resp = await client.post(_LINE_TOKEN_URL, data=payload)
+        if resp.status_code != 200:
+            logger.error(
+                "[LINE] Token exchange failed: status=%s body=%s",
+                resp.status_code,
+                resp.text,
+            )
+            resp.raise_for_status()
         return resp.json()
 
 
