@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Card, Input, Typography, App, Spin, Result, Space } from 'antd';
 import { ShieldCheck, Link2 } from 'lucide-react';
@@ -16,6 +16,7 @@ export default function LineCallbackPage() {
   const setTokens = useAuthStore((s) => s.setTokens);
   const fetchMe = useAuthStore((s) => s.fetchMe);
   const { message } = App.useApp();
+  const calledRef = useRef(false);
 
   // State
   const [loading, setLoading] = useState(true);
@@ -35,8 +36,11 @@ export default function LineCallbackPage() {
   const [otpLoading, setOtpLoading] = useState(false);
   const [useBackupCode, setUseBackupCode] = useState(false);
 
-  // Handle LINE callback on mount
+  // Handle LINE callback on mount — guard against React StrictMode double-invoke
   useEffect(() => {
+    if (calledRef.current) return;
+    calledRef.current = true;
+
     const code = searchParams.get('code');
     const state = searchParams.get('state');
 
