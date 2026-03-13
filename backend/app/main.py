@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from app.core.config import get_settings
 from app.core.rate_limit import limiter
@@ -110,9 +111,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Rate Limiting
+# Rate Limiting (Phase 13.6: per-user via JWT, default_limits applied globally)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # Performance Monitoring Middleware (Phase 14)
 try:
@@ -137,6 +139,7 @@ for router in all_routers:
 
 # --- Root ---
 @app.get("/")
+@limiter.exempt
 async def root():
     return {
         "name": settings.APP_NAME,

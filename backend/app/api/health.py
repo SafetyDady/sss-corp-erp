@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.core.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["health"])
@@ -18,6 +19,7 @@ settings = get_settings()
 
 
 @router.get("/api/health")
+@limiter.exempt
 async def health_check(db: AsyncSession = Depends(get_db)):
     checks = {"service": "sss-corp-erp", "version": settings.APP_VERSION}
 

@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-13 v35 (Phase 15 LINE Login + Mobile-first Layout)
+> อัปเดตล่าสุด: 2026-03-13 v37 (Phase 13.6 Per-User Rate Limiting)
 
 ---
 
@@ -1542,13 +1542,13 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [ ] **12.8** Bottom Navigation — mobile-only bottom nav bar (deferred)
 - [ ] **12.9** Swipe Gestures — swipe approve/reject on mobile (deferred)
 
-### Phase 13 — Audit & Security Enhancement 🔐 (Partial ✅)
-- [ ] **13.1** Enhanced Audit Trail — model-level event logging (who, what, when, before/after values)
+### Phase 13 — Audit & Security Enhancement 🔐 ✅
+- [x] **13.1** Enhanced Audit Trail — 85 audit points across 14 API files, 18 resource types, date range filter, expandable before/after changes display, AuditLogTab (ScrollText icon)
 - [x] **13.2** Login History — device, IP, user agent, timestamp per user + admin unlock
 - [x] **13.3** Session Management — RefreshToken session metadata (device_name, ip_address, user_agent, last_used_at), JWT `sid` field, 3 session endpoints (list/revoke/revoke-all), frontend SessionsSection on MePage
 - [x] **13.4** Password Policy — min length, complexity, expiry, account lockout, per-org config
 - [x] **13.5** Two-Factor Auth (2FA) — TOTP (Google Authenticator), backup codes, role-based enforcement
-- [ ] **13.6** API Rate Limiting per user — prevent abuse (beyond current global rate limit)
+- [x] **13.6** Per-User Rate Limiting — JWT user_id as rate key (fall back to IP), SlowAPIMiddleware for global default_limits + X-RateLimit-* headers, health/root exempt, dynamic limits from OrgSecurityConfig (120/min API, 5/min login)
 - [x] **13.7** Data Export Audit — ExportAuditLog model, fire-and-forget log_export() on 9 export endpoints, admin query + ExportAuditTab in AdminPage
 
 ### Phase 14 — AI-Powered Performance Monitoring ⚡🤖 (Partial ✅)
@@ -1731,6 +1731,8 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/my/SessionsSection.jsx` | Active sessions card — device list, revoke, revoke all (Phase 13.3) |
 | `frontend/src/pages/admin/ExportAuditTab.jsx` | Export audit log table — user/resource filters, pagination (Phase 13.7) |
 | `backend/alembic/versions/r8s9t0u1v2w3_phase13_round2.py` | Migration: RefreshToken +4 columns + export_audit_logs table (Phase 13 R2) |
+| `backend/app/schemas/audit.py` | Audit Log Pydantic schemas: AuditLogResponse, AuditLogListResponse (Phase 13.1) |
+| `frontend/src/pages/admin/AuditLogTab.jsx` | Enhanced Audit Log tab: 18 resource types, date range, expandable before/after, search (Phase 13.1) |
 | `backend/app/middleware/performance.py` | Request timing middleware (Phase 14) |
 | `backend/app/services/ai_performance.py` | AI performance analysis engine — Claude API (Phase 14) |
 | `frontend/src/pages/admin/PerformancePage.jsx` | AI Performance Dashboard (Phase 14) |
@@ -1843,4 +1845,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v35 (Phase 0-9 complete + Phase 8.5 Finance Dashboard + Phase 8.6 More Charts + Phase 10 partial + Phase 11 partial (11.1-11.10B + 11.11 Stock Aging + 11.13 Barcode/QR + 11.14 Stock Take) + Phase 12 partial + Phase 13 partial (Login History + Password Policy + 2FA + Session Management + Export Audit) + Phase 14 partial (Performance Monitoring 14.1-14.10 complete) + Phase 15 LINE Login + Mobile-first Layout complete + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete + Mobile Responsive core complete, Phase 11.12,11.15/12.7-12.9/13.1,13.6/14.11-14.13 planned)*
+*End of CLAUDE.md — SSS Corp ERP v37 (Phase 0-9 complete + Phase 8.5 Finance Dashboard + Phase 8.6 More Charts + Phase 10 partial + Phase 11 partial (11.1-11.10B + 11.11 Stock Aging + 11.13 Barcode/QR + 11.14 Stock Take) + Phase 12 partial + Phase 13 complete (Login History + Password Policy + 2FA + Session Management + Export Audit + Enhanced Audit Trail + Per-User Rate Limiting) + Phase 14 partial (Performance Monitoring 14.1-14.10 complete) + Phase 15 LINE Login + Mobile-first Layout complete + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete + Mobile Responsive core complete, Phase 11.12,11.15/12.7-12.9/14.11-14.13 planned)*
