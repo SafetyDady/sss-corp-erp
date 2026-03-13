@@ -1476,11 +1476,15 @@
 - [x] Frontend: StockTakeTab + StockTakeFormModal + StockTakeDetailPage (inline counting + variance) + StockTakePrintView
 - [x] Wiring: SupplyChainPage tab + App.jsx route /stock-take/:id
 
-### 11.15 Multi-warehouse Transfer
-- [ ] TRANSFER movement type: source_warehouse_id → destination_warehouse_id
-- [ ] Two movements created: ISSUE from source + RECEIVE to destination (atomic)
-- [ ] Optional approval for inter-warehouse transfers
-- [ ] Frontend: Transfer form with source/destination warehouse selection
+### 11.15 Multi-warehouse Transfer Request ✅
+- [x] Migration: w3x4y5z6a7b8 — transfer_requests + transfer_request_lines tables + transfer_request_status_enum
+- [x] Models: TransferRequestStatus enum + TransferRequest + TransferRequestLine in inventory.py
+- [x] Schemas: transfer_request.py — Create/Update/Execute/Response schemas
+- [x] Service: transfer_request.py — CRUD + submit + execute (calls create_movement TRANSFER) + cancel + enrichment
+- [x] API: transfer_request.py — 8 endpoints under /api/inventory/transfer-requests/* (reuses inventory.movement.* + inventory.withdrawal.approve)
+- [x] Frontend: TransferRequestTab + TransferRequestFormModal + TransferRequestDetailPage + TransferRequestExecuteModal + TransferRequestPrintView
+- [x] Wiring: SupplyChainPage "Transfers" tab + App.jsx route /transfer-requests/:id + StatusBadge TRANSFERRED
+- [x] No new permissions — reuses inventory.movement.create/read/delete + inventory.withdrawal.approve
 
 ---
 
@@ -1560,11 +1564,12 @@
 - [ ] Frontend: 2FA setup wizard with QR code display + backup codes
 - [ ] Login flow: username/password → if 2FA enabled → TOTP code prompt
 
-### 13.6 API Rate Limiting per User
-- [ ] Per-user rate limit (in addition to global): e.g., 100 req/min per user
-- [ ] Different limits per role (owner gets higher limit)
-- [ ] Rate limit headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
-- [ ] Redis-based counter per user token
+### 13.6 Per-User Rate Limiting ✅
+- [x] `get_user_or_ip_key()` — JWT user_id as rate key, fallback to IP for unauthenticated
+- [x] SlowAPIMiddleware — global default_limits (120/min) + X-RateLimit-* response headers
+- [x] Health/root endpoints exempt via `@limiter.exempt`
+- [x] Dynamic limits from OrgSecurityConfig (5-min DB refresh cache)
+- [ ] Different limits per role (owner gets higher limit) — deferred
 
 ### 13.7 Data Export Audit
 - [ ] Log all export/download actions: who, what, when, file type

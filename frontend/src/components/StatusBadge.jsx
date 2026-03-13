@@ -57,6 +57,8 @@ const STATUS_CONFIG = {
   FULLY_DEPRECIATED: { color: '#8b5cf6' },
   DISPOSED: { color: '#ef4444' },
   STRAIGHT_LINE: { color: '#06b6d4' },
+  // Transfer Request
+  TRANSFERRED: { color: '#3b82f6' },
 };
 
 export default function StatusBadge({ status }) {

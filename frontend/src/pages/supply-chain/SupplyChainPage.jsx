@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Tabs, Row, Col } from 'antd';
-import { Package, Warehouse, ArrowRightLeft, MapPin, AlertTriangle, ClipboardCheck, Clock } from 'lucide-react';
+import { Package, Warehouse, ArrowRightLeft, MapPin, AlertTriangle, ClipboardCheck, Clock, ArrowLeftRight } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import StatCard from '../../components/StatCard';
 import { COLORS } from '../../utils/constants';
@@ -13,6 +13,7 @@ import WarehouseListPage from '../warehouse/WarehouseListPage';
 import LocationListPage from '../warehouse/LocationListPage';
 import StockTakeTab from './StockTakeTab';
 import StockAgingTab from './StockAgingTab';
+import TransferRequestTab from './TransferRequestTab';
 
 /**
  * SupplyChainPage — Inventory, Movements, Warehouse, Locations
@@ -123,6 +124,16 @@ export default function SupplyChainPage() {
         <span><Clock size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Stock Aging</span>
       ),
       children: <StockAgingTab />,
+    });
+  }
+
+  if (can('inventory.movement.read')) {
+    tabItems.push({
+      key: 'transfers',
+      label: (
+        <span><ArrowLeftRight size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Transfers</span>
+      ),
+      children: <TransferRequestTab />,
     });
   }
 

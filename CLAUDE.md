@@ -50,7 +50,7 @@ sss-corp-erp/
 │   │   │   ├── purchasing/       # PurchasingPage (PR+PO tabs), PRDetail, PODetail, ConvertToPO
 │   │   │   ├── common-act/       # CommonActPage (Staff Actions Hub)
 │   │   │   ├── store/            # StoreRoomPage (Store Officer Workspace)
-│   │   │   ├── supply-chain/    # SupplyChainPage, WithdrawalSlip (Tab, Form, Detail, Issue, Print)
+│   │   │   ├── supply-chain/    # SupplyChainPage, WithdrawalSlip, StockTake, StockAging, TransferRequest
 │   │   │   ├── auth/             # LineCallbackPage (LINE OAuth callback) (Phase 15)
 │   │   │   ├── mobile/           # MobileHomePage (LINE user dashboard) (Phase 15)
 │   │   │   └── ...               # inventory, warehouse, workorder, hr, etc.
@@ -64,7 +64,7 @@ sss-corp-erp/
 │   └── vercel.json               # SPA rewrites + security headers + caching
 ├── backend/                      ← Railway deploys this (Dockerfile)
 │   ├── app/
-│   │   ├── api/                  # Route handlers (21 files, 22 routers)
+│   │   ├── api/                  # Route handlers (22 files, 23 routers)
 │   │   │   ├── _helpers.py       # Shared data scope helpers (Phase 6)
 │   │   │   ├── line_auth.py      # LINE Login OAuth endpoints (Phase 15)
 │   │   │   ├── planning.py       # Daily plans, reservations (Phase 4.5)
@@ -839,6 +839,18 @@ POST   /api/inventory/stock-take/{id}/approve inventory.stocktake.approve   (bod
 POST   /api/inventory/stock-take/{id}/cancel  inventory.stocktake.update    (DRAFT/SUBMITTED→CANCELLED)
 ```
 
+### Transfer Requests (ใบขอโอนย้ายสินค้า)
+```
+GET    /api/inventory/transfer-requests              inventory.movement.read       (?search, status, limit, offset)
+POST   /api/inventory/transfer-requests              inventory.movement.create
+GET    /api/inventory/transfer-requests/{id}         inventory.movement.read
+PUT    /api/inventory/transfer-requests/{id}         inventory.movement.create     (DRAFT only)
+DELETE /api/inventory/transfer-requests/{id}         inventory.movement.delete     (DRAFT only, soft-delete)
+POST   /api/inventory/transfer-requests/{id}/submit  inventory.movement.create     (DRAFT→PENDING)
+POST   /api/inventory/transfer-requests/{id}/execute inventory.withdrawal.approve  (PENDING→TRANSFERRED, creates TRANSFER movements)
+POST   /api/inventory/transfer-requests/{id}/cancel  inventory.movement.create     (→CANCELLED)
+```
+
 ### Warehouse
 ```
 GET    /api/warehouse/warehouses            warehouse.warehouse.read
@@ -1529,7 +1541,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [ ] **11.12** Batch/Lot Tracking — batch_number on StockMovement, FIFO/LIFO costing option
 - [x] **11.13** Barcode/QR — Code128 barcode + QR Code on product labels, react-barcode + antd QRCode, single/bulk print, row selection in ProductListPage, ProductLabel + ProductLabelModal components
 - [x] **11.14** Stock Take — StockTake + StockTakeLine models, DRAFT→SUBMITTED→APPROVED (auto ADJUST movements), re-snapshot system_qty on submit, inline counting + variance display, 6 new permissions (174→180), 9 API endpoints, StockTakeTab + DetailPage + PrintView
-- [ ] **11.15** Multi-warehouse Transfer — TRANSFER movement between warehouses with approval
+- [x] **11.15** Multi-warehouse Transfer Request — TransferRequest document workflow (DRAFT→PENDING→TRANSFERRED), per-line execute via create_movement(TRANSFER), auto-generate TF-number, no new permissions (reuses inventory.movement.* + inventory.withdrawal.approve), 8 API endpoints, 5 frontend components, SupplyChainPage "Transfers" tab
 
 ### Phase 12 — Mobile Responsive 📱 (Partial ✅)
 - [x] **12.1** Responsive Foundation — `useBreakpoint` hook (Ant Design Grid.useBreakpoint), CSS @media rules for tables/modals/buttons/pagination
@@ -1812,6 +1824,14 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/inventory/ProductLabel.jsx` | Single product label: Code128 barcode + QR + SKU/Name/Model/Unit (Phase 11.13) |
 | `frontend/src/pages/inventory/ProductLabelModal.jsx` | Label preview + print modal: single/bulk, barcode/QR toggle, column selector (Phase 11.13) |
 | `frontend/src/pages/supply-chain/StockAgingTab.jsx` | Stock Aging Report: FIFO-based age analysis, BarChart + table + export + filters (Phase 11.11) |
+| `backend/app/schemas/transfer_request.py` | Transfer Request Pydantic schemas: Create/Update/Execute/Line/Response (Phase 11.15) |
+| `backend/app/services/transfer_request.py` | Transfer Request business logic: CRUD + submit + execute (TRANSFER movements) + cancel + enrichment (Phase 11.15) |
+| `backend/app/api/transfer_request.py` | Transfer Request 8 API endpoints: /api/inventory/transfer-requests/* (Phase 11.15) |
+| `frontend/src/pages/supply-chain/TransferRequestTab.jsx` | Transfer Request list tab in SupplyChainPage (Phase 11.15) |
+| `frontend/src/pages/supply-chain/TransferRequestFormModal.jsx` | Transfer Request create/edit — source/dest cascade pickers + product lines (Phase 11.15) |
+| `frontend/src/pages/supply-chain/TransferRequestDetailPage.jsx` | Transfer Request detail + status-driven actions (edit/submit/execute/cancel/print) (Phase 11.15) |
+| `frontend/src/pages/supply-chain/TransferRequestExecuteModal.jsx` | Execute confirmation — per-line transferred_qty input (Phase 11.15) |
+| `frontend/src/pages/supply-chain/TransferRequestPrintView.jsx` | Transfer Request print layout — forwardRef + shared PrintStyles (Phase 11.15) |
 | `backend/app/api/line_auth.py` | LINE Login 7 API endpoints: authorize-url, callback, link, 2fa-verify, generate-link-code, unlink, check (Phase 15) |
 | `backend/app/services/line_auth.py` | LINE OAuth service: authorize URL, token exchange, profile, link code gen, verify+link, unlink (Phase 15) |
 | `backend/app/schemas/line_auth.py` | LINE Login Pydantic schemas: LineCallbackRequest, LinkRequest, LinkCodeResponse, etc. (Phase 15) |
@@ -1845,4 +1865,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v37 (Phase 0-9 complete + Phase 8.5 Finance Dashboard + Phase 8.6 More Charts + Phase 10 partial + Phase 11 partial (11.1-11.10B + 11.11 Stock Aging + 11.13 Barcode/QR + 11.14 Stock Take) + Phase 12 partial + Phase 13 complete (Login History + Password Policy + 2FA + Session Management + Export Audit + Enhanced Audit Trail + Per-User Rate Limiting) + Phase 14 partial (Performance Monitoring 14.1-14.10 complete) + Phase 15 LINE Login + Mobile-first Layout complete + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete + Mobile Responsive core complete, Phase 11.12,11.15/12.7-12.9/14.11-14.13 planned)*
+*End of CLAUDE.md — SSS Corp ERP v38 (Phase 0-9 complete + Phase 8.5 Finance Dashboard + Phase 8.6 More Charts + Phase 10 partial + Phase 11 partial (11.1-11.10B + 11.11 Stock Aging + 11.13 Barcode/QR + 11.14 Stock Take + 11.15 Transfer Request) + Phase 12 partial + Phase 13 complete (Login History + Password Policy + 2FA + Session Management + Export Audit + Enhanced Audit Trail + Per-User Rate Limiting) + Phase 14 partial (Performance Monitoring 14.1-14.10 complete) + Phase 15 LINE Login + Mobile-first Layout complete + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete + Mobile Responsive core complete, Phase 11.12/12.7-12.9/14.11-14.13 planned)*

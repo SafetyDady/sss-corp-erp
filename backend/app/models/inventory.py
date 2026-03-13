@@ -378,3 +378,137 @@ class StockWithdrawalSlipLine(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<SWLine #{self.line_number} product={self.product_id} qty={self.quantity}>"
+
+
+# ============================================================
+# TRANSFER REQUEST (header + lines, Phase 11.15)
+# ============================================================
+
+class TransferRequestStatus(str, enum.Enum):
+    DRAFT = "DRAFT"
+    PENDING = "PENDING"
+    TRANSFERRED = "TRANSFERRED"
+    CANCELLED = "CANCELLED"
+
+
+class TransferRequest(Base, TimestampMixin, OrgMixin):
+    """
+    Multi-line stock transfer document.
+    Flow: DRAFT → PENDING → TRANSFERRED (+ CANCELLED)
+    When TRANSFERRED, generates individual TRANSFER StockMovement per line.
+    """
+    __tablename__ = "transfer_requests"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    transfer_number: Mapped[str] = mapped_column(
+        String(20), nullable=False, index=True
+    )
+    status: Mapped[TransferRequestStatus] = mapped_column(
+        Enum(TransferRequestStatus, name="transfer_request_status_enum"),
+        nullable=False,
+        default=TransferRequestStatus.DRAFT,
+    )
+
+    # Source
+    source_warehouse_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("warehouses.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    source_location_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("locations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    # Destination
+    dest_warehouse_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("warehouses.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    dest_location_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("locations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    # Tracking
+    requested_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("employees.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    transferred_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    transferred_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Relationships
+    lines: Mapped[list["TransferRequestLine"]] = relationship(
+        back_populates="transfer_request", cascade="all, delete-orphan",
+        order_by="TransferRequestLine.line_number",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("org_id", "transfer_number", name="uq_tf_org_number"),
+        Index("ix_tf_org_status", "org_id", "status"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<TransferRequest {self.transfer_number} ({self.status.value})>"
+
+
+class TransferRequestLine(Base, TimestampMixin):
+    """Line item for TransferRequest. No org_id (inherited from header)."""
+    __tablename__ = "transfer_request_lines"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    transfer_request_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("transfer_requests.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    line_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("products.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    transferred_qty: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    movement_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("stock_movements.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Relationships
+    transfer_request: Mapped["TransferRequest"] = relationship(back_populates="lines")
+
+    __table_args__ = (
+        CheckConstraint("quantity > 0", name="ck_tf_line_qty_positive"),
+        CheckConstraint("transferred_qty >= 0", name="ck_tf_line_transferred_qty_non_negative"),
+        Index("ix_tf_lines_request_id", "transfer_request_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<TFLine #{self.line_number} product={self.product_id} qty={self.quantity}>"
