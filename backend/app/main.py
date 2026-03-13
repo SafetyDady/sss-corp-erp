@@ -43,10 +43,12 @@ if settings.ENVIRONMENT == "production":
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: create tables (dev only — use Alembic in production)
-    if settings.ENVIRONMENT == "development":
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+    # NOTE: create_all disabled — use 'alembic upgrade head' instead.
+    # create_all conflicts with Alembic migrations (creates tables/enums from
+    # model metadata, then migrations fail trying to create them again).
+    # if settings.ENVIRONMENT == "development":
+    #     async with engine.begin() as conn:
+    #         await conn.run_sync(Base.metadata.create_all)
 
     # Load persisted role permission overrides from DB
     try:

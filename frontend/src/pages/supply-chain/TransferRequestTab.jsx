@@ -143,8 +143,7 @@ export default function TransferRequestTab() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Space>
           <SearchInput
-            value={search}
-            onChange={setSearch}
+            onSearch={setSearch}
             placeholder="ค้นหาเลขที่ / อ้างอิง"
           />
           <Select
