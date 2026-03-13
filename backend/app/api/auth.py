@@ -461,9 +461,13 @@ async def refresh(body: RefreshRequest, request: Request, db: AsyncSession = Dep
 
     ip, user_agent = _get_client_info(request)
 
+    # Carry over login_method from old token (e.g. "line") so mobile layout persists
+    old_login_method = payload.get("login_method")
+
     # Create new tokens with session metadata (carry over device info from old token)
     access_token, new_refresh, db_new_refresh, sid = _create_tokens_and_refresh(
-        user, ip=ip or db_token.ip_address, user_agent=user_agent or db_token.user_agent
+        user, ip=ip or db_token.ip_address, user_agent=user_agent or db_token.user_agent,
+        login_method=old_login_method,
     )
     db.add(db_new_refresh)
     await db.commit()

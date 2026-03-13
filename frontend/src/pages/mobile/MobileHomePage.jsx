@@ -56,13 +56,13 @@ export default function MobileHomePage() {
         .catch(() => setReportToday(false))
     );
 
-    // 2) Leave balance
+    // 2) Leave balance (fields: quota, used)
     promises.push(
       api.get('/api/hr/leave-balance')
         .then(({ data }) => {
           const balances = Array.isArray(data) ? data : data.items || [];
           const totalRemaining = balances.reduce(
-            (sum, b) => sum + (b.quota - b.used_days),
+            (sum, b) => sum + ((Number(b.quota) || 0) - (Number(b.used) || 0)),
             0
           );
           setLeaveBalance(totalRemaining);
@@ -250,12 +250,14 @@ export default function MobileHomePage() {
                 สลิปเงินเดือนล่าสุด
               </Text>
               <Text style={{ color: COLORS.text, fontSize: 16, fontWeight: 600 }}>
-                {latestPayslip.period_label || `${latestPayslip.month}/${latestPayslip.year}`}
+                {latestPayslip.period_start
+                  ? `${dayjs(latestPayslip.period_start).format('DD/MM')} - ${dayjs(latestPayslip.period_end).format('DD/MM/YYYY')}`
+                  : 'ล่าสุด'}
               </Text>
             </div>
-            {latestPayslip.net_pay != null && (
+            {latestPayslip.net_amount != null && (
               <Text style={{ color: COLORS.success, fontSize: 16, fontWeight: 700 }}>
-                {Number(latestPayslip.net_pay).toLocaleString('th-TH')} ฿
+                {Number(latestPayslip.net_amount).toLocaleString('th-TH')} ฿
               </Text>
             )}
           </div>
