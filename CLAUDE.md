@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-13 v34 (Phase 8.6 More Dashboard Charts)
+> อัปเดตล่าสุด: 2026-03-13 v35 (Phase 15 LINE Login + Mobile-first Layout)
 
 ---
 
@@ -29,6 +29,8 @@
 | Charts | **Recharts** | Dashboard line/bar charts (lazy-loaded) |
 | Icons | **Lucide React** | ห้ามใช้ emoji / Ant Design Icons |
 | Barcode | **react-barcode** + antd QRCode | Code128 SVG + QR for product labels |
+| LINE Login | **LINE Login v2.1** (OAuth 2.0) | httpx + self-verifying JWT state |
+| Mobile Layout | **React** (layout switching) | Bottom nav + cards for LINE users |
 | Monitoring | **Sentry** (optional) | Backend + Frontend error tracking |
 | Deploy | **Vercel** (frontend) + **Railway** (backend) | git push = deploy |
 
@@ -49,6 +51,8 @@ sss-corp-erp/
 │   │   │   ├── common-act/       # CommonActPage (Staff Actions Hub)
 │   │   │   ├── store/            # StoreRoomPage (Store Officer Workspace)
 │   │   │   ├── supply-chain/    # SupplyChainPage, WithdrawalSlip (Tab, Form, Detail, Issue, Print)
+│   │   │   ├── auth/             # LineCallbackPage (LINE OAuth callback) (Phase 15)
+│   │   │   ├── mobile/           # MobileHomePage (LINE user dashboard) (Phase 15)
 │   │   │   └── ...               # inventory, warehouse, workorder, hr, etc.
 │   │   ├── hooks/                # usePermission, useAuth, useBreakpoint, etc.
 │   │   ├── stores/               # Zustand stores
@@ -60,8 +64,9 @@ sss-corp-erp/
 │   └── vercel.json               # SPA rewrites + security headers + caching
 ├── backend/                      ← Railway deploys this (Dockerfile)
 │   ├── app/
-│   │   ├── api/                  # Route handlers (20 files, 21 routers)
+│   │   ├── api/                  # Route handlers (21 files, 22 routers)
 │   │   │   ├── _helpers.py       # Shared data scope helpers (Phase 6)
+│   │   │   ├── line_auth.py      # LINE Login OAuth endpoints (Phase 15)
 │   │   │   ├── planning.py       # Daily plans, reservations (Phase 4.5)
 │   │   │   ├── setup.py          # One-time org setup (Phase 4.7)
 │   │   │   └── ...               # auth, inventory, warehouse, etc.
@@ -565,6 +570,18 @@ Manager จองเครื่องมือ → POST /api/planning/reservati
 → Status: RESERVED → FULFILLED / CANCELLED
 ```
 
+### Flow 13: LINE Login + Mobile Layout (Phase 15)
+```
+Admin สร้าง User → กด "Generate Link Code" → ได้รหัส 6 ตัว (24h TTL)
+→ บอก Employee รหัส (ปากต่อปาก / กระดาษ)
+→ Employee กด "เข้าสู่ระบบด้วย LINE" → LINE OAuth consent
+→ Callback → ครั้งแรก: กรอก Link Code → ระบบ link LINE ↔ User
+→ ครั้งต่อไป: LINE Login → auto login (ไม่ต้อง link code)
+→ JWT มี login_method: "line" → Frontend แสดง MobileAppLayout (bottom nav + cards)
+→ Refresh token → carry login_method → Mobile Layout persist
+Permission: admin.user.update (generate link code), JWT self-service (unlink)
+```
+
 ---
 
 ## Business Rules (Complete — 144 Rules)
@@ -759,6 +776,17 @@ POST   /api/auth/2fa/disable               — (JWT, self-service)
 GET    /api/auth/sessions                  — (JWT, list active sessions)
 DELETE /api/auth/sessions/{id}             — (JWT, revoke specific session)
 DELETE /api/auth/sessions                  — (JWT, revoke all other sessions)
+```
+
+### LINE Login (Phase 15)
+```
+GET    /api/auth/line/status                — (no auth) → {enabled: bool}
+GET    /api/auth/line/authorize-url         — (no auth) → {url, state}
+POST   /api/auth/line/callback              — (no auth) → login / link_required / 2fa_required
+POST   /api/auth/line/link                  — (no auth, temp_token + link_code)
+POST   /api/auth/line/2fa-verify            — (no auth, temp_token + OTP)
+POST   /api/auth/line/generate-link-code    admin.user.update → {link_code, expires_at}
+DELETE /api/auth/line/unlink                — (JWT, self-service)
 ```
 
 ### Inventory
@@ -1538,6 +1566,23 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [ ] **14.12** Scheduled AI Report — daily 06:00 background job, email digest, critical severity notification
 - [ ] **14.13** Optimization Suggestions — Index Advisor, Cache Advisor, N+1 Resolver, Bundle Advisor
 
+### Phase 15 — LINE Login + Mobile-first Layout 📱🟢 ✅
+- [x] **15.1** LINE OAuth Backend — line_auth.py service (authorize URL, token exchange, profile, link code, unlink) + httpx async
+- [x] **15.2** LINE Auth API — 7 endpoints under /api/auth/line/* (status, authorize-url, callback, link, 2fa-verify, generate-link-code, unlink)
+- [x] **15.3** User Model — 3 LINE columns (line_user_id, line_link_code, line_link_code_expires_at) + partial unique index
+- [x] **15.4** Migration — v2w3x4y5z6a7 (LINE Login columns + index)
+- [x] **15.5** JWT login_method — "line" in JWT payload, carried over on token refresh, /me returns login_method
+- [x] **15.6** Link Code Strategy — Admin generates 6-char code (safe charset, 24h TTL) → employee enters on first LINE Login
+- [x] **15.7** Frontend LineCallbackPage — OAuth callback handler (link code input, 2FA input, auto login)
+- [x] **15.8** Frontend LoginPage — LINE button (green #06C755) with "หรือ" divider, auto-hide if not configured
+- [x] **15.9** MobileAppLayout — Compact header (48px) + bottom nav (5 tabs) + lazy-loaded mobile routes (/m/*)
+- [x] **15.10** MobileHomePage — Time greeting + 4 summary cards (report, leave, tasks, timesheet) + payslip card
+- [x] **15.11** MobileBottomNav — 5 tabs: หน้าแรก/รายงาน/ลางาน/งาน/โปรไฟล์ with Lucide icons
+- [x] **15.12** Layout Switching — ProtectedRoute checks loginMethod: "line" → MobileAppLayout, else → AppLayout
+- [x] **15.13** Admin UserTab — Generate Link Code button per user + modal display (large monospace, 24h TTL)
+- [x] **15.14** MePage LINE Status — linked/unlinked Tag + Popconfirm unlink
+- [x] **15.15** Config — 3 env vars: LINE_CHANNEL_ID, LINE_CHANNEL_SECRET, LINE_CALLBACK_URL (disabled if empty)
+
 ---
 
 ## Common Pitfalls (อย่าทำ!)
@@ -1765,6 +1810,14 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/inventory/ProductLabel.jsx` | Single product label: Code128 barcode + QR + SKU/Name/Model/Unit (Phase 11.13) |
 | `frontend/src/pages/inventory/ProductLabelModal.jsx` | Label preview + print modal: single/bulk, barcode/QR toggle, column selector (Phase 11.13) |
 | `frontend/src/pages/supply-chain/StockAgingTab.jsx` | Stock Aging Report: FIFO-based age analysis, BarChart + table + export + filters (Phase 11.11) |
+| `backend/app/api/line_auth.py` | LINE Login 7 API endpoints: authorize-url, callback, link, 2fa-verify, generate-link-code, unlink, check (Phase 15) |
+| `backend/app/services/line_auth.py` | LINE OAuth service: authorize URL, token exchange, profile, link code gen, verify+link, unlink (Phase 15) |
+| `backend/app/schemas/line_auth.py` | LINE Login Pydantic schemas: LineCallbackRequest, LinkRequest, LinkCodeResponse, etc. (Phase 15) |
+| `backend/alembic/versions/v2w3x4y5z6a7_line_login.py` | Migration: 3 LINE columns on users + partial unique index (Phase 15) |
+| `frontend/src/pages/auth/LineCallbackPage.jsx` | LINE OAuth callback handler + link code form + 2FA step (Phase 15) |
+| `frontend/src/pages/mobile/MobileHomePage.jsx` | Mobile dashboard: greeting + 4 summary cards + payslip card (Phase 15) |
+| `frontend/src/components/MobileAppLayout.jsx` | Mobile layout: compact header (48px) + content + bottom nav (Phase 15) |
+| `frontend/src/components/MobileBottomNav.jsx` | 5-tab bottom navigation: Home/Report/Leave/Tasks/Profile with Lucide icons (Phase 15) |
 | `SYSTEM_OVERVIEW_V3.md` | PRD ฉบับสมบูรณ์ — 4 ส่วน (A:ระบบปัจจุบัน, B:แผน, C:ช่องว่าง, D:ลำดับ) + UX assessment ต่อ module |
 | `SYSTEM_OVERVIEW_V3.docx` | Word export สำหรับ Owner review ด้วย Track Changes |
 | `convert_to_docx.py` | Python script แปลง MD → Word (.docx) ด้วย python-docx |
@@ -1790,4 +1843,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v34 (Phase 0-9 complete + Phase 8.5 Finance Dashboard + Phase 8.6 More Charts + Phase 10 partial + Phase 11 partial (11.1-11.10B + 11.11 Stock Aging + 11.13 Barcode/QR + 11.14 Stock Take) + Phase 12 partial + Phase 13 partial (Login History + Password Policy + 2FA + Session Management + Export Audit) + Phase 14 partial (Performance Monitoring 14.1-14.10 complete) + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete + Mobile Responsive core complete, Phase 11.12,11.15/12.7-12.9/13.1,13.6/14.11-14.13 planned)*
+*End of CLAUDE.md — SSS Corp ERP v35 (Phase 0-9 complete + Phase 8.5 Finance Dashboard + Phase 8.6 More Charts + Phase 10 partial + Phase 11 partial (11.1-11.10B + 11.11 Stock Aging + 11.13 Barcode/QR + 11.14 Stock Take) + Phase 12 partial + Phase 13 partial (Login History + Password Policy + 2FA + Session Management + Export Audit) + Phase 14 partial (Performance Monitoring 14.1-14.10 complete) + Phase 15 LINE Login + Mobile-first Layout complete + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete + Mobile Responsive core complete, Phase 11.12,11.15/12.7-12.9/13.1,13.6/14.11-14.13 planned)*

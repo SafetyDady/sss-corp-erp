@@ -164,6 +164,26 @@ export function getPermissionLabel(resource, action) {
 }
 
 // ============================================================
+// getAllPermissionsGrouped — all permissions grouped by module
+// ============================================================
+
+/**
+ * Get all permissions from all modules, grouped by module key.
+ * Used by Role View to show one role's permissions across all modules.
+ * @param {Object} permTree - tree from buildPermissionTree()
+ * @returns {Object} result[moduleKey] = Array<{permission, module, resource, action}>
+ */
+export function getAllPermissionsGrouped(permTree) {
+  const result = {};
+  for (const mod of MODULE_ORDER) {
+    if (!permTree[mod]) continue;
+    const perms = getModulePermissions(permTree, mod);
+    if (perms.length > 0) result[mod] = perms;
+  }
+  return result;
+}
+
+// ============================================================
 // getModulePermCount — granted/total count for badge display
 // ============================================================
 

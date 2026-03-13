@@ -6,7 +6,7 @@
  */
 
 import { useMemo } from 'react';
-import { Table, Checkbox, Tag, Tooltip, Dropdown } from 'antd';
+import { Table, Checkbox, Tag, Tooltip, Dropdown, Typography } from 'antd';
 import { ChevronDown } from 'lucide-react';
 import { COLORS } from '../../utils/constants';
 import {
@@ -116,9 +116,11 @@ export default function PermissionMatrixTable({
                   {actionLabel}
                 </Tag>
                 {desc && (
-                  <span style={{ fontSize: 11, color: COLORS.textMuted }}>
-                    {desc}
-                  </span>
+                  <Tooltip title={permission} placement="topLeft">
+                    <span style={{ fontSize: 12, color: COLORS.textSecondary }}>
+                      {desc}
+                    </span>
+                  </Tooltip>
                 )}
               </div>
             </div>
@@ -170,7 +172,7 @@ export default function PermissionMatrixTable({
                 justifyContent: 'center',
                 height: '100%',
                 borderRadius: 4,
-                background: changed ? '#f59e0b18' : 'transparent',
+                background: changed ? '#f59e0b30' : 'transparent',
                 transition: 'background 0.2s',
               }}
             >
@@ -186,7 +188,7 @@ export default function PermissionMatrixTable({
           const changed = isChanged(role, record.permission);
           return {
             style: changed
-              ? { background: '#f59e0b12' }
+              ? { background: '#f59e0b20' }
               : { cursor: canEdit ? 'pointer' : 'default' },
           };
         },

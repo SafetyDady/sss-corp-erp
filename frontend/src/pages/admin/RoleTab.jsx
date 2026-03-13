@@ -7,12 +7,12 @@
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Button, App, Tabs, Tag, Space, Tooltip, Spin, Input, Badge, Segmented } from 'antd';
+import { Button, App, Tabs, Tag, Space, Tooltip, Spin, Input, Badge, Segmented, Progress } from 'antd';
 import {
   Save, RefreshCw, Search, RotateCcw, X, ShieldCheck, Info,
   Package, Warehouse, FileText, ShoppingCart, DollarSign,
   BarChart3, Database, Settings, UserCheck, Wrench, Users,
-  Boxes, HardHat, Server,
+  Boxes, HardHat, Server, Copy, GitCompareArrows,
 } from 'lucide-react';
 import api from '../../services/api';
 import { usePermission } from '../../hooks/usePermission';
@@ -22,6 +22,10 @@ import {
   buildPermissionTree, getModulePermissions,
 } from '../../utils/permissionMeta';
 import PermissionMatrixTable from './PermissionMatrixTable';
+import RolePermissionView from './RolePermissionView';
+import ChangePreviewModal from './ChangePreviewModal';
+import CopyRoleModal from './CopyRoleModal';
+import RoleCompareModal from './RoleCompareModal';
 
 const ROLE_ORDER = ['owner', 'manager', 'supervisor', 'staff', 'viewer'];
 const ROLE_LABELS = {
@@ -74,6 +78,11 @@ export default function RoleTab() {
   const [activeGroup, setActiveGroup] = useState(MODULE_GROUPS[0].key);
   const [activeModule, setActiveModule] = useState(MODULE_GROUPS[0].modules[0]);
   const [searchText, setSearchText] = useState('');
+  const [viewMode, setViewMode] = useState('module'); // 'module' | 'role'
+  const [selectedRole, setSelectedRole] = useState('manager');
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [copyModalOpen, setCopyModalOpen] = useState(false);
+  const [compareModalOpen, setCompareModalOpen] = useState(false);
 
   const [defaults, setDefaults] = useState({});
   const canEdit = can('admin.role.update');
@@ -229,7 +238,13 @@ export default function RoleTab() {
     });
   }, [permTree, rolesData]);
 
-  const handleSaveAll = async () => {
+  const handleSaveAll = () => {
+    const changedRoles = Object.keys(pendingChanges);
+    if (changedRoles.length === 0) return;
+    setPreviewOpen(true);
+  };
+
+  const executeSave = async () => {
     const changedRoles = Object.keys(pendingChanges);
     if (changedRoles.length === 0) return;
 
@@ -243,6 +258,7 @@ export default function RoleTab() {
         ),
       );
       message.success(`บันทึกสิทธิ์สำเร็จ (${changedRoles.length} roles)`);
+      setPreviewOpen(false);
       fetchData();
     } catch (err) {
       message.error(err.response?.data?.detail || 'ไม่สามารถบันทึกได้');
@@ -250,6 +266,25 @@ export default function RoleTab() {
       setSaving(false);
     }
   };
+
+  const handleCopyRole = useCallback((sourceRole, targetRole) => {
+    const sourceSet = getRolePermSet(sourceRole);
+    setPendingChanges((prev) => {
+      const newTarget = new Set(sourceSet);
+      const original = new Set(rolesData[targetRole] || []);
+      const isIdentical =
+        newTarget.size === original.size &&
+        [...newTarget].every((p) => original.has(p));
+
+      if (isIdentical) {
+        const next = { ...prev };
+        delete next[targetRole];
+        return next;
+      }
+      return { ...prev, [targetRole]: newTarget };
+    });
+    message.success(`คัดลอกสิทธิ์จาก ${ROLE_LABELS[sourceRole]} ไปยัง ${ROLE_LABELS[targetRole]} สำเร็จ`);
+  }, [getRolePermSet, rolesData, message]);
 
   const handleDiscard = () => {
     if (!hasAnyChanges) return;
@@ -390,16 +425,49 @@ export default function RoleTab() {
         justifyContent: 'space-between',
         alignItems: 'center',
         gap: 12,
+        flexWrap: 'wrap',
       }}>
-        <Input
-          placeholder="ค้นหาสิทธิ์... (ชื่อ, คำอธิบาย, โมดูล)"
-          prefix={<Search size={14} color={COLORS.textMuted} />}
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          allowClear
-          style={{ maxWidth: 360, background: COLORS.surface, borderColor: COLORS.border }}
-        />
-        <Space>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <Input
+            placeholder="ค้นหาสิทธิ์... (ชื่อ, คำอธิบาย, โมดูล)"
+            prefix={<Search size={14} color={COLORS.textMuted} />}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            allowClear
+            style={{ maxWidth: 320, background: COLORS.surface, borderColor: COLORS.border }}
+          />
+          <Segmented
+            value={viewMode}
+            onChange={setViewMode}
+            options={[
+              { value: 'module', label: 'ตามโมดูล' },
+              { value: 'role',   label: 'ตามบทบาท' },
+            ]}
+            size="small"
+            style={{ background: COLORS.surface }}
+          />
+        </div>
+        <Space wrap>
+          {canEdit && (
+            <Tooltip title="คัดลอกสิทธิ์ระหว่าง role">
+              <Button
+                icon={<Copy size={14} />}
+                onClick={() => setCopyModalOpen(true)}
+                size="small"
+              >
+                คัดลอกสิทธิ์
+              </Button>
+            </Tooltip>
+          )}
+          <Tooltip title="เปรียบเทียบสิทธิ์ 2 roles">
+            <Button
+              icon={<GitCompareArrows size={14} />}
+              onClick={() => setCompareModalOpen(true)}
+              size="small"
+            >
+              เปรียบเทียบ
+            </Button>
+          </Tooltip>
           {canEdit && (
             <Tooltip title="คืนค่าสิทธิ์เริ่มต้น">
               <Button
@@ -456,84 +524,140 @@ export default function RoleTab() {
         )}
       </div>
 
-      {/* ── Group Selector (Segmented) ───────────────── */}
-      <div style={{ marginBottom: 12 }}>
-        <Segmented
-          value={activeGroup}
-          onChange={handleGroupChange}
-          options={groupSegmentedOptions}
-          size="middle"
-          style={{ background: COLORS.surface }}
-        />
-      </div>
+      {/* ── View Content (Module View or Role View) ──── */}
+      {viewMode === 'module' ? (
+        <>
+          {/* ── Group Selector (Segmented) ───────────────── */}
+          <div style={{ marginBottom: 12 }}>
+            <Segmented
+              value={activeGroup}
+              onChange={handleGroupChange}
+              options={groupSegmentedOptions}
+              size="middle"
+              style={{ background: COLORS.surface }}
+            />
+          </div>
 
-      {/* ── Module Sub-tabs + Matrix Table ────────────── */}
-      <Tabs
-        activeKey={activeModule}
-        onChange={setActiveModule}
-        items={subTabItems}
-        type="card"
-        size="small"
-        style={{ marginBottom: 0 }}
-        tabBarStyle={{
-          marginBottom: 0,
-          borderBottom: `1px solid ${COLORS.border}`,
-        }}
-      />
+          {/* ── Module Sub-tabs + Matrix Table ────────────── */}
+          <Tabs
+            activeKey={activeModule}
+            onChange={setActiveModule}
+            items={subTabItems}
+            type="card"
+            size="small"
+            style={{ marginBottom: 0 }}
+            tabBarStyle={{
+              marginBottom: 0,
+              borderBottom: `1px solid ${COLORS.border}`,
+            }}
+          />
 
-      <div style={{
-        background: COLORS.card,
-        border: `1px solid ${COLORS.border}`,
-        borderTop: 'none',
-        borderRadius: '0 0 8px 8px',
-        overflow: 'hidden',
-      }}>
-        <PermissionMatrixTable
-          moduleKey={activeModule}
-          permTree={filteredTree}
-          rolesData={rolesData}
-          pendingChanges={pendingChanges}
-          descriptions={descriptions}
-          canEdit={canEdit}
-          onToggle={handleToggle}
-          onBulkAction={handleBulkAction}
-        />
-      </div>
+          <div style={{
+            background: COLORS.card,
+            border: `1px solid ${COLORS.border}`,
+            borderTop: 'none',
+            borderRadius: '0 0 8px 8px',
+            overflow: 'hidden',
+          }}>
+            <PermissionMatrixTable
+              moduleKey={activeModule}
+              permTree={filteredTree}
+              rolesData={rolesData}
+              pendingChanges={pendingChanges}
+              descriptions={descriptions}
+              canEdit={canEdit}
+              onToggle={handleToggle}
+              onBulkAction={handleBulkAction}
+            />
+          </div>
+        </>
+      ) : (
+        <>
+          {/* ── Role Selector ────────────────────────────── */}
+          <div style={{ marginBottom: 12 }}>
+            <Segmented
+              value={selectedRole}
+              onChange={setSelectedRole}
+              options={[
+                { value: 'manager',    label: 'Manager' },
+                { value: 'supervisor', label: 'Supervisor' },
+                { value: 'staff',      label: 'Staff' },
+                { value: 'viewer',     label: 'Viewer' },
+              ]}
+              size="middle"
+              style={{ background: COLORS.surface }}
+            />
+          </div>
 
-      {/* ── Role Summary ─────────────────────────────── */}
+          {/* ── Role Permission View (Collapse panels) ──── */}
+          <RolePermissionView
+            role={selectedRole}
+            permTree={filteredTree}
+            rolesData={rolesData}
+            pendingChanges={pendingChanges}
+            descriptions={descriptions}
+            canEdit={canEdit}
+            onToggle={handleToggle}
+            onBulkAction={handleBulkAction}
+          />
+        </>
+      )}
+
+      {/* ── Role Summary Cards ────────────────────────── */}
       <div style={{
         marginTop: 16,
         display: 'flex',
-        alignItems: 'center',
-        gap: 16,
-        padding: '8px 12px',
-        background: COLORS.surface,
-        borderRadius: 6,
-        border: `1px solid ${COLORS.borderLight}`,
+        gap: 12,
         flexWrap: 'wrap',
       }}>
-        <span style={{ fontSize: 12, color: COLORS.textMuted, fontWeight: 500 }}>
-          สิทธิ์รวม:
-        </span>
-        {roleSummary.filter(({ role }) => role !== 'owner').map(({ role, count, added, removed }) => (
-          <span key={role} style={{ fontSize: 12, color: COLORS.textSecondary }}>
-            {ROLE_LABELS[role]}{' '}
-            <span style={{
-              fontFamily: 'monospace',
-              fontWeight: 600,
-              color: pendingChanges[role] ? COLORS.warning : COLORS.text,
-            }}>
-              {count}
-            </span>
-            {(added > 0 || removed > 0) && (
-              <span style={{ fontSize: 11, marginLeft: 4 }}>
-                {added > 0 && <span style={{ color: '#22c55e' }}>+{added}</span>}
-                {added > 0 && removed > 0 && ' '}
-                {removed > 0 && <span style={{ color: '#ef4444' }}>-{removed}</span>}
-              </span>
-            )}
-          </span>
-        ))}
+        {roleSummary.filter(({ role }) => role !== 'owner').map(({ role, count, added, removed }) => {
+          const roleColor = {
+            manager: COLORS.accent,
+            supervisor: COLORS.purple,
+            staff: COLORS.warning,
+            viewer: COLORS.textMuted,
+          }[role] || COLORS.text;
+          const pct = Math.round((count / allPerms.length) * 100);
+          const hasChanges = !!pendingChanges[role];
+
+          return (
+            <div
+              key={role}
+              style={{
+                flex: '1 1 140px',
+                background: COLORS.surface,
+                borderRadius: 8,
+                padding: '12px 14px',
+                border: `1px solid ${hasChanges ? COLORS.warning : COLORS.borderLight}`,
+                transition: 'border-color 0.2s',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: roleColor }}>
+                  {ROLE_LABELS[role]}
+                </span>
+                <span style={{ fontSize: 12, fontFamily: 'monospace', color: hasChanges ? COLORS.warning : COLORS.text }}>
+                  {count}/{allPerms.length}
+                </span>
+              </div>
+              <Progress
+                percent={pct}
+                size="small"
+                showInfo={false}
+                strokeColor={roleColor}
+                trailColor={COLORS.border}
+                style={{ marginBottom: (added > 0 || removed > 0) ? 4 : 0 }}
+              />
+              {(added > 0 || removed > 0) && (
+                <div style={{ fontSize: 11, marginTop: 2 }}>
+                  {added > 0 && <span style={{ color: '#22c55e', marginRight: 6 }}>+{added} เพิ่ม</span>}
+                  {removed > 0 && <span style={{ color: '#ef4444' }}>-{removed} ลบ</span>}
+                  <span style={{ color: COLORS.textMuted, marginLeft: 4 }}>(vs ค่าเริ่มต้น)</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* ── Sticky Save Bar ──────────────────────────── */}
@@ -572,6 +696,31 @@ export default function RoleTab() {
           </Button>
         </div>
       )}
+
+      {/* ── Modals ──────────────────────────────────── */}
+      <ChangePreviewModal
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        onConfirm={executeSave}
+        pendingChanges={pendingChanges}
+        rolesData={rolesData}
+        descriptions={descriptions}
+        saving={saving}
+      />
+
+      <CopyRoleModal
+        open={copyModalOpen}
+        onClose={() => setCopyModalOpen(false)}
+        onCopy={handleCopyRole}
+      />
+
+      <RoleCompareModal
+        open={compareModalOpen}
+        onClose={() => setCompareModalOpen(false)}
+        getRolePermSet={getRolePermSet}
+        descriptions={descriptions}
+        permTree={permTree}
+      />
     </div>
   );
 }
