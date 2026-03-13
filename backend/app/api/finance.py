@@ -12,22 +12,20 @@ Endpoints (from CLAUDE.md):
 """
 
 from datetime import date
-from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, select, literal_column, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import DEFAULT_ORG_ID
 from app.core.database import get_db
 from app.core.permissions import require
 from app.core.security import get_token_payload
-from app.models.hr import Timesheet, TimesheetStatus, PayrollRun
-from app.models.inventory import Product, ProductType, StockMovement, MovementType
-from app.models.purchasing import PurchaseOrder, POStatus
+from app.models.inventory import StockMovement
+from app.models.purchasing import PurchaseOrder
 from app.models.sales import SalesOrder, SOStatus
 from app.models.workorder import WorkOrder, WOStatus
 
@@ -138,117 +136,8 @@ async def api_dashboard_charts(
 ):
     """Dashboard charts — inventory value by type + monthly stock movements (Phase 8.6)."""
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
-    today = date.today()
-
-    # --- 1) Inventory value by product type (current snapshot) ---
-    TYPE_LABELS = {
-        ProductType.MATERIAL: "วัตถุดิบ",
-        ProductType.CONSUMABLE: "วัสดุสิ้นเปลือง",
-        ProductType.SPAREPART: "อะไหล่",
-        ProductType.FINISHED_GOODS: "สินค้าสำเร็จ",
-    }
-
-    inv_query = (
-        select(
-            Product.product_type,
-            func.coalesce(func.sum(Product.on_hand * Product.cost), 0).label("value"),
-            func.count().label("count"),
-        )
-        .where(
-            Product.is_active == True,
-            Product.org_id == org_id,
-            Product.product_type != ProductType.SERVICE,
-        )
-        .group_by(Product.product_type)
-    )
-    inv_result = await db.execute(inv_query)
-    inventory_by_type = []
-    for r in inv_result:
-        inventory_by_type.append({
-            "type": r.product_type.value,
-            "label": TYPE_LABELS.get(r.product_type, r.product_type.value),
-            "value": float(r.value),
-            "count": r.count,
-        })
-
-    # --- 2) Monthly stock movement inflow vs outflow ---
-    buckets = []
-    y, m = today.year, today.month
-    for _ in range(months):
-        buckets.append(date(y, m, 1))
-        m -= 1
-        if m == 0:
-            m = 12
-            y -= 1
-    buckets.reverse()
-    start_date = buckets[0]
-
-    INFLOW_TYPES = (MovementType.RECEIVE, MovementType.RETURN, MovementType.PRODUCE)
-    OUTFLOW_TYPES = (MovementType.ISSUE, MovementType.CONSUME)
-
-    period_col = func.date_trunc(text("'month'"), StockMovement.created_at).label("period")
-
-    # Inflow aggregation
-    inflow_query = (
-        select(
-            period_col,
-            func.coalesce(func.sum(func.abs(StockMovement.quantity)), 0).label("qty"),
-            func.coalesce(func.sum(func.abs(StockMovement.quantity) * StockMovement.unit_cost), 0).label("val"),
-        )
-        .where(
-            StockMovement.is_reversed == False,
-            StockMovement.org_id == org_id,
-            StockMovement.movement_type.in_(INFLOW_TYPES),
-            StockMovement.created_at >= start_date,
-        )
-        .group_by(period_col)
-    )
-    inflow_result = await db.execute(inflow_query)
-    inflow_map = {str(r.period.date())[:7]: {"qty": int(r.qty), "val": float(r.val)} for r in inflow_result}
-
-    # Outflow aggregation
-    outflow_query = (
-        select(
-            period_col,
-            func.coalesce(func.sum(func.abs(StockMovement.quantity)), 0).label("qty"),
-            func.coalesce(func.sum(func.abs(StockMovement.quantity) * StockMovement.unit_cost), 0).label("val"),
-        )
-        .where(
-            StockMovement.is_reversed == False,
-            StockMovement.org_id == org_id,
-            StockMovement.movement_type.in_(OUTFLOW_TYPES),
-            StockMovement.created_at >= start_date,
-        )
-        .group_by(period_col)
-    )
-    outflow_result = await db.execute(outflow_query)
-    outflow_map = {str(r.period.date())[:7]: {"qty": int(r.qty), "val": float(r.val)} for r in outflow_result}
-
-    THAI_MONTHS = [
-        "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
-        "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.",
-    ]
-
-    monthly_movements = []
-    for b in buckets:
-        key = b.strftime("%Y-%m")
-        thai_year = str(b.year + 543)[2:]
-        label = f"{THAI_MONTHS[b.month - 1]} {thai_year}"
-        inf = inflow_map.get(key, {"qty": 0, "val": 0.0})
-        out = outflow_map.get(key, {"qty": 0, "val": 0.0})
-        monthly_movements.append({
-            "period": key,
-            "label": label,
-            "inflow": inf["qty"],
-            "outflow": out["qty"],
-            "inflow_value": inf["val"],
-            "outflow_value": out["val"],
-        })
-
-    return {
-        "inventory_by_type": inventory_by_type,
-        "monthly_movements": monthly_movements,
-    }
+    from app.services.finance import get_dashboard_charts
+    return await get_dashboard_charts(db, org_id=org_id, months=months)
 
 
 @finance_router.get(
@@ -315,18 +204,8 @@ async def api_monthly_summary(
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     today = date.today()
 
-    # Build month buckets going backwards
-    buckets = []
-    y, m = today.year, today.month
-    for _ in range(months):
-        buckets.append(date(y, m, 1))
-        m -= 1
-        if m == 0:
-            m = 12
-            y -= 1
-    buckets.reverse()
-
-    start_date = buckets[0]
+    from app.services.finance import build_month_buckets, format_thai_month_label
+    buckets, start_date = build_month_buckets(today, months)
 
     # SO revenue per month
     so_period = func.date_trunc(text("'month'"), SalesOrder.order_date).label("period")
@@ -382,19 +261,12 @@ async def api_monthly_summary(
     wo_result = await db.execute(wo_query)
     wo_map = {str(r.period.date())[:7]: r.cnt for r in wo_result}
 
-    THAI_MONTHS = [
-        "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
-        "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.",
-    ]
-
     result = []
     for b in buckets:
         key = b.strftime("%Y-%m")
-        thai_year = str(b.year + 543)[2:]
-        label = f"{THAI_MONTHS[b.month - 1]} {thai_year}"
         result.append({
             "period": key,
-            "label": label,
+            "label": format_thai_month_label(b),
             "so_amount": so_map.get(key, 0.0),
             "po_amount": po_map.get(key, 0.0),
             "wo_closed": wo_map.get(key, 0),

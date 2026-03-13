@@ -562,7 +562,7 @@ function AdminDashboard() {
     // Charts
     if (can('finance.report.read'))
       tasks.push({ key: 'monthlySummary', req: api.get('/api/finance/reports/monthly-summary', { params: { months: 6 } }).catch(() => null) });
-    if (can('inventory.product.read'))
+    if (can('finance.report.read'))
       tasks.push({ key: 'dashboardCharts', req: api.get('/api/finance/reports/dashboard-charts', { params: { months: 6 } }).catch(() => null) });
 
     // Execute all
@@ -796,7 +796,7 @@ function AdminDashboard() {
           )}
 
           {/* Row 3.5 — Inventory & Stock Movement Charts (Phase 8.6) */}
-          {can('inventory.product.read') && (data.inventoryByType.length > 0 || data.monthlyMovements.length > 0) && (
+          {can('finance.report.read') && (data.inventoryByType.length > 0 || data.monthlyMovements.length > 0) && (
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
               <Col xs={24} lg={10}>
                 <Card

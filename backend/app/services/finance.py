@@ -1,6 +1,7 @@
 """
 SSS Corp ERP — Finance Dashboard Service
 Phase 8.5: Comprehensive financial overview aggregation
+Phase 8.6: Dashboard Charts (Inventory + Stock Movement)
 
 Provides:
   - Revenue vs Expenses summary (AR/AP)
@@ -8,6 +9,8 @@ Provides:
   - Monthly Cash Flow (payments in/out over N months)
   - Top 5 outstanding customers/suppliers
   - Cost Center performance summary
+  - Inventory value by product type (Phase 8.6)
+  - Monthly stock movement inflow vs outflow (Phase 8.6)
 """
 
 from datetime import date
@@ -20,16 +23,41 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ar import CustomerInvoice, CustomerInvoicePayment, CustomerInvoiceStatus
 from app.models.customer import Customer
+from app.models.inventory import Product, ProductType, StockMovement, MovementType
 from app.models.invoice import InvoicePayment, InvoiceStatus, SupplierInvoice
 from app.models.master import CostCenter, Supplier
 from app.services.recharge import get_cost_center_summary
 
 
-# ── Thai month labels (reuse pattern from finance API) ───────
+# ── Shared Thai month utilities ──────────────────────────────
 THAI_MONTHS = [
     "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
     "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.",
 ]
+
+
+def build_month_buckets(today: date, months: int) -> tuple[list[date], date]:
+    """Build list of first-of-month dates for the last N months.
+
+    Returns (buckets, start_date) where buckets is oldest-first
+    and start_date is the earliest month boundary.
+    """
+    buckets = []
+    y, m = today.year, today.month
+    for _ in range(months):
+        buckets.append(date(y, m, 1))
+        m -= 1
+        if m == 0:
+            m = 12
+            y -= 1
+    buckets.reverse()
+    return buckets, buckets[0]
+
+
+def format_thai_month_label(d: date) -> str:
+    """Format a date as Thai month abbreviation + Buddhist Era year (e.g. 'มี.ค. 69')."""
+    thai_year = str(d.year + 543)[2:]
+    return f"{THAI_MONTHS[d.month - 1]} {thai_year}"
 
 
 def _zero_dec() -> Decimal:
@@ -294,17 +322,7 @@ async def _compute_monthly_cashflow(
     """
     Monthly cash in (AR payments) vs cash out (AP payments) for last N months.
     """
-    # Build month buckets
-    buckets = []
-    y, m = today.year, today.month
-    for _ in range(months):
-        buckets.append(date(y, m, 1))
-        m -= 1
-        if m == 0:
-            m = 12
-            y -= 1
-    buckets.reverse()
-    start_date = buckets[0]
+    buckets, start_date = build_month_buckets(today, months)
 
     # Cash IN — AR payments received
     ci_period = func.date_trunc(text("'month'"), CustomerInvoicePayment.payment_date).label("period")
@@ -342,15 +360,11 @@ async def _compute_monthly_cashflow(
     result = []
     for b in buckets:
         key = b.strftime("%Y-%m")
-        thai_year = str(b.year + 543)[2:]
-        label = f"{THAI_MONTHS[b.month - 1]} {thai_year}"
-        cash_in = ci_map.get(key, 0.0)
-        cash_out = ap_map.get(key, 0.0)
         result.append({
             "period": key,
-            "label": label,
-            "cash_in": cash_in,
-            "cash_out": cash_out,
+            "label": format_thai_month_label(b),
+            "cash_in": ci_map.get(key, 0.0),
+            "cash_out": ap_map.get(key, 0.0),
         })
 
     return result
@@ -440,3 +454,118 @@ async def _top_outstanding_suppliers(
         }
         for r in result
     ]
+
+
+# ── Dashboard Charts (Phase 8.6) ────────────────────────────
+
+# Thai labels for product types used in inventory charts
+_PRODUCT_TYPE_LABELS = {
+    ProductType.MATERIAL: "วัตถุดิบ",
+    ProductType.CONSUMABLE: "วัสดุสิ้นเปลือง",
+    ProductType.SPAREPART: "อะไหล่",
+    ProductType.FINISHED_GOODS: "สินค้าสำเร็จ",
+}
+
+# Movement type classification for stock flow charts.
+# Excludes ADJUST (exceptional), TRANSFER (neutral — no net change),
+# and REVERSAL (corrections — already filtered via is_reversed flag).
+_INFLOW_TYPES = (MovementType.RECEIVE, MovementType.RETURN, MovementType.PRODUCE)
+_OUTFLOW_TYPES = (MovementType.ISSUE, MovementType.CONSUME)
+
+
+async def get_dashboard_charts(
+    db: AsyncSession,
+    *,
+    org_id: UUID,
+    months: int = 6,
+) -> dict:
+    """Inventory value by product type + monthly stock movement inflow/outflow."""
+    today = date.today()
+
+    # --- 1) Inventory value by product type (current snapshot) ---
+    inv_query = (
+        select(
+            Product.product_type,
+            func.coalesce(func.sum(Product.on_hand * Product.cost), 0).label("value"),
+            func.count().label("count"),
+        )
+        .where(
+            Product.is_active == True,
+            Product.org_id == org_id,
+            Product.product_type != ProductType.SERVICE,
+        )
+        .group_by(Product.product_type)
+    )
+    inv_result = await db.execute(inv_query)
+    inventory_by_type = [
+        {
+            "type": r.product_type.value,
+            "label": _PRODUCT_TYPE_LABELS.get(r.product_type, r.product_type.value),
+            "value": float(r.value),
+            "count": r.count,
+        }
+        for r in inv_result
+    ]
+
+    # --- 2) Monthly stock movement inflow vs outflow ---
+    #     Single query with CASE WHEN to avoid scanning stock_movements twice.
+    buckets, start_date = build_month_buckets(today, months)
+
+    period_col = func.date_trunc(text("'month'"), StockMovement.created_at).label("period")
+    abs_qty = func.abs(StockMovement.quantity)
+
+    movement_query = (
+        select(
+            period_col,
+            # Inflow
+            func.coalesce(func.sum(case(
+                (StockMovement.movement_type.in_(_INFLOW_TYPES), abs_qty),
+                else_=0,
+            )), 0).label("inflow_qty"),
+            func.coalesce(func.sum(case(
+                (StockMovement.movement_type.in_(_INFLOW_TYPES), abs_qty * StockMovement.unit_cost),
+                else_=0,
+            )), 0).label("inflow_val"),
+            # Outflow
+            func.coalesce(func.sum(case(
+                (StockMovement.movement_type.in_(_OUTFLOW_TYPES), abs_qty),
+                else_=0,
+            )), 0).label("outflow_qty"),
+            func.coalesce(func.sum(case(
+                (StockMovement.movement_type.in_(_OUTFLOW_TYPES), abs_qty * StockMovement.unit_cost),
+                else_=0,
+            )), 0).label("outflow_val"),
+        )
+        .where(
+            StockMovement.is_reversed == False,
+            StockMovement.org_id == org_id,
+            StockMovement.movement_type.in_(_INFLOW_TYPES + _OUTFLOW_TYPES),
+            StockMovement.created_at >= start_date,
+        )
+        .group_by(period_col)
+    )
+    mv_result = await db.execute(movement_query)
+    mv_map = {
+        str(r.period.date())[:7]: {
+            "inflow": int(r.inflow_qty),
+            "outflow": int(r.outflow_qty),
+            "inflow_value": float(r.inflow_val),
+            "outflow_value": float(r.outflow_val),
+        }
+        for r in mv_result
+    }
+
+    monthly_movements = []
+    for b in buckets:
+        key = b.strftime("%Y-%m")
+        mv = mv_map.get(key, {"inflow": 0, "outflow": 0, "inflow_value": 0.0, "outflow_value": 0.0})
+        monthly_movements.append({
+            "period": key,
+            "label": format_thai_month_label(b),
+            **mv,
+        })
+
+    return {
+        "inventory_by_type": inventory_by_type,
+        "monthly_movements": monthly_movements,
+    }
