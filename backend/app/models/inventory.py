@@ -303,10 +303,8 @@ class StockBatch(Base, TimestampMixin):
 
     __table_args__ = (
         CheckConstraint("on_hand >= 0", name="ck_stock_batch_on_hand_non_negative"),
-        Index("ix_stock_batches_product_id", "product_id"),
-        Index("ix_stock_batches_org_product", "org_id", "product_id"),
-        Index("ix_stock_batches_batch_number", "batch_number"),
-        # Partial unique indexes defined in migration (postgresql_where not supported in model __table_args__)
+        # Indexes + partial unique indexes defined in migration only
+        # (avoid DuplicateTableError on startup with create_all)
     )
 
     def __repr__(self) -> str:
