@@ -60,7 +60,10 @@
       "Bash(pip install python-docx)",
       "Bash(py -3 -c \":*)",
       "Bash(node SSS_Corp_ERP_Checklist.js)",
-      "Bash(docker compose -f docker-compose.dev.yml exec backend python -m tests.test_workflow_rules)"
+      "Bash(docker compose -f docker-compose.dev.yml exec backend python -m tests.test_workflow_rules)",
+      "WebSearch",
+      "Read(//mnt/c/web_project/**)",
+      "Read(//c/web_project/sss-corp/**)"
     ]
   }
 }

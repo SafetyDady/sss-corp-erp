@@ -54,11 +54,24 @@ async def list_categories(
 )
 async def create_category(
     req: AssetCategoryCreate,
+    request: Request,
     token_payload: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
     org_id = token_payload.get("org_id")
+    user_id = UUID(token_payload.get("sub"))
     cat = await asset_service.create_category(db, org_id, req)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="CREATE", resource_type="asset_category",
+        resource_id=str(cat.id),
+        description=f"สร้างหมวดหมู่สินทรัพย์ {cat.name}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
     return AssetCategoryResponse.model_validate(cat)
 
 
@@ -69,11 +82,26 @@ async def create_category(
 async def update_category(
     category_id: UUID,
     req: AssetCategoryUpdate,
+    request: Request,
     token_payload: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
     org_id = token_payload.get("org_id")
+    user_id = UUID(token_payload.get("sub"))
+    update_data = req.model_dump(exclude_unset=True)
     cat = await asset_service.update_category(db, category_id, org_id, req)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="UPDATE", resource_type="asset_category",
+        resource_id=str(category_id),
+        description=f"แก้ไขหมวดหมู่สินทรัพย์ {category_id}",
+        changes=update_data,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
     return AssetCategoryResponse.model_validate(cat)
 
 
@@ -84,11 +112,24 @@ async def update_category(
 )
 async def delete_category(
     category_id: UUID,
+    request: Request,
     token_payload: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
     org_id = token_payload.get("org_id")
+    user_id = UUID(token_payload.get("sub"))
     await asset_service.delete_category(db, category_id, org_id)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="DELETE", resource_type="asset_category",
+        resource_id=str(category_id),
+        description=f"ลบหมวดหมู่สินทรัพย์ {category_id}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
 
 
 # ============================================================
@@ -138,12 +179,25 @@ async def get_asset_summary(
 )
 async def create_asset(
     req: AssetCreate,
+    request: Request,
     token_payload: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
     org_id = token_payload.get("org_id")
     user_id = UUID(token_payload.get("sub"))
-    return await asset_service.create_asset(db, org_id, req, user_id)
+    asset = await asset_service.create_asset(db, org_id, req, user_id)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="CREATE", resource_type="fixed_asset",
+        resource_id=str(asset.get("id", "")),
+        description=f"สร้างสินทรัพย์ {asset.get('asset_code', '')} {asset.get('name', '')}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return asset
 
 
 @router.get(
@@ -166,11 +220,27 @@ async def get_asset(
 async def update_asset(
     asset_id: UUID,
     req: AssetUpdate,
+    request: Request,
     token_payload: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
     org_id = token_payload.get("org_id")
-    return await asset_service.update_asset(db, asset_id, org_id, req)
+    user_id = UUID(token_payload.get("sub"))
+    update_data = req.model_dump(exclude_unset=True)
+    result = await asset_service.update_asset(db, asset_id, org_id, req)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="UPDATE", resource_type="fixed_asset",
+        resource_id=str(asset_id),
+        description=f"แก้ไขสินทรัพย์ {asset_id}",
+        changes=update_data,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return result
 
 
 @router.delete(
@@ -180,11 +250,24 @@ async def update_asset(
 )
 async def delete_asset(
     asset_id: UUID,
+    request: Request,
     token_payload: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
     org_id = token_payload.get("org_id")
+    user_id = UUID(token_payload.get("sub"))
     await asset_service.delete_asset(db, asset_id, org_id)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="DELETE", resource_type="fixed_asset",
+        resource_id=str(asset_id),
+        description=f"ลบสินทรัพย์ {asset_id}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
 
 
 @router.post(
@@ -222,11 +305,26 @@ async def dispose_asset(
 )
 async def retire_asset(
     asset_id: UUID,
+    request: Request,
     token_payload: dict = Depends(get_token_payload),
     db: AsyncSession = Depends(get_db),
 ):
     org_id = token_payload.get("org_id")
-    return await asset_service.retire_asset(db, asset_id, org_id)
+    user_id = UUID(token_payload.get("sub"))
+    result = await asset_service.retire_asset(db, asset_id, org_id)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="STATUS_CHANGE", resource_type="fixed_asset",
+        resource_id=str(asset_id),
+        description=f"ปลดสินทรัพย์ {asset_id}",
+        changes={"status": {"old": "ACTIVE", "new": "RETIRED"}},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return result
 
 
 # ============================================================

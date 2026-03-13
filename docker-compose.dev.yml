@@ -17,6 +17,9 @@ services:
       - REFRESH_TOKEN_EXPIRE_DAYS=7
       - CORS_ORIGINS=http://localhost:5173
       - ENVIRONMENT=development
+      - LINE_CHANNEL_ID=2009442803
+      - LINE_CHANNEL_SECRET=a02dcdf5a16e3f7ea4721e1a1eeb123b
+      - LINE_CALLBACK_URL=http://localhost:5173/auth/line/callback
     depends_on:
       db:
         condition: service_healthy

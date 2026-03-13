@@ -75,12 +75,27 @@ async def api_list_ar_invoices(
 )
 async def api_create_ar_invoice(
     body: CustomerInvoiceCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     org_id = UUID(token["org_id"])
     user_id = UUID(token["sub"])
     inv = await create_ar_invoice(db, org_id, user_id, body.model_dump())
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="CREATE", resource_type="customer_invoice",
+        resource_id=str(inv.id),
+        description=f"สร้างใบแจ้งหนี้ลูกค้า {inv.invoice_number}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
     enriched = await enrich_ar_invoice_detail(db, inv)
     return enriched
 
@@ -124,14 +139,29 @@ async def api_get_ar_invoice(
 async def api_update_ar_invoice(
     invoice_id: UUID,
     body: CustomerInvoiceUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     org_id = UUID(token["org_id"])
-    inv = await update_ar_invoice(
-        db, invoice_id, org_id,
-        body.model_dump(exclude_unset=True),
+    user_id = UUID(token["sub"])
+    update_data = body.model_dump(exclude_unset=True)
+    inv = await update_ar_invoice(db, invoice_id, org_id, update_data)
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="UPDATE", resource_type="customer_invoice",
+        resource_id=str(invoice_id),
+        description=f"แก้ไขใบแจ้งหนี้ลูกค้า {invoice_id}",
+        changes=update_data,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
     )
+    await db.commit()
+
     return await enrich_ar_invoice_detail(db, inv)
 
 
@@ -143,11 +173,26 @@ async def api_update_ar_invoice(
 )
 async def api_delete_ar_invoice(
     invoice_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     org_id = UUID(token["org_id"])
+    user_id = UUID(token["sub"])
     await delete_ar_invoice(db, invoice_id, org_id)
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="DELETE", resource_type="customer_invoice",
+        resource_id=str(invoice_id),
+        description=f"ลบใบแจ้งหนี้ลูกค้า {invoice_id}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
 
 
 # ── Submit (DRAFT → PENDING) ──
@@ -158,11 +203,28 @@ async def api_delete_ar_invoice(
 )
 async def api_submit_ar_invoice(
     invoice_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     org_id = UUID(token["org_id"])
+    user_id = UUID(token["sub"])
     inv = await submit_ar_invoice(db, invoice_id, org_id)
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="STATUS_CHANGE", resource_type="customer_invoice",
+        resource_id=str(inv.id),
+        description=f"ส่งใบแจ้งหนี้ลูกค้า {inv.invoice_number}",
+        changes={"status": {"old": "DRAFT", "new": "PENDING"}},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
     return await enrich_ar_invoice_detail(db, inv)
 
 
@@ -247,9 +309,26 @@ async def api_receive_payment(
 )
 async def api_cancel_ar_invoice(
     invoice_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     org_id = UUID(token["org_id"])
+    user_id = UUID(token["sub"])
     inv = await cancel_ar_invoice(db, invoice_id, org_id)
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="STATUS_CHANGE", resource_type="customer_invoice",
+        resource_id=str(inv.id),
+        description=f"ยกเลิกใบแจ้งหนี้ลูกค้า {inv.invoice_number}",
+        changes={"status": {"new": "CANCELLED"}},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
     return await enrich_ar_invoice_detail(db, inv)

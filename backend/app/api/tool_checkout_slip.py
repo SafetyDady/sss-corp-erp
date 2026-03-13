@@ -224,6 +224,7 @@ async def api_list_tool_checkout_slips(
 )
 async def api_create_tool_checkout_slip(
     body: ToolCheckoutSlipCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(require("tools.tool.create")),
 ):
@@ -232,6 +233,17 @@ async def api_create_tool_checkout_slip(
     slip = await create_tool_checkout_slip(
         db, body=body.model_dump(), created_by=user_id, org_id=org_id,
     )
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="CREATE", resource_type="tool_checkout_slip",
+        resource_id=str(slip.id),
+        description=f"สร้างใบเบิกเครื่องมือ {slip.slip_number}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
     return await _slip_to_response(db, slip)
 
 
@@ -266,13 +278,28 @@ async def api_get_tool_checkout_slip(
 async def api_update_tool_checkout_slip(
     slip_id: UUID,
     body: ToolCheckoutSlipUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(require("tools.tool.update")),
 ):
     org_id = token.get("org_id", DEFAULT_ORG_ID)
+    user_id = UUID(token["sub"])
+    update_data = body.model_dump(exclude_unset=True)
     slip = await update_tool_checkout_slip(
-        db, slip_id, body=body.model_dump(exclude_unset=True), org_id=org_id,
+        db, slip_id, body=update_data, org_id=org_id,
     )
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="UPDATE", resource_type="tool_checkout_slip",
+        resource_id=str(slip_id),
+        description=f"แก้ไขใบเบิกเครื่องมือ {slip_id}",
+        changes=update_data,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
     return await _slip_to_response(db, slip)
 
 
@@ -286,11 +313,24 @@ async def api_update_tool_checkout_slip(
 )
 async def api_delete_tool_checkout_slip(
     slip_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(require("tools.tool.delete")),
 ):
     org_id = token.get("org_id", DEFAULT_ORG_ID)
+    user_id = UUID(token["sub"])
     await delete_tool_checkout_slip(db, slip_id, org_id=org_id)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="DELETE", resource_type="tool_checkout_slip",
+        resource_id=str(slip_id),
+        description=f"ลบใบเบิกเครื่องมือ {slip_id}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
     return {"detail": "Tool checkout slip deleted"}
 
 
@@ -305,11 +345,25 @@ async def api_delete_tool_checkout_slip(
 )
 async def api_submit_tool_checkout_slip(
     slip_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(require("tools.tool.create")),
 ):
     org_id = token.get("org_id", DEFAULT_ORG_ID)
+    user_id = UUID(token["sub"])
     slip = await submit_tool_checkout_slip(db, slip_id, org_id=org_id)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="STATUS_CHANGE", resource_type="tool_checkout_slip",
+        resource_id=str(slip_id),
+        description=f"ส่งใบเบิกเครื่องมือ {slip.slip_number}",
+        changes={"status": {"old": "DRAFT", "new": "PENDING"}},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
     return await _slip_to_response(db, slip)
 
 
@@ -396,9 +450,23 @@ async def api_return_tool_checkout_slip(
 )
 async def api_cancel_tool_checkout_slip(
     slip_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(require("tools.tool.update")),
 ):
     org_id = token.get("org_id", DEFAULT_ORG_ID)
+    user_id = UUID(token["sub"])
     slip = await cancel_tool_checkout_slip(db, slip_id, org_id=org_id)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="STATUS_CHANGE", resource_type="tool_checkout_slip",
+        resource_id=str(slip_id),
+        description=f"ยกเลิกใบเบิกเครื่องมือ {slip_id}",
+        changes={"status": {"new": "CANCELLED"}},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
     return await _slip_to_response(db, slip)

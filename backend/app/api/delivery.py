@@ -86,6 +86,7 @@ async def api_list_delivery_orders(
 )
 async def api_create_delivery_order(
     body: DeliveryOrderCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(require("sales.delivery.create")),
 ):
@@ -94,6 +95,20 @@ async def api_create_delivery_order(
     do = await create_delivery_order(
         db, body=body.model_dump(), created_by=user_id, org_id=org_id,
     )
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="CREATE", resource_type="delivery_order",
+        resource_id=str(do.id),
+        description=f"สร้างใบส่งของ {do.do_number}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
     enriched = await enrich_delivery_orders(db, [do])
     return enriched[0]
 
@@ -233,13 +248,31 @@ async def api_get_delivery_order(
 async def api_update_delivery_order(
     do_id: UUID,
     body: DeliveryOrderUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(require("sales.delivery.update")),
 ):
     org_id = token.get("org_id", DEFAULT_ORG_ID)
+    user_id = UUID(token["sub"])
+    update_data = body.model_dump(exclude_unset=True)
     do = await update_delivery_order(
-        db, do_id, body=body.model_dump(exclude_unset=True), org_id=org_id,
+        db, do_id, body=update_data, org_id=org_id,
     )
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="UPDATE", resource_type="delivery_order",
+        resource_id=str(do_id),
+        description=f"แก้ไขใบส่งของ {do_id}",
+        changes=update_data,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
     enriched = await enrich_delivery_orders(db, [do])
     return enriched[0]
 
@@ -254,11 +287,27 @@ async def api_update_delivery_order(
 )
 async def api_delete_delivery_order(
     do_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(require("sales.delivery.delete")),
 ):
     org_id = token.get("org_id", DEFAULT_ORG_ID)
+    user_id = UUID(token["sub"])
     await delete_delivery_order(db, do_id, org_id=org_id)
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="DELETE", resource_type="delivery_order",
+        resource_id=str(do_id),
+        description=f"ลบใบส่งของ {do_id}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
     return {"detail": "Delivery order deleted"}
 
 
@@ -311,10 +360,27 @@ async def api_ship_delivery_order(
 )
 async def api_cancel_delivery_order(
     do_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(require("sales.delivery.update")),
 ):
     org_id = token.get("org_id", DEFAULT_ORG_ID)
+    user_id = UUID(token["sub"])
     do = await cancel_delivery_order(db, do_id, org_id=org_id)
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="STATUS_CHANGE", resource_type="delivery_order",
+        resource_id=str(do.id),
+        description=f"ยกเลิกใบส่งของ {do_id}",
+        changes={"status": {"new": "CANCELLED"}},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
     enriched = await enrich_delivery_orders(db, [do])
     return enriched[0]

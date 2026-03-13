@@ -79,6 +79,7 @@ async def api_list_orders(
 )
 async def api_create_order(
     body: SalesOrderCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -96,6 +97,20 @@ async def api_create_order(
         requested_approver_id=body.requested_approver_id,
         vat_rate=body.vat_rate,
     )
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="CREATE", resource_type="sales_order",
+        resource_id=str(so.id),
+        description=f"สร้างใบสั่งขาย {so.so_number}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
     enriched = await enrich_sales_orders(db, [so])
     return enriched[0]
 
@@ -189,9 +204,11 @@ async def api_get_order(
 async def api_update_order(
     so_id: UUID,
     body: SalesOrderUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
+    user_id = UUID(token["sub"])
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     update_data = body.model_dump(exclude_unset=True)
     # Convert lines from Pydantic models to dicts
@@ -201,6 +218,21 @@ async def api_update_order(
             for l in body.lines
         ]
     so = await update_sales_order(db, so_id, update_data=update_data, org_id=org_id)
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="UPDATE", resource_type="sales_order",
+        resource_id=str(so_id),
+        description=f"แก้ไขใบสั่งขาย {so_id}",
+        changes=update_data,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
     enriched = await enrich_sales_orders(db, [so])
     return enriched[0]
 
@@ -212,11 +244,26 @@ async def api_update_order(
 )
 async def api_delete_order(
     so_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
+    user_id = UUID(token["sub"])
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     await delete_sales_order(db, so_id, org_id=org_id)
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="DELETE", resource_type="sales_order",
+        resource_id=str(so_id),
+        description=f"ลบใบสั่งขาย {so_id}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
 
 
 @sales_router.post(
@@ -226,12 +273,27 @@ async def api_delete_order(
 )
 async def api_submit_order(
     so_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     user_id = UUID(token["sub"])
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     so = await submit_sales_order(db, so_id, org_id=org_id)
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="STATUS_CHANGE", resource_type="sales_order",
+        resource_id=str(so.id),
+        description=f"ส่งใบสั่งขาย {so.so_number}",
+        changes={"status": {"old": "DRAFT", "new": "SUBMITTED"}},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
 
     # Phase 4.2: Auto-approve if bypass is on
     if await check_approval_bypass(db, org_id, "sales.order"):
@@ -287,10 +349,27 @@ async def api_approve_order(
 )
 async def api_cancel_order(
     so_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
+    user_id = UUID(token["sub"])
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     so = await cancel_sales_order(db, so_id, org_id=org_id)
+
+    # Audit log
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="STATUS_CHANGE", resource_type="sales_order",
+        resource_id=str(so.id),
+        description=f"ยกเลิกใบสั่งขาย {so_id}",
+        changes={"status": {"new": "CANCELLED"}},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
     enriched = await enrich_sales_orders(db, [so])
     return enriched[0]

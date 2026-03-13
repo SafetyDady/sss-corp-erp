@@ -448,21 +448,40 @@ async def api_audit_log(
     action: str | None = Query(default=None),
     resource_type: str | None = Query(default=None),
     search: str | None = Query(default=None),
+    start_date: str | None = Query(default=None, description="ISO date yyyy-mm-dd"),
+    end_date: str | None = Query(default=None, description="ISO date yyyy-mm-dd"),
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     """Enhanced audit log — returns AuditLog entries with filters and user enrichment."""
+    from datetime import datetime as _dt
     from app.services.security import get_audit_logs
 
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+
+    parsed_start = None
+    parsed_end = None
+    if start_date:
+        try:
+            parsed_start = _dt.fromisoformat(start_date)
+        except ValueError:
+            pass
+    if end_date:
+        try:
+            parsed_end = _dt.fromisoformat(end_date + "T23:59:59") if len(end_date) == 10 else _dt.fromisoformat(end_date)
+        except ValueError:
+            pass
+
     items, total = await get_audit_logs(
         db, org_id,
         user_id=user_id,
         action=action,
         resource_type=resource_type,
         search=search,
+        start_date=parsed_start,
+        end_date=parsed_end,
         limit=limit,
         offset=offset,
     )

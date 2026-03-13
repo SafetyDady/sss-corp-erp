@@ -201,6 +201,7 @@ async def api_list_withdrawal_slips(
 )
 async def api_create_withdrawal_slip(
     body: WithdrawalSlipCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(require("inventory.withdrawal.create")),
 ):
@@ -209,6 +210,17 @@ async def api_create_withdrawal_slip(
     slip = await create_withdrawal_slip(
         db, body=body.model_dump(), created_by=user_id, org_id=org_id,
     )
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="CREATE", resource_type="withdrawal_slip",
+        resource_id=str(slip.id),
+        description=f"สร้างใบเบิกของ {slip.slip_number}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
     return await _slip_to_response(db, slip)
 
 
@@ -243,13 +255,28 @@ async def api_get_withdrawal_slip(
 async def api_update_withdrawal_slip(
     slip_id: UUID,
     body: WithdrawalSlipUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(require("inventory.withdrawal.update")),
 ):
     org_id = token.get("org_id", DEFAULT_ORG_ID)
+    user_id = UUID(token["sub"])
+    update_data = body.model_dump(exclude_unset=True)
     slip = await update_withdrawal_slip(
-        db, slip_id, body=body.model_dump(exclude_unset=True), org_id=org_id,
+        db, slip_id, body=update_data, org_id=org_id,
     )
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="UPDATE", resource_type="withdrawal_slip",
+        resource_id=str(slip_id),
+        description=f"แก้ไขใบเบิกของ {slip_id}",
+        changes=update_data,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
     return await _slip_to_response(db, slip)
 
 
@@ -263,11 +290,24 @@ async def api_update_withdrawal_slip(
 )
 async def api_delete_withdrawal_slip(
     slip_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(require("inventory.withdrawal.delete")),
 ):
     org_id = token.get("org_id", DEFAULT_ORG_ID)
+    user_id = UUID(token["sub"])
     await delete_withdrawal_slip(db, slip_id, org_id=org_id)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="DELETE", resource_type="withdrawal_slip",
+        resource_id=str(slip_id),
+        description=f"ลบใบเบิกของ {slip_id}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
     return {"detail": "Withdrawal slip deleted"}
 
 
@@ -282,11 +322,25 @@ async def api_delete_withdrawal_slip(
 )
 async def api_submit_withdrawal_slip(
     slip_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(require("inventory.withdrawal.create")),
 ):
     org_id = token.get("org_id", DEFAULT_ORG_ID)
+    user_id = UUID(token["sub"])
     slip = await submit_withdrawal_slip(db, slip_id, org_id=org_id)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="STATUS_CHANGE", resource_type="withdrawal_slip",
+        resource_id=str(slip_id),
+        description=f"ส่งใบเบิกของ {slip.slip_number}",
+        changes={"status": {"old": "DRAFT", "new": "PENDING"}},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
     return await _slip_to_response(db, slip)
 
 
@@ -337,9 +391,23 @@ async def api_issue_withdrawal_slip(
 )
 async def api_cancel_withdrawal_slip(
     slip_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(require("inventory.withdrawal.update")),
 ):
     org_id = token.get("org_id", DEFAULT_ORG_ID)
+    user_id = UUID(token["sub"])
     slip = await cancel_withdrawal_slip(db, slip_id, org_id=org_id)
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=UUID(org_id) if isinstance(org_id, str) else org_id,
+        action="STATUS_CHANGE", resource_type="withdrawal_slip",
+        resource_id=str(slip_id),
+        description=f"ยกเลิกใบเบิกของ {slip_id}",
+        changes={"status": {"new": "CANCELLED"}},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
     return await _slip_to_response(db, slip)

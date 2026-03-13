@@ -171,11 +171,13 @@ async def api_list_employees(
 )
 async def api_create_employee(
     body: EmployeeCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
-    return await create_employee(
+    user_id = UUID(token["sub"])
+    emp = await create_employee(
         db,
         employee_code=body.employee_code,
         full_name=body.full_name,
@@ -192,6 +194,20 @@ async def api_create_employee(
         monthly_salary=body.monthly_salary,
         hire_date=body.hire_date,
     )
+
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="CREATE", resource_type="employee",
+        resource_id=str(emp.id),
+        description=f"สร้างพนักงาน {emp.full_name} ({emp.employee_code})",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
+    return emp
 
 
 # ── Profile Self-Edit (Go-Live G7) — MUST be before /employees/{emp_id} ──
@@ -328,12 +344,29 @@ async def api_get_employee(
 async def api_update_employee(
     emp_id: UUID,
     body: EmployeeUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    user_id = UUID(token["sub"])
     update_data = body.model_dump(exclude_unset=True)
-    return await update_employee(db, emp_id, update_data=update_data, org_id=org_id)
+    emp = await update_employee(db, emp_id, update_data=update_data, org_id=org_id)
+
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="UPDATE", resource_type="employee",
+        resource_id=str(emp_id),
+        description=f"แก้ไขพนักงาน {emp.full_name}",
+        changes=update_data,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
+    return emp
 
 
 @hr_router.delete(

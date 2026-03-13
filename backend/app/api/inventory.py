@@ -103,11 +103,13 @@ async def api_list_products(
 )
 async def api_create_product(
     body: ProductCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     """Create a new product."""
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    user_id = UUID(token["sub"])
 
     product = await create_product(
         db,
@@ -121,6 +123,19 @@ async def api_create_product(
         min_stock=body.min_stock,
         org_id=org_id,
     )
+
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="CREATE", resource_type="product",
+        resource_id=str(product.id),
+        description=f"สร้างสินค้า {product.name} ({product.sku})",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
     return product
 
 
@@ -219,13 +234,30 @@ async def api_get_product(
 async def api_update_product(
     product_id: UUID,
     body: ProductUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     """Update an existing product."""
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    user_id = UUID(token["sub"])
     update_data = body.model_dump(exclude_unset=True)
-    return await update_product(db, product_id, update_data=update_data, org_id=org_id)
+    product = await update_product(db, product_id, update_data=update_data, org_id=org_id)
+
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="UPDATE", resource_type="product",
+        resource_id=str(product_id),
+        description=f"แก้ไขสินค้า {product.name}",
+        changes=update_data,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
+    return product
 
 
 @product_router.delete(
@@ -235,12 +267,26 @@ async def api_update_product(
 )
 async def api_delete_product(
     product_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     """Soft-delete a product (Business Rule #4)."""
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    user_id = UUID(token["sub"])
     await delete_product(db, product_id, org_id=org_id)
+
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="DELETE", resource_type="product",
+        resource_id=str(product_id),
+        description=f"ลบสินค้า {product_id}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
 
 
 # ============================================================

@@ -690,6 +690,8 @@ async def get_audit_logs(
     action: str | None = None,
     resource_type: str | None = None,
     search: str | None = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[list[dict], int]:
@@ -705,6 +707,10 @@ async def get_audit_logs(
         base_q = base_q.where(AuditLog.resource_type == resource_type)
     if search:
         base_q = base_q.where(AuditLog.description.ilike(f"%{search}%"))
+    if start_date:
+        base_q = base_q.where(AuditLog.created_at >= start_date)
+    if end_date:
+        base_q = base_q.where(AuditLog.created_at <= end_date)
 
     # Count
     count_q = select(func.count()).select_from(base_q.subquery())

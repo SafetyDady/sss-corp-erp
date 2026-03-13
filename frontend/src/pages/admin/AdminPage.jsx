@@ -1,5 +1,5 @@
 import { Tabs } from 'antd';
-import { Users, Shield, FileText, Settings, LayoutGrid, Clock, ShieldCheck, Download, Activity } from 'lucide-react';
+import { Users, Shield, ScrollText, Settings, LayoutGrid, Clock, ShieldCheck, Download, Activity } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import { usePermission } from '../../hooks/usePermission';
 import UserTab from './UserTab';
@@ -65,7 +65,7 @@ export default function AdminPage() {
     },
     can('admin.role.read') && {
       key: 'audit',
-      label: tabLabel(FileText, 'Audit Log'),
+      label: tabLabel(ScrollText, 'Audit Log'),
       children: <AuditLogTab />,
     },
   ].filter(Boolean);

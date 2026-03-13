@@ -217,6 +217,7 @@ async def api_export_prs(
 )
 async def api_create_pr(
     body: PRCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -244,6 +245,19 @@ async def api_create_pr(
         org_id=org_id,
         requester_id=requester_id,
     )
+
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="CREATE", resource_type="purchase_requisition",
+        resource_id=str(pr.id),
+        description=f"สร้างใบขอซื้อ {pr.pr_number}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
     return _pr_to_response(pr)
 
 
@@ -314,15 +328,29 @@ async def api_delete_pr(
 )
 async def api_submit_pr(
     pr_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    user_id = UUID(token["sub"])
     pr = await submit_purchase_requisition(db, pr_id, org_id=org_id)
+
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="STATUS_CHANGE", resource_type="purchase_requisition",
+        resource_id=str(pr.id),
+        description=f"ส่งใบขอซื้อ {pr.pr_number}",
+        changes={"status": {"old": "DRAFT", "new": "SUBMITTED"}},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
 
     # Check if auto-approve bypass is on
     if await check_approval_bypass(db, org_id, "purchasing.pr"):
-        user_id = UUID(token["sub"])
         pr = await approve_purchase_requisition(
             db, pr_id, action="approve", approved_by=user_id, org_id=org_id
         )
@@ -373,11 +401,27 @@ async def api_approve_pr(
 )
 async def api_cancel_pr(
     pr_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    user_id = UUID(token["sub"])
     pr = await cancel_purchase_requisition(db, pr_id, org_id=org_id)
+
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="STATUS_CHANGE", resource_type="purchase_requisition",
+        resource_id=str(pr.id),
+        description=f"ยกเลิกใบขอซื้อ {pr.pr_number}",
+        changes={"status": {"new": "CANCELLED"}},
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
     return _pr_to_response(pr)
 
 

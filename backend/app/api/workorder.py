@@ -176,6 +176,7 @@ async def api_export_work_orders(
 )
 async def api_create_work_order(
     body: WorkOrderCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -183,7 +184,7 @@ async def api_create_work_order(
     user_id = UUID(token["sub"])
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
 
-    return await create_work_order(
+    wo = await create_work_order(
         db,
         customer_name=body.customer_name,
         description=body.description,
@@ -192,6 +193,20 @@ async def api_create_work_order(
         org_id=org_id,
         requested_approver_id=body.requested_approver_id,
     )
+
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="CREATE", resource_type="work_order",
+        resource_id=str(wo.id),
+        description=f"สร้างใบสั่งงาน {wo.wo_number}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
+    return wo
 
 
 @workorder_router.get(
@@ -217,13 +232,30 @@ async def api_get_work_order(
 async def api_update_work_order(
     wo_id: UUID,
     body: WorkOrderUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
     """Update work order fields. Cannot edit CLOSED WO."""
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    user_id = UUID(token["sub"])
     update_data = body.model_dump(exclude_unset=True)
-    return await update_work_order(db, wo_id, update_data=update_data, org_id=org_id)
+    wo = await update_work_order(db, wo_id, update_data=update_data, org_id=org_id)
+
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="UPDATE", resource_type="work_order",
+        resource_id=str(wo_id),
+        description=f"แก้ไขใบสั่งงาน {wo.wo_number}",
+        changes=update_data,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
+    return wo
 
 
 @workorder_router.delete(
@@ -233,6 +265,7 @@ async def api_update_work_order(
 )
 async def api_delete_work_order(
     wo_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -241,6 +274,18 @@ async def api_delete_work_order(
     user_role = token.get("role", "")
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     await delete_work_order(db, wo_id, user_id=user_id, user_role=user_role, org_id=org_id)
+
+    from app.services.security import create_audit_log
+    from app.api._helpers import get_client_ip
+    await create_audit_log(
+        db, user_id=user_id, org_id=org_id,
+        action="DELETE", resource_type="work_order",
+        resource_id=str(wo_id),
+        description=f"ลบใบสั่งงาน {wo_id}",
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
 
 
 # ============================================================
