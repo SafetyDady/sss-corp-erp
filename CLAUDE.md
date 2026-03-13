@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-11 v33 (Phase 8.5 Finance Dashboard)
+> อัปเดตล่าสุด: 2026-03-13 v34 (Phase 8.6 More Dashboard Charts)
 
 ---
 
@@ -893,6 +893,7 @@ POST   /api/sales/delivery/{id}/cancel         sales.delivery.update   (DRAFT→
 ```
 GET    /api/finance/reports                 finance.report.read
 GET    /api/finance/reports/finance-dashboard  finance.report.read  (Phase 8.5)
+GET    /api/finance/reports/dashboard-charts finance.report.read  (Phase 8.6)
 GET    /api/finance/reports/export          finance.report.export
 GET    /api/finance/reports/monthly-summary finance.report.read          (?months=6, max 12)
 GET    /api/finance/reports/cost-center-summary  finance.report.read
@@ -1456,7 +1457,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **8.3** SupervisorDashboard Enhancement — click navigation + approval breakdown (Daily Report/Timesheet/Leave) + auto-refresh
 - [x] **8.4** Interactive — StatCard onClick navigation, auto-refresh 5 min, last-updated timestamp, time-based greeting
 - [x] **8.5** Finance Dashboard — Revenue vs Expenses, AP/AR Aging, Cash Flow chart, Top Customers/Suppliers, Cost Center summary
-- [ ] **8.6** More Charts — WO Cost Trend, Inventory Turnover, employee productivity (future)
+- [x] **8.6** More Charts — Inventory Value by Product Type (Bar), Stock Movement Inflow vs Outflow (Line) on AdminDashboard
 
 ### Phase 9 — Notification Center 🔔 ✅
 - [x] **9.1** Model + Migration — `Notification` (10 types: APPROVAL_REQUEST, DOCUMENT_APPROVED/REJECTED, LOW_STOCK_ALERT, LEAVE_APPROVED/REJECTED, TIMESHEET_APPROVED/FINAL, PO_RECEIVED, SYSTEM) + 4 indexes
@@ -1789,4 +1790,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v33 (Phase 0-9 complete + Phase 8.5 Finance Dashboard + Phase 10 partial + Phase 11 partial (11.1-11.10B + 11.11 Stock Aging + 11.13 Barcode/QR + 11.14 Stock Take) + Phase 12 partial + Phase 13 partial (Login History + Password Policy + 2FA + Session Management + Export Audit) + Phase 14 partial (Performance Monitoring 14.1-14.10 complete) + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete + Mobile Responsive core complete, Phase 11.12,11.15/12.7-12.9/13.1,13.6/14.11-14.13 planned)*
+*End of CLAUDE.md — SSS Corp ERP v34 (Phase 0-9 complete + Phase 8.5 Finance Dashboard + Phase 8.6 More Charts + Phase 10 partial + Phase 11 partial (11.1-11.10B + 11.11 Stock Aging + 11.13 Barcode/QR + 11.14 Stock Take) + Phase 12 partial + Phase 13 partial (Login History + Password Policy + 2FA + Session Management + Export Audit) + Phase 14 partial (Performance Monitoring 14.1-14.10 complete) + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete + Mobile Responsive core complete, Phase 11.12,11.15/12.7-12.9/13.1,13.6/14.11-14.13 planned)*

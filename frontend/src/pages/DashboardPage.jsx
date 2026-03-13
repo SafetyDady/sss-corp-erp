@@ -504,6 +504,8 @@ function AdminDashboard() {
     employees: 0,
     pendingApprovals: 0,
     monthlySummary: [],
+    inventoryByType: [],
+    monthlyMovements: [],
   });
 
   const fetchData = useCallback(async () => {
@@ -560,6 +562,8 @@ function AdminDashboard() {
     // Charts
     if (can('finance.report.read'))
       tasks.push({ key: 'monthlySummary', req: api.get('/api/finance/reports/monthly-summary', { params: { months: 6 } }).catch(() => null) });
+    if (can('inventory.product.read'))
+      tasks.push({ key: 'dashboardCharts', req: api.get('/api/finance/reports/dashboard-charts', { params: { months: 6 } }).catch(() => null) });
 
     // Execute all
     const results = await Promise.allSettled(tasks.map((t) => t.req));
@@ -583,6 +587,10 @@ function AdminDashboard() {
           case 'lowStock': newData.lowStock = res.data?.count || 0; break;
           case 'employees': newData.employees = res.data?.total || 0; break;
           case 'monthlySummary': newData.monthlySummary = res.data?.months || []; break;
+          case 'dashboardCharts':
+            newData.inventoryByType = res.data?.inventory_by_type || [];
+            newData.monthlyMovements = res.data?.monthly_movements || [];
+            break;
           default:
             if (approvalKeys.includes(key)) {
               const count = res.data?.total || (res.data?.items || []).length || 0;
@@ -779,6 +787,46 @@ function AdminDashboard() {
                   <BarChartCard
                     data={data.monthlySummary}
                     bars={[{ dataKey: 'wo_closed', name: 'WO ปิด', color: '#3b82f6' }]}
+                    xKey="label"
+                  />
+                  </Suspense>
+                </Card>
+              </Col>
+            </Row>
+          )}
+
+          {/* Row 3.5 — Inventory & Stock Movement Charts (Phase 8.6) */}
+          {can('inventory.product.read') && (data.inventoryByType.length > 0 || data.monthlyMovements.length > 0) && (
+            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+              <Col xs={24} lg={10}>
+                <Card
+                  title={<span style={{ fontSize: 14 }}>มูลค่าคงคลังตามประเภท</span>}
+                  size="small"
+                  style={{ background: COLORS.card, border: `1px solid ${COLORS.border}` }}
+                >
+                  <Suspense fallback={<Skeleton active />}>
+                  <BarChartCard
+                    data={data.inventoryByType}
+                    bars={[{ dataKey: 'value', name: 'มูลค่า (฿)', color: COLORS.accent }]}
+                    xKey="label"
+                    isCurrency
+                  />
+                  </Suspense>
+                </Card>
+              </Col>
+              <Col xs={24} lg={14}>
+                <Card
+                  title={<span style={{ fontSize: 14 }}>Stock Movement (6 เดือน)</span>}
+                  size="small"
+                  style={{ background: COLORS.card, border: `1px solid ${COLORS.border}` }}
+                >
+                  <Suspense fallback={<Skeleton active />}>
+                  <LineChartCard
+                    data={data.monthlyMovements}
+                    lines={[
+                      { dataKey: 'inflow_value', name: 'รับเข้า (฿)', color: COLORS.success },
+                      { dataKey: 'outflow_value', name: 'จ่ายออก (฿)', color: COLORS.danger },
+                    ]}
                     xKey="label"
                   />
                   </Suspense>

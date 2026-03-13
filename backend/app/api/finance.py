@@ -2,10 +2,12 @@
 SSS Corp ERP — Finance API Routes
 Phase 3: Reports + export
 Phase 8.5: Finance Dashboard
+Phase 8.6: Dashboard Charts (Inventory + Stock Movement)
 
 Endpoints (from CLAUDE.md):
   GET    /api/finance/reports                    finance.report.read
   GET    /api/finance/reports/finance-dashboard  finance.report.read  (Phase 8.5)
+  GET    /api/finance/reports/dashboard-charts   finance.report.read  (Phase 8.6)
   GET    /api/finance/reports/export             finance.report.export
 """
 
@@ -24,7 +26,7 @@ from app.core.database import get_db
 from app.core.permissions import require
 from app.core.security import get_token_payload
 from app.models.hr import Timesheet, TimesheetStatus, PayrollRun
-from app.models.inventory import StockMovement
+from app.models.inventory import Product, ProductType, StockMovement, MovementType
 from app.models.purchasing import PurchaseOrder, POStatus
 from app.models.sales import SalesOrder, SOStatus
 from app.models.workorder import WorkOrder, WOStatus
@@ -123,6 +125,130 @@ async def api_finance_dashboard(
     org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
     from app.services.finance import get_finance_dashboard
     return await get_finance_dashboard(db, org_id=org_id, months=months)
+
+
+@finance_router.get(
+    "/reports/dashboard-charts",
+    dependencies=[Depends(require("finance.report.read"))],
+)
+async def api_dashboard_charts(
+    months: int = Query(default=6, ge=1, le=12),
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Dashboard charts — inventory value by type + monthly stock movements (Phase 8.6)."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    today = date.today()
+
+    # --- 1) Inventory value by product type (current snapshot) ---
+    TYPE_LABELS = {
+        ProductType.MATERIAL: "วัตถุดิบ",
+        ProductType.CONSUMABLE: "วัสดุสิ้นเปลือง",
+        ProductType.SPAREPART: "อะไหล่",
+        ProductType.FINISHED_GOODS: "สินค้าสำเร็จ",
+    }
+
+    inv_query = (
+        select(
+            Product.product_type,
+            func.coalesce(func.sum(Product.on_hand * Product.cost), 0).label("value"),
+            func.count().label("count"),
+        )
+        .where(
+            Product.is_active == True,
+            Product.org_id == org_id,
+            Product.product_type != ProductType.SERVICE,
+        )
+        .group_by(Product.product_type)
+    )
+    inv_result = await db.execute(inv_query)
+    inventory_by_type = []
+    for r in inv_result:
+        inventory_by_type.append({
+            "type": r.product_type.value,
+            "label": TYPE_LABELS.get(r.product_type, r.product_type.value),
+            "value": float(r.value),
+            "count": r.count,
+        })
+
+    # --- 2) Monthly stock movement inflow vs outflow ---
+    buckets = []
+    y, m = today.year, today.month
+    for _ in range(months):
+        buckets.append(date(y, m, 1))
+        m -= 1
+        if m == 0:
+            m = 12
+            y -= 1
+    buckets.reverse()
+    start_date = buckets[0]
+
+    INFLOW_TYPES = (MovementType.RECEIVE, MovementType.RETURN, MovementType.PRODUCE)
+    OUTFLOW_TYPES = (MovementType.ISSUE, MovementType.CONSUME)
+
+    period_col = func.date_trunc(text("'month'"), StockMovement.created_at).label("period")
+
+    # Inflow aggregation
+    inflow_query = (
+        select(
+            period_col,
+            func.coalesce(func.sum(func.abs(StockMovement.quantity)), 0).label("qty"),
+            func.coalesce(func.sum(func.abs(StockMovement.quantity) * StockMovement.unit_cost), 0).label("val"),
+        )
+        .where(
+            StockMovement.is_reversed == False,
+            StockMovement.org_id == org_id,
+            StockMovement.movement_type.in_(INFLOW_TYPES),
+            StockMovement.created_at >= start_date,
+        )
+        .group_by(period_col)
+    )
+    inflow_result = await db.execute(inflow_query)
+    inflow_map = {str(r.period.date())[:7]: {"qty": int(r.qty), "val": float(r.val)} for r in inflow_result}
+
+    # Outflow aggregation
+    outflow_query = (
+        select(
+            period_col,
+            func.coalesce(func.sum(func.abs(StockMovement.quantity)), 0).label("qty"),
+            func.coalesce(func.sum(func.abs(StockMovement.quantity) * StockMovement.unit_cost), 0).label("val"),
+        )
+        .where(
+            StockMovement.is_reversed == False,
+            StockMovement.org_id == org_id,
+            StockMovement.movement_type.in_(OUTFLOW_TYPES),
+            StockMovement.created_at >= start_date,
+        )
+        .group_by(period_col)
+    )
+    outflow_result = await db.execute(outflow_query)
+    outflow_map = {str(r.period.date())[:7]: {"qty": int(r.qty), "val": float(r.val)} for r in outflow_result}
+
+    THAI_MONTHS = [
+        "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+        "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.",
+    ]
+
+    monthly_movements = []
+    for b in buckets:
+        key = b.strftime("%Y-%m")
+        thai_year = str(b.year + 543)[2:]
+        label = f"{THAI_MONTHS[b.month - 1]} {thai_year}"
+        inf = inflow_map.get(key, {"qty": 0, "val": 0.0})
+        out = outflow_map.get(key, {"qty": 0, "val": 0.0})
+        monthly_movements.append({
+            "period": key,
+            "label": label,
+            "inflow": inf["qty"],
+            "outflow": out["qty"],
+            "inflow_value": inf["val"],
+            "outflow_value": out["val"],
+        })
+
+    return {
+        "inventory_by_type": inventory_by_type,
+        "monthly_movements": monthly_movements,
+    }
 
 
 @finance_router.get(
