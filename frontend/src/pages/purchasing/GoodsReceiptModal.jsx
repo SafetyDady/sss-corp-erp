@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Modal, Table, InputNumber, Input, App, Tag, Row, Col, Select } from 'antd';
-import { Warehouse as WarehouseIcon, MapPin, FileText } from 'lucide-react';
+import { Modal, Table, InputNumber, Input, App, Tag, Row, Col, Select, Button, Space } from 'antd';
+import { Warehouse as WarehouseIcon, MapPin, FileText, Sparkles } from 'lucide-react';
 import api from '../../services/api';
 import { getApiErrorMsg } from '../../utils/formatters';
 import { COLORS } from '../../utils/constants';
@@ -13,6 +13,8 @@ export default function GoodsReceiptModal({ open, po, products, onClose, onSucce
   const [selectedWarehouseId, setSelectedWarehouseId] = useState(undefined);
   const [selectedLocationId, setSelectedLocationId] = useState(undefined);
   const [deliveryNoteNumber, setDeliveryNoteNumber] = useState('');
+  const [batchNumbers, setBatchNumbers] = useState({});   // Phase 11.12: per-line batch
+  const [generatingBatch, setGeneratingBatch] = useState(false);
   const { message } = App.useApp();
 
   // Fetch warehouses on open
@@ -46,6 +48,7 @@ export default function GoodsReceiptModal({ open, po, products, onClose, onSucce
           line_id: line.id,
           received_qty: getReceiptQty(line.id),
           ...(isGoods && selectedLocationId ? { location_id: selectedLocationId } : {}),
+          ...(isGoods && batchNumbers[line.id] ? { batch_number: batchNumbers[line.id] } : {}),
         };
       });
 
@@ -65,6 +68,7 @@ export default function GoodsReceiptModal({ open, po, products, onClose, onSucce
       setSelectedWarehouseId(undefined);
       setSelectedLocationId(undefined);
       setDeliveryNoteNumber('');
+      setBatchNumbers({});
       onSuccess();
     } catch (err) {
       message.error(getApiErrorMsg(err, 'เกิดข้อผิดพลาด'));
@@ -76,47 +80,96 @@ export default function GoodsReceiptModal({ open, po, products, onClose, onSucce
   const goodsLines = (po?.lines || []).filter((l) => (l.item_type || 'GOODS') === 'GOODS');
   const serviceLines = (po?.lines || []).filter((l) => l.item_type === 'SERVICE');
 
-  const makeColumns = (isService) => [
-    {
-      title: isService ? 'บริการ' : 'สินค้า', key: 'product', ellipsis: true,
-      render: (_, record) => {
-        if (record.product_id && products?.[record.product_id]) {
-          const p = products[record.product_id];
-          return `${p.sku} - ${p.name}`;
-        }
-        return record.description || '-';
+  // Auto-generate batch number for a GR line
+  const handleAutoGenerateBatch = async (lineId) => {
+    setGeneratingBatch(true);
+    try {
+      const res = await api.post('/api/inventory/generate-batch-number');
+      const bn = res.data?.batch_number;
+      if (bn) {
+        setBatchNumbers((prev) => ({ ...prev, [lineId]: bn }));
+        message.success(`Batch: ${bn}`);
+      }
+    } catch (err) {
+      message.error(err.response?.data?.detail || 'ไม่สามารถสร้างเลข Batch ได้');
+    } finally {
+      setGeneratingBatch(false);
+    }
+  };
+
+  const makeColumns = (isService) => {
+    const cols = [
+      {
+        title: isService ? 'บริการ' : 'สินค้า', key: 'product', ellipsis: true,
+        render: (_, record) => {
+          if (record.product_id && products?.[record.product_id]) {
+            const p = products[record.product_id];
+            return `${p.sku} - ${p.name}`;
+          }
+          return record.description || '-';
+        },
       },
-    },
-    { title: 'สั่ง', dataIndex: 'quantity', width: 60, align: 'right' },
-    {
-      title: 'รับแล้ว', dataIndex: 'received_qty', width: 70, align: 'right',
-      render: (v) => <span style={{ color: COLORS.success }}>{v || 0}</span>,
-    },
-    {
-      title: 'คงเหลือ', key: 'remaining', width: 70, align: 'right',
-      render: (_, record) => {
-        const remaining = record.quantity - (record.received_qty || 0);
-        return <span style={{ color: remaining > 0 ? COLORS.warning : COLORS.success }}>{remaining}</span>;
+      { title: 'สั่ง', dataIndex: 'quantity', width: 60, align: 'right' },
+      {
+        title: 'รับแล้ว', dataIndex: 'received_qty', width: 70, align: 'right',
+        render: (v) => <span style={{ color: COLORS.success }}>{v || 0}</span>,
       },
-    },
-    {
-      title: isService ? 'จำนวนยืนยัน' : 'จำนวนรับ', key: 'receipt', width: 120,
-      render: (_, record) => {
-        const remaining = record.quantity - (record.received_qty || 0);
-        if (remaining <= 0) return <Tag color="green">ครบแล้ว</Tag>;
-        return (
-          <InputNumber
-            min={0}
-            max={remaining}
-            value={getReceiptQty(record.id)}
-            onChange={(val) => updateReceiptQty(record.id, val)}
-            size="small"
-            style={{ width: '100%' }}
-          />
-        );
+      {
+        title: 'คงเหลือ', key: 'remaining', width: 70, align: 'right',
+        render: (_, record) => {
+          const remaining = record.quantity - (record.received_qty || 0);
+          return <span style={{ color: remaining > 0 ? COLORS.warning : COLORS.success }}>{remaining}</span>;
+        },
       },
-    },
-  ];
+      {
+        title: isService ? 'จำนวนยืนยัน' : 'จำนวนรับ', key: 'receipt', width: 120,
+        render: (_, record) => {
+          const remaining = record.quantity - (record.received_qty || 0);
+          if (remaining <= 0) return <Tag color="green">ครบแล้ว</Tag>;
+          return (
+            <InputNumber
+              min={0}
+              max={remaining}
+              value={getReceiptQty(record.id)}
+              onChange={(val) => updateReceiptQty(record.id, val)}
+              size="small"
+              style={{ width: '100%' }}
+            />
+          );
+        },
+      },
+    ];
+    // Batch column for GOODS only
+    if (!isService) {
+      cols.push({
+        title: 'Batch/Lot', key: 'batch', width: 180,
+        render: (_, record) => {
+          const remaining = record.quantity - (record.received_qty || 0);
+          if (remaining <= 0) return null;
+          return (
+            <Space.Compact size="small" style={{ width: '100%' }}>
+              <Input
+                value={batchNumbers[record.id] || ''}
+                onChange={(e) => setBatchNumbers((prev) => ({ ...prev, [record.id]: e.target.value }))}
+                placeholder="Batch No."
+                maxLength={50}
+                size="small"
+                style={{ flex: 1 }}
+              />
+              <Button
+                icon={<Sparkles size={12} />}
+                onClick={() => handleAutoGenerateBatch(record.id)}
+                loading={generatingBatch}
+                size="small"
+                title="Auto Generate"
+              />
+            </Space.Compact>
+          );
+        },
+      });
+    }
+    return cols;
+  };
 
   return (
     <Modal
@@ -125,7 +178,7 @@ export default function GoodsReceiptModal({ open, po, products, onClose, onSucce
       onCancel={onClose}
       onOk={handleSubmit}
       confirmLoading={loading}
-      width={750}
+      width={900}
       okText="ยืนยันการรับ"
       destroyOnHidden
     >

@@ -9,6 +9,7 @@ export default function DOShipModal({ open, doData, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [shippedQtys, setShippedQtys] = useState({});
   const [locationOverrides, setLocationOverrides] = useState({});
+  const [batchOverrides, setBatchOverrides] = useState({});  // Phase 11.12
   const [shipNote, setShipNote] = useState('');
   const [warehouses, setWarehouses] = useState([]);
   const [locationsByWarehouse, setLocationsByWarehouse] = useState({});
@@ -33,6 +34,7 @@ export default function DOShipModal({ open, doData, onClose, onSuccess }) {
     setShippedQtys(defaultQtys);
     setLocationOverrides({});
     setSelectedWarehouses({});
+    setBatchOverrides({});
     setShipNote('');
   }, [open, doData?.id]);
 
@@ -70,6 +72,7 @@ export default function DOShipModal({ open, doData, onClose, onSuccess }) {
       line_id: line.id,
       shipped_qty: shippedQtys[line.id] ?? line.ordered_qty,
       ...(locationOverrides[line.id] ? { location_id: locationOverrides[line.id] } : {}),
+      ...(batchOverrides[line.id] ? { batch_number: batchOverrides[line.id] } : {}),
     }));
 
     const hasQty = lines.some((l) => l.shipped_qty > 0);
@@ -166,6 +169,19 @@ export default function DOShipModal({ open, doData, onClose, onSuccess }) {
         />
       ),
     },
+    {
+      title: 'Batch', key: 'batch', width: 140,
+      render: (_, record) => (
+        <Input
+          size="small"
+          style={{ width: '100%' }}
+          placeholder="Batch No."
+          value={batchOverrides[record.id] || ''}
+          onChange={(e) => setBatchOverrides((prev) => ({ ...prev, [record.id]: e.target.value }))}
+          maxLength={50}
+        />
+      ),
+    },
   ];
 
   return (
@@ -175,7 +191,7 @@ export default function DOShipModal({ open, doData, onClose, onSuccess }) {
       onCancel={onClose}
       onOk={handleSubmit}
       confirmLoading={loading}
-      width={900}
+      width={1000}
       okText="ยืนยันจัดส่ง"
       okButtonProps={{ style: { background: COLORS.success } }}
       destroyOnHidden

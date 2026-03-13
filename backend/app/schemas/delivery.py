@@ -26,6 +26,7 @@ class DOShipLineRequest(BaseModel):
     line_id: UUID
     shipped_qty: int = Field(ge=0)
     location_id: Optional[UUID] = None
+    batch_number: Optional[str] = Field(default=None, max_length=50)  # Phase 11.12
 
 
 class DOLineResponse(BaseModel):

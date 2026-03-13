@@ -62,6 +62,7 @@ class TransferRequestUpdate(BaseModel):
 class TransferRequestExecuteLineInput(BaseModel):
     line_id: UUID
     transferred_qty: int = Field(ge=0)
+    batch_number: Optional[str] = Field(default=None, max_length=50)  # Phase 11.12
 
 
 class TransferRequestExecuteRequest(BaseModel):

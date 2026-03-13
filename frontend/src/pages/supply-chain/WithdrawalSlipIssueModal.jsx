@@ -9,6 +9,7 @@ export default function WithdrawalSlipIssueModal({ open, slip, onClose, onSucces
   const [loading, setLoading] = useState(false);
   const [issuedQtys, setIssuedQtys] = useState({});
   const [locationOverrides, setLocationOverrides] = useState({});
+  const [batchOverrides, setBatchOverrides] = useState({});  // Phase 11.12
   const [issueNote, setIssueNote] = useState('');
   const [warehouses, setWarehouses] = useState([]);
   const [locationsByWarehouse, setLocationsByWarehouse] = useState({});
@@ -33,6 +34,7 @@ export default function WithdrawalSlipIssueModal({ open, slip, onClose, onSucces
     setIssuedQtys(defaultQtys);
     setLocationOverrides({});
     setSelectedWarehouses({});
+    setBatchOverrides({});
     setIssueNote('');
   }, [open, slip?.id]);
 
@@ -70,6 +72,7 @@ export default function WithdrawalSlipIssueModal({ open, slip, onClose, onSucces
       line_id: line.id,
       issued_qty: issuedQtys[line.id] ?? line.quantity,
       ...(locationOverrides[line.id] ? { location_id: locationOverrides[line.id] } : {}),
+      ...(batchOverrides[line.id] ? { batch_number: batchOverrides[line.id] } : {}),
     }));
 
     const hasQty = lines.some((l) => l.issued_qty > 0);
@@ -166,6 +169,19 @@ export default function WithdrawalSlipIssueModal({ open, slip, onClose, onSucces
         />
       ),
     },
+    {
+      title: 'Batch', key: 'batch', width: 140,
+      render: (_, record) => (
+        <Input
+          size="small"
+          style={{ width: '100%' }}
+          placeholder="Batch No."
+          value={batchOverrides[record.id] || ''}
+          onChange={(e) => setBatchOverrides((prev) => ({ ...prev, [record.id]: e.target.value }))}
+          maxLength={50}
+        />
+      ),
+    },
   ];
 
   return (
@@ -175,7 +191,7 @@ export default function WithdrawalSlipIssueModal({ open, slip, onClose, onSucces
       onCancel={onClose}
       onOk={handleSubmit}
       confirmLoading={loading}
-      width={850}
+      width={950}
       okText="ยืนยันจ่ายของ"
       okButtonProps={{ style: { background: COLORS.success } }}
       destroyOnHidden

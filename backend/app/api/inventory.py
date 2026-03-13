@@ -31,11 +31,16 @@ from app.core.database import get_db
 from app.core.permissions import require
 from app.core.security import get_token_payload
 from app.schemas.inventory import (
+    BatchNumberListResponse,
+    BatchNumberOption,
+    GenerateBatchNumberResponse,
     LowStockCountResponse,
     ProductCreate,
     ProductListResponse,
     ProductResponse,
     ProductUpdate,
+    StockBatchListResponse,
+    StockBatchResponse,
     StockByLocationListResponse,
     StockByLocationResponse,
     StockMovementCreate,
@@ -46,13 +51,16 @@ from app.services.inventory import (
     create_movement,
     create_product,
     delete_product,
+    generate_batch_number,
     get_low_stock_count,
     get_movement_enrichment_info,
     get_movement_location_info,
     get_product,
     get_stock_aging_report,
+    list_batch_numbers,
     list_movements,
     list_products,
+    list_stock_by_batch,
     list_stock_by_location,
     reverse_movement,
     update_product,
@@ -466,6 +474,7 @@ async def api_list_movements(
     ),
     location_id: Optional[UUID] = Query(default=None),
     work_order_id: Optional[UUID] = Query(default=None),
+    batch_number: Optional[str] = Query(default=None, max_length=50),
     db: AsyncSession = Depends(get_db),
     token: dict = Depends(get_token_payload),
 ):
@@ -474,7 +483,8 @@ async def api_list_movements(
     items, total = await list_movements(
         db, limit=limit, offset=offset, product_id=product_id,
         movement_type=movement_type, location_id=location_id,
-        work_order_id=work_order_id, org_id=org_id
+        work_order_id=work_order_id, org_id=org_id,
+        batch_number=batch_number,
     )
 
     # Batch-fetch location names for movements
@@ -549,6 +559,7 @@ async def api_create_movement(
         to_location_id=body.to_location_id,
         adjust_type=body.adjust_type,
         bin_id=body.bin_id,
+        batch_number=body.batch_number,
     )
 
     # Audit log
@@ -607,3 +618,70 @@ async def api_reverse_movement(
     await db.commit()  # Persist audit log (service already committed business data)
 
     return reversal
+
+
+# ============================================================
+# STOCK BATCH ROUTES (Phase 11.12)
+# ============================================================
+
+@product_router.get(
+    "/stock-by-batch",
+    response_model=StockBatchListResponse,
+    dependencies=[Depends(require("inventory.product.read"))],
+)
+async def api_list_stock_by_batch(
+    product_id: Optional[UUID] = Query(default=None),
+    location_id: Optional[UUID] = Query(default=None),
+    batch_number: Optional[str] = Query(default=None, max_length=50),
+    limit: int = Query(default=20, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """List stock breakdown by batch number."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    items, total = await list_stock_by_batch(
+        db, org_id=org_id, product_id=product_id,
+        location_id=location_id, batch_number=batch_number,
+        limit=limit, offset=offset,
+    )
+    return StockBatchListResponse(
+        items=[StockBatchResponse(**item) for item in items],
+        total=total, limit=limit, offset=offset,
+    )
+
+
+@product_router.get(
+    "/batch-numbers",
+    response_model=BatchNumberListResponse,
+    dependencies=[Depends(require("inventory.product.read"))],
+)
+async def api_list_batch_numbers(
+    product_id: UUID = Query(...),
+    location_id: Optional[UUID] = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """List available batch numbers for a product (for consume-mode dropdown)."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    items = await list_batch_numbers(
+        db, org_id=org_id, product_id=product_id, location_id=location_id,
+    )
+    return BatchNumberListResponse(
+        items=[BatchNumberOption(**item) for item in items],
+    )
+
+
+@product_router.post(
+    "/generate-batch-number",
+    response_model=GenerateBatchNumberResponse,
+    dependencies=[Depends(require("inventory.movement.create"))],
+)
+async def api_generate_batch_number(
+    db: AsyncSession = Depends(get_db),
+    token: dict = Depends(get_token_payload),
+):
+    """Auto-generate a batch number: LOT-YYYYMMDD-NNN."""
+    org_id = UUID(token["org_id"]) if "org_id" in token else DEFAULT_ORG_ID
+    batch_num = await generate_batch_number(db, org_id=org_id)
+    return GenerateBatchNumberResponse(batch_number=batch_num)

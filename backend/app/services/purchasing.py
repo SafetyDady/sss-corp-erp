@@ -792,6 +792,7 @@ async def receive_goods(
                         created_by=received_by,
                         org_id=org_id,
                         location_id=rl.get("location_id"),
+                        batch_number=rl.get("batch_number"),
                     )
                 else:
                     # DIRECT_GR → no stock movement, cost charges WO or CostCenter directly

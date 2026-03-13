@@ -424,6 +424,7 @@ async def ship_delivery_order(
 
             if shipped_qty > 0:
                 location_id = ship_line.get("location_id") or line.location_id
+                batch_number = ship_line.get("batch_number")
 
                 # Get product unit_cost for movement
                 prod_result = await db.execute(
@@ -446,6 +447,7 @@ async def ship_delivery_order(
                     location_id=location_id,
                     cost_center_id=None,
                     skip_cc_validation=True,  # DO ISSUE is sales fulfillment, not CC charge
+                    batch_number=batch_number,
                 )
                 line.movement_id = movement.id
 

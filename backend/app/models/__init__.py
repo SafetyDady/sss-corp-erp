@@ -1,6 +1,6 @@
 from app.models.user import User, RefreshToken
 from app.models.inventory import (
-    Product, StockMovement, StockByLocation, ProductType, MovementType,
+    Product, StockMovement, StockByLocation, StockBatch, ProductType, MovementType,
     StockWithdrawalSlip, StockWithdrawalSlipLine, WithdrawalType, WithdrawalStatus,
 )
 from app.models.warehouse import Warehouse, Location, Bin, StockByBin
@@ -38,6 +38,7 @@ __all__ = [
     "Product",
     "StockMovement",
     "StockByLocation",
+    "StockBatch",
     "ProductType",
     "MovementType",
     "Warehouse",

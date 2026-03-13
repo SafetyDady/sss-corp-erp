@@ -31,6 +31,7 @@ from app.models.inventory import (
     MovementType,
     Product,
     ProductType,
+    StockBatch,
     StockByLocation,
     StockMovement,
 )
@@ -237,10 +238,11 @@ async def create_movement(
     adjust_type: Optional[str] = None,
     bin_id: Optional[UUID] = None,
     skip_cc_validation: bool = False,
+    batch_number: Optional[str] = None,
 ) -> StockMovement:
     """
     Create a stock movement and update on_hand.
-    Business Rules #5, #6, #13, #65, #69-72.
+    Business Rules #5, #6, #13, #65, #69-72, #145-149.
     Wrapped in try/except to ensure rollback on failure.
     """
     try:
@@ -262,6 +264,7 @@ async def create_movement(
             adjust_type=adjust_type,
             bin_id=bin_id,
             skip_cc_validation=skip_cc_validation,
+            batch_number=batch_number,
         )
     except HTTPException:
         await db.rollback()
@@ -290,6 +293,7 @@ async def _create_movement_inner(
     adjust_type: Optional[str] = None,
     bin_id: Optional[UUID] = None,
     skip_cc_validation: bool = False,
+    batch_number: Optional[str] = None,
 ) -> StockMovement:
     """Inner implementation — all DB mutations + single commit."""
     # Get product with row lock (must be active)
@@ -396,6 +400,22 @@ async def _create_movement_inner(
         dest_sbl = await _get_or_create_stock_by_location(db, product_id, to_location_id, org_id)
         dest_sbl.on_hand += quantity
 
+        # Batch tracking for TRANSFER (BR#148): deduct source batch, add to dest batch
+        if batch_number:
+            source_batch = await _get_or_create_stock_batch(
+                db, product_id, location_id, batch_number, org_id, unit_cost
+            )
+            if source_batch.on_hand < quantity:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Insufficient batch stock at source: batch={batch_number}, on_hand={source_batch.on_hand}, requested={quantity}",
+                )
+            source_batch.on_hand -= quantity
+            dest_batch = await _get_or_create_stock_batch(
+                db, product_id, to_location_id, batch_number, org_id, unit_cost
+            )
+            dest_batch.on_hand += quantity
+
         # Create movement record
         movement = StockMovement(
             product_id=product_id,
@@ -412,6 +432,7 @@ async def _create_movement_inner(
             cost_center_id=cost_center_id,
             cost_element_id=cost_element_id,
             bin_id=bin_id,
+            batch_number=batch_number,
         )
         db.add(movement)
         # product.on_hand unchanged for TRANSFER
@@ -453,6 +474,23 @@ async def _create_movement_inner(
             )
         sbb.on_hand = new_sbb_on_hand
 
+    # Phase 11.12: Batch tracking (BR#145-147)
+    if batch_number and mt != MovementType.TRANSFER:
+        sb = await _get_or_create_stock_batch(
+            db, product_id, location_id, batch_number, org_id, unit_cost
+        )
+        new_sb_on_hand = sb.on_hand + qty_delta
+        if new_sb_on_hand < 0:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Insufficient batch stock: batch={batch_number}, on_hand={sb.on_hand}, requested={quantity}",
+            )
+        sb.on_hand = new_sb_on_hand
+        # Update received_date on first RECEIVE
+        if mt in (MovementType.RECEIVE, MovementType.PRODUCE) and not sb.received_date:
+            from datetime import datetime, timezone
+            sb.received_date = datetime.now(timezone.utc)
+
     # Create movement record (immutable — BR#8)
     movement = StockMovement(
         product_id=product_id,
@@ -469,6 +507,7 @@ async def _create_movement_inner(
         cost_element_id=cost_element_id,
         to_location_id=to_location_id,
         bin_id=bin_id,
+        batch_number=batch_number,
     )
     db.add(movement)
 
@@ -584,6 +623,26 @@ async def _reverse_movement_inner(
                 )
             dest_sbl.on_hand -= original.quantity
 
+        # BR#149: Reverse batch impact for TRANSFER
+        if original.batch_number:
+            if original.to_location_id:
+                dest_batch = await _get_or_create_stock_batch(
+                    db, original.product_id, original.to_location_id,
+                    original.batch_number, org_id, original.unit_cost,
+                )
+                if dest_batch.on_hand < original.quantity:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Cannot reverse TRANSFER — insufficient batch stock at destination: on_hand={dest_batch.on_hand}",
+                    )
+                dest_batch.on_hand -= original.quantity
+            if original.location_id:
+                source_batch = await _get_or_create_stock_batch(
+                    db, original.product_id, original.location_id,
+                    original.batch_number, org_id, original.unit_cost,
+                )
+                source_batch.on_hand += original.quantity
+
         # Create reversal — product.on_hand unchanged
         reversal = StockMovement(
             product_id=original.product_id,
@@ -599,6 +658,7 @@ async def _reverse_movement_inner(
             work_order_id=original.work_order_id,
             cost_center_id=original.cost_center_id,
             cost_element_id=original.cost_element_id,
+            batch_number=original.batch_number,
         )
         db.add(reversal)
 
@@ -636,6 +696,20 @@ async def _reverse_movement_inner(
             )
         sbl.on_hand = new_sbl_on_hand
 
+    # BR#149: Reverse batch impact for non-TRANSFER
+    if original.batch_number:
+        sb = await _get_or_create_stock_batch(
+            db, original.product_id, original.location_id,
+            original.batch_number, org_id, original.unit_cost,
+        )
+        new_sb_on_hand = sb.on_hand + reverse_delta
+        if new_sb_on_hand < 0:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Cannot reverse — would result in negative batch stock: {new_sb_on_hand}",
+            )
+        sb.on_hand = new_sb_on_hand
+
     # Create reversal movement — copy all scenario fields
     reversal = StockMovement(
         product_id=original.product_id,
@@ -651,6 +725,7 @@ async def _reverse_movement_inner(
         work_order_id=original.work_order_id,
         cost_center_id=original.cost_center_id,
         cost_element_id=original.cost_element_id,
+        batch_number=original.batch_number,
     )
     db.add(reversal)
 
@@ -676,6 +751,7 @@ async def list_movements(
     location_id: Optional[UUID] = None,
     work_order_id: Optional[UUID] = None,
     org_id: Optional[UUID] = None,
+    batch_number: Optional[str] = None,
 ) -> tuple[list[StockMovement], int]:
     """List stock movements with pagination and filters."""
     query = select(StockMovement)
@@ -693,6 +769,9 @@ async def list_movements(
 
     if work_order_id:
         query = query.where(StockMovement.work_order_id == work_order_id)
+
+    if batch_number:
+        query = query.where(StockMovement.batch_number.ilike(f"%{batch_number}%"))
 
     # Total count
     count_query = select(func.count()).select_from(query.subquery())
@@ -908,6 +987,172 @@ async def _validate_bin(db: AsyncSession, bin_id: UUID, org_id: UUID) -> Bin:
             detail="Bin not found or inactive",
         )
     return bin_obj
+
+
+# ============================================================
+# STOCK BATCH HELPERS (Phase 11.12)
+# ============================================================
+
+async def _get_or_create_stock_batch(
+    db: AsyncSession,
+    product_id: UUID,
+    location_id: Optional[UUID],
+    batch_number: str,
+    org_id: UUID,
+    unit_cost: Decimal = Decimal("0"),
+) -> StockBatch:
+    """Get existing stock_batch record or create with on_hand=0.
+    Uses SELECT FOR UPDATE for concurrency safety."""
+    query = (
+        select(StockBatch)
+        .where(
+            StockBatch.product_id == product_id,
+            StockBatch.batch_number == batch_number,
+            StockBatch.org_id == org_id,
+        )
+        .with_for_update()
+    )
+    if location_id is not None:
+        query = query.where(StockBatch.location_id == location_id)
+    else:
+        query = query.where(StockBatch.location_id.is_(None))
+
+    result = await db.execute(query)
+    sb = result.scalar_one_or_none()
+    if not sb:
+        sb = StockBatch(
+            product_id=product_id,
+            location_id=location_id,
+            batch_number=batch_number,
+            on_hand=0,
+            unit_cost=unit_cost,
+            org_id=org_id,
+        )
+        db.add(sb)
+        await db.flush()
+    return sb
+
+
+async def generate_batch_number(db: AsyncSession, *, org_id: UUID) -> str:
+    """Generate auto batch number: LOT-YYYYMMDD-NNN (sequential per org per day)."""
+    from datetime import date
+    today = date.today()
+    prefix = f"LOT-{today.strftime('%Y%m%d')}-"
+
+    # Count existing batches with this date prefix
+    result = await db.execute(
+        select(func.count())
+        .select_from(StockBatch)
+        .where(
+            StockBatch.org_id == org_id,
+            StockBatch.batch_number.like(f"{prefix}%"),
+        )
+    )
+    count = (result.scalar() or 0) + 1
+    return f"{prefix}{count:03d}"
+
+
+async def list_stock_by_batch(
+    db: AsyncSession,
+    *,
+    org_id: UUID,
+    product_id: Optional[UUID] = None,
+    location_id: Optional[UUID] = None,
+    batch_number: Optional[str] = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> tuple[list[dict], int]:
+    """List stock breakdown by batch with joined product/location/warehouse info."""
+    query = (
+        select(
+            StockBatch,
+            Product.sku.label("product_sku"),
+            Product.name.label("product_name"),
+            Product.unit.label("product_unit"),
+            Location.name.label("location_name"),
+            Location.warehouse_id.label("warehouse_id"),
+            Warehouse.name.label("warehouse_name"),
+        )
+        .join(Product, StockBatch.product_id == Product.id)
+        .outerjoin(Location, StockBatch.location_id == Location.id)
+        .outerjoin(Warehouse, Location.warehouse_id == Warehouse.id)
+        .where(StockBatch.org_id == org_id)
+        .where(StockBatch.on_hand > 0)
+    )
+
+    if product_id:
+        query = query.where(StockBatch.product_id == product_id)
+    if location_id:
+        query = query.where(StockBatch.location_id == location_id)
+    if batch_number:
+        query = query.where(StockBatch.batch_number.ilike(f"%{batch_number}%"))
+
+    # Count
+    count_q = select(func.count()).select_from(query.subquery())
+    total = (await db.execute(count_q)).scalar() or 0
+
+    # Paginated results
+    query = query.order_by(StockBatch.batch_number, Product.sku).limit(limit).offset(offset)
+    result = await db.execute(query)
+    rows = result.all()
+
+    items = [
+        {
+            "id": row.StockBatch.id,
+            "product_id": row.StockBatch.product_id,
+            "product_sku": row.product_sku,
+            "product_name": row.product_name,
+            "product_unit": row.product_unit,
+            "location_id": row.StockBatch.location_id,
+            "location_name": row.location_name or "",
+            "warehouse_id": row.warehouse_id,
+            "warehouse_name": row.warehouse_name or "",
+            "batch_number": row.StockBatch.batch_number,
+            "on_hand": row.StockBatch.on_hand,
+            "unit_cost": row.StockBatch.unit_cost,
+            "received_date": row.StockBatch.received_date,
+            "org_id": row.StockBatch.org_id,
+            "created_at": row.StockBatch.created_at,
+            "updated_at": row.StockBatch.updated_at,
+        }
+        for row in rows
+    ]
+    return items, total
+
+
+async def list_batch_numbers(
+    db: AsyncSession,
+    *,
+    org_id: UUID,
+    product_id: UUID,
+    location_id: Optional[UUID] = None,
+) -> list[dict]:
+    """List available batch numbers for a product (for consume-mode dropdown)."""
+    query = (
+        select(StockBatch)
+        .where(
+            StockBatch.org_id == org_id,
+            StockBatch.product_id == product_id,
+            StockBatch.on_hand > 0,
+        )
+    )
+    if location_id:
+        query = query.where(StockBatch.location_id == location_id)
+
+    query = query.order_by(StockBatch.received_date.asc().nulls_last(), StockBatch.batch_number)
+    result = await db.execute(query)
+    batches = result.scalars().all()
+
+    return [
+        {
+            "batch_number": b.batch_number,
+            "on_hand": b.on_hand,
+            "unit_cost": b.unit_cost,
+            "received_date": b.received_date,
+            "location_id": b.location_id,
+        }
+        for b in batches
+    ]
 
 
 async def list_stock_by_location(

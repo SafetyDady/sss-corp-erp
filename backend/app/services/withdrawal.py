@@ -384,6 +384,7 @@ async def issue_withdrawal_slip(
 
             if issued_qty > 0:
                 location_id = issue_line.get("location_id") or line.location_id
+                batch_number = issue_line.get("batch_number")
                 prod_result = await db.execute(
                     select(Product).where(Product.id == line.product_id)
                 )
@@ -398,6 +399,7 @@ async def issue_withdrawal_slip(
                         note=issue_note or line.note, created_by=issued_by,
                         org_id=org_id, location_id=location_id,
                         work_order_id=slip.work_order_id,
+                        batch_number=batch_number,
                     )
                 elif slip.withdrawal_type == WithdrawalType.CC_ISSUE:
                     movement = await create_movement(
@@ -408,6 +410,7 @@ async def issue_withdrawal_slip(
                         org_id=org_id, location_id=location_id,
                         cost_center_id=slip.cost_center_id,
                         cost_element_id=slip.cost_element_id,
+                        batch_number=batch_number,
                     )
                 line.movement_id = movement.id
 

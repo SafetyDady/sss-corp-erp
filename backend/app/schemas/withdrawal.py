@@ -62,6 +62,7 @@ class WithdrawalSlipIssueLineInput(BaseModel):
     line_id: UUID
     issued_qty: int = Field(ge=0)
     location_id: Optional[UUID] = None  # override source location at issue time
+    batch_number: Optional[str] = Field(default=None, max_length=50)  # Phase 11.12
 
 
 class WithdrawalSlipIssueRequest(BaseModel):

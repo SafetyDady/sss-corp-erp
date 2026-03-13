@@ -129,6 +129,7 @@ class StockMovementCreate(BaseModel):
     cost_element_id: Optional[UUID] = None   # Optional for ISSUE
     to_location_id: Optional[UUID] = None    # Required for TRANSFER (destination)
     adjust_type: Optional[Literal["INCREASE", "DECREASE"]] = None  # Required for ADJUST
+    batch_number: Optional[str] = Field(default=None, max_length=50)  # Phase 11.12
 
     @field_validator("movement_type")
     @classmethod
@@ -196,6 +197,7 @@ class StockMovementResponse(BaseModel):
     to_location_id: Optional[UUID] = None
     to_location_name: Optional[str] = None
     to_warehouse_name: Optional[str] = None
+    batch_number: Optional[str] = None  # Phase 11.12
     created_by: UUID
     reversed_by_id: Optional[UUID] = None
     is_reversed: bool
@@ -284,3 +286,53 @@ class StockAgingReportResponse(BaseModel):
     average_age_days: float
     brackets: list[StockAgingBracket]
     products: list[StockAgingProduct]
+
+
+# ============================================================
+# STOCK BATCH SCHEMAS (Phase 11.12)
+# ============================================================
+
+class StockBatchResponse(BaseModel):
+    id: UUID
+    product_id: UUID
+    product_sku: str = ""
+    product_name: str = ""
+    product_unit: str = ""
+    location_id: Optional[UUID] = None
+    location_name: str = ""
+    warehouse_id: Optional[UUID] = None
+    warehouse_name: str = ""
+    batch_number: str
+    on_hand: int
+    unit_cost: Decimal
+    received_date: Optional[datetime] = None
+    org_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class StockBatchListResponse(BaseModel):
+    items: list[StockBatchResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class BatchNumberOption(BaseModel):
+    """For batch dropdown in consume mode."""
+    batch_number: str
+    on_hand: int
+    unit_cost: Decimal
+    received_date: Optional[datetime] = None
+    location_id: Optional[UUID] = None
+
+
+class BatchNumberListResponse(BaseModel):
+    items: list[BatchNumberOption]
+
+
+class GenerateBatchNumberResponse(BaseModel):
+    batch_number: str

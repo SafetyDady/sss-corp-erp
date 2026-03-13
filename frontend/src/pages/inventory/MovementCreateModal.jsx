@@ -4,6 +4,7 @@ import { Warehouse as WarehouseIcon, MapPin, ArrowRight } from 'lucide-react';
 import api from '../../services/api';
 import { COLORS } from '../../utils/constants';
 import SearchSelect from '../../components/SearchSelect';
+import BatchSelector from '../../components/BatchSelector';
 
 const MOVEMENT_TYPES = [
   { value: 'RECEIVE', label: 'RECEIVE - รับเข้า' },
@@ -28,6 +29,9 @@ export default function MovementCreateModal({ open, onClose, onSuccess }) {
   const { message } = App.useApp();
 
   const moveType = Form.useWatch('movement_type', form);
+  const selectedProductId = Form.useWatch('product_id', form);
+  const selectedLocationId = Form.useWatch('location_id', form);
+  const [batchNumber, setBatchNumber] = useState(undefined);
 
   // Fetch reference data on open
   useEffect(() => {
@@ -104,6 +108,8 @@ export default function MovementCreateModal({ open, onClose, onSuccess }) {
     if (!payload.cost_center_id) delete payload.cost_center_id;
     if (!payload.cost_element_id) delete payload.cost_element_id;
     if (!payload.adjust_type) delete payload.adjust_type;
+    // Batch number (Phase 11.12)
+    if (batchNumber) payload.batch_number = batchNumber;
     // CONSUME/RETURN: backend auto-fills unit_cost from product.cost
     if (payload.movement_type === 'CONSUME' || payload.movement_type === 'RETURN' || !payload.unit_cost) {
       payload.unit_cost = 0;
@@ -116,6 +122,7 @@ export default function MovementCreateModal({ open, onClose, onSuccess }) {
       form.resetFields();
       setSelectedWarehouse(undefined);
       setDestWarehouse(undefined);
+      setBatchNumber(undefined);
       onSuccess();
     } catch (err) {
       message.error(err.response?.data?.detail || 'เกิดข้อผิดพลาด');
@@ -276,6 +283,19 @@ export default function MovementCreateModal({ open, onClose, onSuccess }) {
               />
             </Form.Item>
           </div>
+        )}
+
+        {/* Batch/Lot Number (Phase 11.12) */}
+        {moveType && moveType !== 'ADJUST' && (
+          <Form.Item label="Batch/Lot No." style={{ marginBottom: 16 }}>
+            <BatchSelector
+              productId={selectedProductId}
+              locationId={selectedLocationId}
+              value={batchNumber}
+              onChange={setBatchNumber}
+              mode={moveType === 'RECEIVE' || moveType === 'RETURN' ? 'receive' : 'consume'}
+            />
+          </Form.Item>
         )}
 
         <Form.Item name="reference" label="อ้างอิง">

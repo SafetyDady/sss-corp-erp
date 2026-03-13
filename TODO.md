@@ -1451,11 +1451,22 @@
 - [x] Filters: product type (MATERIAL/CONSUMABLE/SPAREPART/FINISHED_GOODS) + warehouse
 - [x] No new permissions — reuses inventory.product.read/export
 
-### 11.12 Batch/Lot Tracking
-- [ ] StockMovement model: + `batch_number` (string, nullable)
-- [ ] FIFO costing option: track cost per batch
-- [ ] Frontend: batch_number input on RECEIVE movement form
-- [ ] Batch history: trace movements per batch number
+### 11.12 Batch/Lot Tracking ✅ DONE
+- [x] Migration: x4y5z6a7b8c9 — batch_number VARCHAR(50) on stock_movements + stock_batches table
+- [x] Model: StockBatch (product_id, location_id nullable, batch_number, on_hand, unit_cost, received_date, org_id) + partial unique indexes
+- [x] Model: StockMovement + batch_number column
+- [x] Schemas: StockBatchResponse, StockBatchListResponse, BatchNumberOption, GenerateBatchNumberResponse + batch_number on movement/GR/withdrawal/delivery/transfer schemas
+- [x] Service: _get_or_create_stock_batch(), generate_batch_number() (LOT-YYYYMMDD-NNN), list_stock_by_batch(), list_batch_numbers()
+- [x] Service: create_movement() + _reverse_movement_inner() — batch tracking for all movement types
+- [x] Service callers: purchasing, withdrawal, delivery, transfer_request — all pass batch_number
+- [x] API: 3 new endpoints (GET stock-by-batch, GET batch-numbers, POST generate-batch-number) + batch_number filter on movements
+- [x] Frontend: BatchSelector component (receive/consume modes) + StockByBatchTab view
+- [x] Frontend: 7 modals updated (MovementCreate, GoodsReceipt, WOConsume, WOReturn, WithdrawalSlipIssue, DOShip, TransferRequestExecute)
+- [x] Frontend: MovementListPage batch column + filter
+- [x] Frontend: SupplyChainPage "Lots/Batches" tab (Layers icon)
+- [x] Business Rules: BR#145-150 (optional batch, on_hand >= 0, sufficient stock, TRANSFER atomic, REVERSAL copy, auto-generate format)
+- [x] No new permissions — reuses inventory.product.read + inventory.movement.create
+- [ ] Deferred: Auto-FIFO selection, per-batch WO costing, Serial Number
 
 ### 11.13 Barcode/QR Code (SKU) ✅ DONE
 - [x] Install: `react-barcode` v1.6.1 (Code128 SVG, lightweight JsBarcode wrapper)

@@ -442,6 +442,7 @@ async def execute_transfer_request(
                     org_id=org_id,
                     location_id=tf.source_location_id,
                     to_location_id=tf.dest_location_id,
+                    batch_number=exec_line.get("batch_number"),  # Phase 11.12
                 )
                 line.movement_id = movement.id
 

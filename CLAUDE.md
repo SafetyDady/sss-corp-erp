@@ -2,7 +2,7 @@
 
 > **ไฟล์นี้คือ "สมอง" ของโปรเจกต์ — AI ต้องอ่านก่อนทำงานทุกครั้ง**
 > Source of truth: SmartERP_Master_Document_v2.xlsx
-> อัปเดตล่าสุด: 2026-03-13 v37 (Phase 13.6 Per-User Rate Limiting)
+> อัปเดตล่าสุด: 2026-03-13 v38 (Phase 11.12 Batch/Lot Tracking)
 
 ---
 
@@ -167,6 +167,14 @@ sss-corp-erp/
 - **ISSUE/CONSUME** จาก location → ต้องมี stock เพียงพอที่ location นั้น (BR#70)
 - **Product.on_hand** = denormalized aggregate — อัปเดต atomic ทั้ง product + stock_by_location (BR#71)
 - **Low stock** = on_hand ≤ min_stock AND min_stock > 0 — highlight ใน Product List + stat card (BR#73)
+
+### 12. Batch/Lot Tracking Rules (Phase 11.12)
+- **batch_number optional** บน StockMovement — backward compatible (BR#145)
+- **stock_batches.on_hand >= 0** per product per location per batch (BR#146)
+- **ISSUE/CONSUME** from batch → ต้องมี batch stock เพียงพอ (BR#147)
+- **TRANSFER** with batch → source batch ลด + dest batch เพิ่ม (same batch_number) (BR#148)
+- **REVERSAL** copies batch_number + reverses batch impact (BR#149)
+- **Auto-generate** format: LOT-YYYYMMDD-NNN (sequential per org per day) (BR#150)
 
 ---
 
@@ -584,7 +592,7 @@ Permission: admin.user.update (generate link code), JWT self-service (unlink)
 
 ---
 
-## Business Rules (Complete — 144 Rules)
+## Business Rules (Complete — 150 Rules)
 
 | # | Module | Feature | Rule | Enforcement |
 |---|--------|---------|------|-------------|
@@ -732,6 +740,12 @@ Permission: admin.user.update (generate link code), JWT self-service (unlink)
 | 142 | asset | Delete | Soft delete, ไม่ต้องมี depreciation entries | Service check |
 | 143 | asset | Dispose | ต้อง ACTIVE status, auto calc gain/loss | Service check |
 | 144 | asset | Tool Link | 1 tool = 1 asset only (partial unique index) | DB UNIQUE |
+| 145 | inventory | Batch | batch_number optional (nullable) on StockMovement — backward compatible | Schema + DB |
+| 146 | inventory | Batch | stock_batches.on_hand >= 0 per product per location per batch | DB CHECK + Service |
+| 147 | inventory | Batch | ISSUE/CONSUME from batch ต้องมี batch stock เพียงพอ | Service check |
+| 148 | inventory | Batch | TRANSFER with batch: source batch ลด + dest batch เพิ่ม (same batch_number) | Service logic |
+| 149 | inventory | Batch | REVERSAL copies batch_number + reverses batch impact | Service logic |
+| 150 | inventory | Batch | Auto-generate format: LOT-YYYYMMDD-NNN (sequential per org per day) | Service helper |
 
 ---
 
@@ -801,8 +815,8 @@ DELETE /api/inventory/products/{id}         inventory.product.delete
 
 ### Stock Movements
 ```
-GET    /api/stock/movements                 inventory.movement.read      (?location_id=&work_order_id=&movement_type=)
-POST   /api/stock/movements                 inventory.movement.create    (body: +location_id, work_order_id, cost_center_id, cost_element_id, to_location_id, adjust_type)
+GET    /api/stock/movements                 inventory.movement.read      (?location_id=&work_order_id=&movement_type=&batch_number=)
+POST   /api/stock/movements                 inventory.movement.create    (body: +location_id, work_order_id, cost_center_id, cost_element_id, to_location_id, adjust_type, batch_number)
 POST   /api/stock/movements/{id}/reverse    inventory.movement.delete
 ```
 
@@ -812,6 +826,9 @@ GET    /api/inventory/stock-by-location     inventory.product.read       (?produ
 GET    /api/inventory/low-stock-count       inventory.product.read       → {count: int}
 GET    /api/inventory/stock-aging           inventory.product.read       (?warehouse_id, product_type) → StockAgingReportResponse
 GET    /api/inventory/stock-aging/export    inventory.product.export     (Phase 11.11 — xlsx)
+GET    /api/inventory/stock-by-batch       inventory.product.read       (?product_id=&location_id=&batch_number=) — Phase 11.12
+GET    /api/inventory/batch-numbers        inventory.product.read       (?product_id=&location_id=, on_hand>0) — Phase 11.12
+POST   /api/inventory/generate-batch-number inventory.movement.create   → {batch_number: "LOT-YYYYMMDD-NNN"} — Phase 11.12
 ```
 
 ### Stock Withdrawal Slips (ใบเบิกของ)
@@ -1538,7 +1555,7 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 - [x] **11.10** Stock Withdrawal Scenarios — 5 movement types fixed: CONSUME→WO (work_order_id), ISSUE→CostCenter, TRANSFER 2-way atomic, ADJUST INCREASE/DECREASE, RETURN new type + WO Material Cost = CONSUME−RETURN (BR#74-79)
 - [x] **11.10B** Stock Withdrawal Slip (ใบเบิกของ) — Multi-line withdrawal document (Header+Lines), DRAFT→PENDING→ISSUED workflow, WO_CONSUME/CC_ISSUE types, print, issue creates movements per line, 6 new permissions (127→133), 8 API endpoints (BR#80-88)
 - [x] **11.11** Stock Aging Report — FIFO-based inventory age analysis (0-30, 31-60, 61-90, 90+ days), BarChart + detailed table, Excel export, warehouse/product type filters
-- [ ] **11.12** Batch/Lot Tracking — batch_number on StockMovement, FIFO/LIFO costing option
+- [x] **11.12** Batch/Lot Tracking — batch_number on StockMovement + StockBatch table, optional per-batch on_hand tracking, auto-generate LOT-YYYYMMDD-NNN, BatchSelector component (receive/consume modes), StockByBatchTab view
 - [x] **11.13** Barcode/QR — Code128 barcode + QR Code on product labels, react-barcode + antd QRCode, single/bulk print, row selection in ProductListPage, ProductLabel + ProductLabelModal components
 - [x] **11.14** Stock Take — StockTake + StockTakeLine models, DRAFT→SUBMITTED→APPROVED (auto ADJUST movements), re-snapshot system_qty on submit, inline counting + variance display, 6 new permissions (174→180), 9 API endpoints, StockTakeTab + DetailPage + PrintView
 - [x] **11.15** Multi-warehouse Transfer Request — TransferRequest document workflow (DRAFT→PENDING→TRANSFERRED), per-line execute via create_movement(TRANSFER), auto-generate TF-number, no new permissions (reuses inventory.movement.* + inventory.withdrawal.approve), 8 API endpoints, 5 frontend components, SupplyChainPage "Transfers" tab
@@ -1646,6 +1663,10 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 45. ❌ อย่า generate depreciation ซ้ำเดือนเดียวกัน — 409 Conflict (BR#138)
 46. ❌ อย่า dispose/retire asset ที่ไม่ใช่ ACTIVE — ต้องเช็ค status ก่อน (BR#139, 143)
 47. ❌ อย่าลืม tool_id unique บน FixedAsset — 1 tool = 1 asset เท่านั้น (BR#144)
+48. ❌ อย่าลืม batch_number optional — ระบบเดิมไม่เสีย, backward compatible (BR#145)
+49. ❌ อย่า ISSUE/CONSUME from batch ที่มี stock ไม่พอ — ต้องเช็ค stock_batches.on_hand (BR#147)
+50. ❌ อย่าลืม TRANSFER with batch ต้อง atomic 2 ฝั่ง — source batch ลด + dest batch เพิ่ม (BR#148)
+51. ❌ อย่าลืม REVERSAL copies batch_number + reverses batch impact (BR#149)
 
 ---
 
@@ -1832,6 +1853,9 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 | `frontend/src/pages/supply-chain/TransferRequestDetailPage.jsx` | Transfer Request detail + status-driven actions (edit/submit/execute/cancel/print) (Phase 11.15) |
 | `frontend/src/pages/supply-chain/TransferRequestExecuteModal.jsx` | Execute confirmation — per-line transferred_qty input (Phase 11.15) |
 | `frontend/src/pages/supply-chain/TransferRequestPrintView.jsx` | Transfer Request print layout — forwardRef + shared PrintStyles (Phase 11.15) |
+| `backend/alembic/versions/x4y5z6a7b8c9_phase11_12_batch_tracking.py` | Migration: batch_number on stock_movements + stock_batches table (Phase 11.12) |
+| `frontend/src/components/BatchSelector.jsx` | Reusable batch picker: receive mode (free-text + auto-generate) / consume mode (dropdown from API) (Phase 11.12) |
+| `frontend/src/pages/supply-chain/StockByBatchTab.jsx` | Stock by Batch view: table + filters (product, location, batch_number) (Phase 11.12) |
 | `backend/app/api/line_auth.py` | LINE Login 7 API endpoints: authorize-url, callback, link, 2fa-verify, generate-link-code, unlink, check (Phase 15) |
 | `backend/app/services/line_auth.py` | LINE OAuth service: authorize URL, token exchange, profile, link code gen, verify+link, unlink (Phase 15) |
 | `backend/app/schemas/line_auth.py` | LINE Login Pydantic schemas: LineCallbackRequest, LinkRequest, LinkCodeResponse, etc. (Phase 15) |
@@ -1865,4 +1889,4 @@ DEFAULT_ORG_ID = UUID("00000000-0000-0000-0000-000000000001")  # ใช้แท
 
 ---
 
-*End of CLAUDE.md — SSS Corp ERP v38 (Phase 0-9 complete + Phase 8.5 Finance Dashboard + Phase 8.6 More Charts + Phase 10 partial + Phase 11 partial (11.1-11.10B + 11.11 Stock Aging + 11.13 Barcode/QR + 11.14 Stock Take + 11.15 Transfer Request) + Phase 12 partial + Phase 13 complete (Login History + Password Policy + 2FA + Session Management + Export Audit + Enhanced Audit Trail + Per-User Rate Limiting) + Phase 14 partial (Performance Monitoring 14.1-14.10 complete) + Phase 15 LINE Login + Mobile-first Layout complete + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete + Mobile Responsive core complete, Phase 11.12/12.7-12.9/14.11-14.13 planned)*
+*End of CLAUDE.md — SSS Corp ERP v38 (Phase 0-9 complete + Phase 8.5 Finance Dashboard + Phase 8.6 More Charts + Phase 10 partial + Phase 11 partial (11.1-11.10B + 11.11 Stock Aging + 11.12 Batch/Lot Tracking + 11.13 Barcode/QR + 11.14 Stock Take + 11.15 Transfer Request) + Phase 12 partial + Phase 13 complete (Login History + Password Policy + 2FA + Session Management + Export Audit + Enhanced Audit Trail + Per-User Rate Limiting) + Phase 14 partial (Performance Monitoring 14.1-14.10 complete) + Phase 15 LINE Login + Mobile-first Layout complete + C9 Internal Recharge + C5.2 WHT + C1 Supplier Invoice AP + C2 Customer Invoice AR + C3 Delivery Order + C13 Fixed Asset + AR Invoice Print + SO Flow Upgrade complete + Go-Live Gate G1-G7 complete + Frontend Restructure (ME/Common-Act/Store) complete + Tool Checkout Slip complete + Dashboard & Analytics complete + Notification Center complete + Mobile Responsive core complete, Phase 12.7-12.9/14.11-14.13 planned)*

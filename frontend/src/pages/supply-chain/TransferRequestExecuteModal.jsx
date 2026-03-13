@@ -12,6 +12,7 @@ import { COLORS } from '../../utils/constants';
 export default function TransferRequestExecuteModal({ open, tf, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [transferredQtys, setTransferredQtys] = useState({});
+  const [batchOverrides, setBatchOverrides] = useState({});  // Phase 11.12
   const [executeNote, setExecuteNote] = useState('');
   const { message } = App.useApp();
 
@@ -23,6 +24,7 @@ export default function TransferRequestExecuteModal({ open, tf, onClose, onSucce
       defaultQtys[line.id] = line.quantity;
     });
     setTransferredQtys(defaultQtys);
+    setBatchOverrides({});
     setExecuteNote('');
   }, [open, tf?.id]);
 
@@ -30,6 +32,7 @@ export default function TransferRequestExecuteModal({ open, tf, onClose, onSucce
     const lines = (tf?.lines || []).map((line) => ({
       line_id: line.id,
       transferred_qty: transferredQtys[line.id] ?? line.quantity,
+      ...(batchOverrides[line.id] ? { batch_number: batchOverrides[line.id] } : {}),
     }));
 
     const hasQty = lines.some((l) => l.transferred_qty > 0);
@@ -88,6 +91,19 @@ export default function TransferRequestExecuteModal({ open, tf, onClose, onSucce
         />
       ),
     },
+    {
+      title: 'Batch', key: 'batch', width: 140,
+      render: (_, record) => (
+        <Input
+          size="small"
+          style={{ width: '100%' }}
+          placeholder="Batch No."
+          value={batchOverrides[record.id] || ''}
+          onChange={(e) => setBatchOverrides((prev) => ({ ...prev, [record.id]: e.target.value }))}
+          maxLength={50}
+        />
+      ),
+    },
   ];
 
   return (
@@ -97,7 +113,7 @@ export default function TransferRequestExecuteModal({ open, tf, onClose, onSucce
       onCancel={onClose}
       onOk={handleSubmit}
       confirmLoading={loading}
-      width={700}
+      width={800}
       okText="ยืนยันโอนย้าย"
       okButtonProps={{ style: { background: COLORS.success } }}
       destroyOnHidden

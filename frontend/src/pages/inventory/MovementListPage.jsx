@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Table, Button, App, Space, Popconfirm, Select } from 'antd';
+import { Table, Button, App, Space, Popconfirm, Select, Input } from 'antd';
 import { Plus, RotateCcw } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
@@ -20,6 +20,7 @@ export default function MovementListPage({ embedded = false }) {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState(undefined);
   const [locationFilter, setLocationFilter] = useState(undefined);
+  const [batchFilter, setBatchFilter] = useState('');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
   const [modalOpen, setModalOpen] = useState(false);
   const [products, setProducts] = useState([]);
@@ -35,6 +36,7 @@ export default function MovementListPage({ embedded = false }) {
           search: search || undefined,
           movement_type: typeFilter || undefined,
           location_id: locationFilter || undefined,
+          batch_number: batchFilter || undefined,
         },
       });
       setItems(data.items);
@@ -44,7 +46,7 @@ export default function MovementListPage({ embedded = false }) {
     } finally {
       setLoading(false);
     }
-  }, [pagination.current, pagination.pageSize, search, typeFilter, locationFilter]);
+  }, [pagination.current, pagination.pageSize, search, typeFilter, locationFilter, batchFilter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -93,6 +95,10 @@ export default function MovementListPage({ embedded = false }) {
         if (!record.location_name) return <span style={{ color: COLORS.textSecondary }}>-</span>;
         return <span>{record.warehouse_name} / {record.location_name}</span>;
       },
+    },
+    {
+      title: 'Batch', dataIndex: 'batch_number', key: 'batch', width: 130,
+      render: (v) => v ? <span style={{ fontFamily: 'monospace', color: COLORS.warning }}>{v}</span> : '-',
     },
     {
       title: 'WO', dataIndex: 'work_order_number', key: 'wo', width: 120,
@@ -160,6 +166,13 @@ export default function MovementListPage({ embedded = false }) {
           value={locationFilter}
           onChange={setLocationFilter}
           options={allLocations.map((l) => ({ value: l.id, label: `${l.code} - ${l.name}` }))}
+        />
+        <Input.Search
+          allowClear
+          placeholder="Batch/Lot No."
+          style={{ width: 180 }}
+          onSearch={setBatchFilter}
+          enterButton={false}
         />
       </div>
       <Table

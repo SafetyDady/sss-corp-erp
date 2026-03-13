@@ -4,6 +4,7 @@ import { Warehouse as WarehouseIcon, MapPin } from 'lucide-react';
 import api from '../../services/api';
 import { COLORS } from '../../utils/constants';
 import SearchSelect from '../../components/SearchSelect';
+import BatchSelector from '../../components/BatchSelector';
 
 export default function WOConsumeModal({ open, workOrderId, onClose, onSuccess }) {
   const [form] = Form.useForm();
@@ -11,7 +12,11 @@ export default function WOConsumeModal({ open, workOrderId, onClose, onSuccess }
   const [warehouses, setWarehouses] = useState([]);
   const [locations, setLocations] = useState([]);
   const [selectedWarehouse, setSelectedWarehouse] = useState(undefined);
+  const [batchNumber, setBatchNumber] = useState(undefined);
   const { message } = App.useApp();
+
+  const selectedProductId = Form.useWatch('product_id', form);
+  const selectedLocationId = Form.useWatch('location_id', form);
 
   useEffect(() => {
     if (!open) return;
@@ -43,6 +48,7 @@ export default function WOConsumeModal({ open, workOrderId, onClose, onSuccess }
       ...rest,
     };
     if (!payload.location_id) delete payload.location_id;
+    if (batchNumber) payload.batch_number = batchNumber;  // Phase 11.12
     payload.unit_cost = 0; // backend auto-fills from product.cost
 
     setLoading(true);
@@ -51,6 +57,7 @@ export default function WOConsumeModal({ open, workOrderId, onClose, onSuccess }
       message.success('เบิกวัสดุสำเร็จ');
       form.resetFields();
       setSelectedWarehouse(undefined);
+      setBatchNumber(undefined);
       onSuccess();
     } catch (err) {
       message.error(err.response?.data?.detail || 'เกิดข้อผิดพลาด');
@@ -107,7 +114,18 @@ export default function WOConsumeModal({ open, workOrderId, onClose, onSuccess }
           </Form.Item>
         </div>
 
-        <Form.Item name="reference" label="อ้างอิง" style={{ marginTop: 16 }}>
+        {/* Batch/Lot Number (Phase 11.12) */}
+        <Form.Item label="Batch/Lot No." style={{ marginTop: 16 }}>
+          <BatchSelector
+            productId={selectedProductId}
+            locationId={selectedLocationId}
+            value={batchNumber}
+            onChange={setBatchNumber}
+            mode="consume"
+          />
+        </Form.Item>
+
+        <Form.Item name="reference" label="อ้างอิง">
           <input className="ant-input" placeholder="เลขที่ใบเบิก, หมายเลขอ้างอิง" style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 6, padding: '4px 11px', width: '100%' }} />
         </Form.Item>
         <Form.Item name="note" label="หมายเหตุ">

@@ -208,6 +208,11 @@ class StockMovement(Base, TimestampMixin, OrgMixin):
         index=True,
     )
 
+    # Batch/Lot tracking (Phase 11.12) — optional
+    batch_number: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, index=True,
+    )
+
     def __repr__(self) -> str:
         return f"<StockMovement {self.movement_type.value} qty={self.quantity}>"
 
@@ -248,6 +253,64 @@ class StockByLocation(Base, TimestampMixin, OrgMixin):
 
     def __repr__(self) -> str:
         return f"<StockByLocation product={self.product_id} location={self.location_id} on_hand={self.on_hand}>"
+
+
+# ============================================================
+# STOCK BATCH (per-product per-location per-batch on_hand, Phase 11.12)
+# ============================================================
+
+class StockBatch(Base, TimestampMixin):
+    """Track on_hand per product per location per batch/lot number."""
+    __tablename__ = "stock_batches"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("products.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    location_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("locations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    batch_number: Mapped[str] = mapped_column(
+        String(50), nullable=False,
+    )
+    on_hand: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0,
+    )
+    unit_cost: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=Decimal("0"),
+    )
+    received_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False,
+    )
+
+    # Relationships
+    product: Mapped["Product"] = relationship(
+        foreign_keys=[product_id], lazy="selectin",
+    )
+    location: Mapped["Location"] = relationship(
+        "Location", foreign_keys=[location_id], lazy="selectin",
+    )
+
+    __table_args__ = (
+        CheckConstraint("on_hand >= 0", name="ck_stock_batch_on_hand_non_negative"),
+        Index("ix_stock_batches_product_id", "product_id"),
+        Index("ix_stock_batches_org_product", "org_id", "product_id"),
+        Index("ix_stock_batches_batch_number", "batch_number"),
+        # Partial unique indexes defined in migration (postgresql_where not supported in model __table_args__)
+    )
+
+    def __repr__(self) -> str:
+        return f"<StockBatch product={self.product_id} batch={self.batch_number} on_hand={self.on_hand}>"
 
 
 # ============================================================
