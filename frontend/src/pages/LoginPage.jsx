@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Card, Form, Input, Typography, App, Alert } from 'antd';
-import { Lock, Mail, ShieldCheck } from 'lucide-react';
+import { Button, Card, Form, Input, Typography, App, Alert, Divider } from 'antd';
+import { Lock, Mail, ShieldCheck, ExternalLink } from 'lucide-react';
 import useAuthStore from '../stores/authStore';
 import ChangePasswordModal from './my/ChangePasswordModal';
 import { COLORS } from '../utils/constants';
@@ -34,12 +34,34 @@ export default function LoginPage() {
   // Password expiry state
   const [passwordExpired, setPasswordExpired] = useState(false);
 
+  // LINE Login state
+  const [lineEnabled, setLineEnabled] = useState(false);
+  const [lineLoading, setLineLoading] = useState(false);
+
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
       navigate('/', { replace: true });
     }
   }, [isAuthenticated, navigate]);
+
+  // Check if LINE Login is configured (use /status to avoid 404 console errors)
+  useEffect(() => {
+    axios.get(`${API_URL}/api/auth/line/status`)
+      .then(({ data }) => setLineEnabled(data?.enabled === true))
+      .catch(() => setLineEnabled(false));
+  }, []);
+
+  const handleLineLogin = async () => {
+    setLineLoading(true);
+    try {
+      const { data } = await axios.get(`${API_URL}/api/auth/line/authorize-url`);
+      window.location.href = data.url;
+    } catch {
+      message.error('ไม่สามารถเชื่อมต่อ LINE ได้');
+      setLineLoading(false);
+    }
+  };
 
   const onFinish = async (values) => {
     setLockMessage(null);
@@ -204,6 +226,31 @@ export default function LoginPage() {
               </Button>
             </Form.Item>
           </Form>
+        )}
+
+        {/* LINE Login Button */}
+        {!twoFAStep && lineEnabled && (
+          <>
+            <Divider style={{ margin: '0 0 16px 0', borderColor: COLORS.border }}>
+              <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>หรือ</Text>
+            </Divider>
+            <Button
+              block
+              size="large"
+              onClick={handleLineLogin}
+              loading={lineLoading}
+              icon={<ExternalLink size={16} />}
+              style={{
+                background: '#06C755',
+                borderColor: '#06C755',
+                color: '#fff',
+                fontWeight: 600,
+                marginBottom: 16,
+              }}
+            >
+              เข้าสู่ระบบด้วย LINE
+            </Button>
+          </>
         )}
 
         {/* 2FA OTP Step */}

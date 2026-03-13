@@ -56,6 +56,8 @@ const ToolCheckoutSlipDetailPage = lazy(() => import('./pages/tools/ToolCheckout
 const AssetPage = lazy(() => import('./pages/asset/AssetPage'));
 const AssetDetailPage = lazy(() => import('./pages/asset/AssetDetailPage'));
 const StockTakeDetailPage = lazy(() => import('./pages/supply-chain/StockTakeDetailPage'));
+const LineCallbackPage = lazy(() => import('./pages/auth/LineCallbackPage'));
+const MobileAppLayout = lazy(() => import('./components/MobileAppLayout'));
 
 // --- Sidebar Menu Groups ---
 
@@ -409,13 +411,20 @@ function AppLayout() {
   );
 }
 
-function ProtectedRoute({ children }) {
+function ProtectedRoute() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const hasHydrated = useAuthStore((s) => s._hasHydrated);
+  const loginMethod = useAuthStore((s) => s.loginMethod);
 
   if (!hasHydrated) return <PageLoader />;
   if (!isAuthenticated) return <Navigate to="/login" />;
-  return children;
+
+  // LINE Login users → Mobile-first layout
+  if (loginMethod === 'line') {
+    return <MobileAppLayout />;
+  }
+
+  return <AppLayout />;
 }
 
 export default function App() {
@@ -436,13 +445,10 @@ export default function App() {
             <Routes>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/setup" element={<SetupWizardPage />} />
+              <Route path="/auth/line/callback" element={<LineCallbackPage />} />
               <Route
                 path="/*"
-                element={
-                  <ProtectedRoute>
-                    <AppLayout />
-                  </ProtectedRoute>
-                }
+                element={<ProtectedRoute />}
               />
             </Routes>
           </Suspense>

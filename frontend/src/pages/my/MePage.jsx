@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Tabs, Card, Typography, Avatar, Button, Tag, App, Popconfirm, Space } from 'antd';
-import { User, Clock, Receipt, CalendarOff, Building2, Calendar, Pencil, ShieldCheck, ShieldOff, Lock } from 'lucide-react';
+import { User, Clock, Receipt, CalendarOff, Building2, Calendar, Pencil, ShieldCheck, ShieldOff, Lock, Link2, Unlink } from 'lucide-react';
 import useAuthStore from '../../stores/authStore';
 import { usePermission } from '../../hooks/usePermission';
 import { COLORS } from '../../utils/constants';
@@ -31,6 +31,7 @@ export default function MePage() {
   const hireDate = useAuthStore((s) => s.hireDate);
   const departmentName = useAuthStore((s) => s.departmentName);
   const is2FAEnabled = useAuthStore((s) => s.is2FAEnabled);
+  const lineLinked = useAuthStore((s) => s.lineLinked);
   const fetchMe = useAuthStore((s) => s.fetchMe);
   const { can } = usePermission();
   const { message } = App.useApp();
@@ -39,6 +40,7 @@ export default function MePage() {
   const [setup2FAOpen, setSetup2FAOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [disabling2FA, setDisabling2FA] = useState(false);
+  const [unlinkingLine, setUnlinkingLine] = useState(false);
 
   const tenure = hireDate
     ? `${dayjs().diff(dayjs(hireDate), 'year')} ปี ${dayjs().diff(dayjs(hireDate), 'month') % 12} เดือน`
@@ -185,6 +187,45 @@ export default function MePage() {
               >
                 เปลี่ยนรหัสผ่าน
               </Button>
+
+              {/* LINE Status */}
+              {lineLinked ? (
+                <>
+                  <Tag color="#06C755" icon={<Link2 size={12} />}>
+                    LINE เชื่อมต่อแล้ว
+                  </Tag>
+                  <Popconfirm
+                    title="ยกเลิกเชื่อมต่อ LINE"
+                    description="คุณจะไม่สามารถ Login ด้วย LINE ได้อีก"
+                    okText="ยกเลิก LINE"
+                    cancelText="ไม่"
+                    onConfirm={async () => {
+                      setUnlinkingLine(true);
+                      try {
+                        await api.delete('/api/auth/line/unlink');
+                        message.success('ยกเลิกเชื่อมต่อ LINE สำเร็จ');
+                        await fetchMe();
+                      } catch (err) {
+                        message.error(err.response?.data?.detail || 'ยกเลิกไม่สำเร็จ');
+                      } finally {
+                        setUnlinkingLine(false);
+                      }
+                    }}
+                  >
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<Unlink size={13} />}
+                      loading={unlinkingLine}
+                      style={{ color: COLORS.textMuted }}
+                    >
+                      ยกเลิก LINE
+                    </Button>
+                  </Popconfirm>
+                </>
+              ) : (
+                <Tag icon={<Link2 size={12} />}>LINE ยังไม่เชื่อมต่อ</Tag>
+              )}
             </div>
           </div>
         </div>

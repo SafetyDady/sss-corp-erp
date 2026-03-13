@@ -61,3 +61,6 @@ class UserMe(UserResponse):
     org_tax_id: Optional[str] = None
     # Phase 13: 2FA status
     is_2fa_enabled: bool = False
+    # LINE Login
+    line_linked: bool = False
+    login_method: Optional[str] = None  # "line" | "email" | None

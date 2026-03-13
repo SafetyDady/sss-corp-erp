@@ -36,6 +36,9 @@ const useAuthStore = create(
     orgTaxId: null,
     // Phase 13: 2FA status
     is2FAEnabled: false,
+    // LINE Login
+    lineLinked: false,
+    loginMethod: null, // "line" | "email" | null
 
     // Actions
     setTokens: (accessToken, refreshToken) => {
@@ -87,6 +90,8 @@ const useAuthStore = create(
           orgAddress: data.org_address || null,
           orgTaxId: data.org_tax_id || null,
           is2FAEnabled: data.is_2fa_enabled || false,
+          lineLinked: data.line_linked || false,
+          loginMethod: data.login_method || null,
         });
       } catch {
         get().logout();
@@ -126,6 +131,8 @@ const useAuthStore = create(
         orgAddress: null,
         orgTaxId: null,
         is2FAEnabled: false,
+        lineLinked: false,
+        loginMethod: null,
       });
     },
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Table, Button, App, Tag, Select, Tooltip } from 'antd';
-import { RefreshCw, Building2, UserPlus } from 'lucide-react';
+import { Table, Button, App, Tag, Select, Tooltip, Modal, Typography } from 'antd';
+import { RefreshCw, Building2, UserPlus, Link2 } from 'lucide-react';
 import { usePermission } from '../../hooks/usePermission';
 import api from '../../services/api';
 import StatusBadge from '../../components/StatusBadge';
@@ -31,6 +31,29 @@ export default function UserTab() {
   const [departments, setDepartments] = useState([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
   const [modalOpen, setModalOpen] = useState(false);
+  const [linkCodeModal, setLinkCodeModal] = useState({ open: false, code: '', expiresAt: '', userName: '' });
+  const [generatingLink, setGeneratingLink] = useState(null);
+
+  const handleGenerateLinkCode = async (userId, userName) => {
+    setGeneratingLink(userId);
+    try {
+      const { data } = await api.post('/api/auth/line/generate-link-code', { user_id: userId });
+      setLinkCodeModal({
+        open: true,
+        code: data.link_code,
+        expiresAt: data.expires_at,
+        userName,
+      });
+    } catch (err) {
+      if (err.response?.status === 404 && err.response?.data?.detail?.includes('LINE Login')) {
+        message.warning('LINE Login ยังไม่ได้ตั้งค่า');
+      } else {
+        message.error(err.response?.data?.detail || 'ไม่สามารถสร้างรหัสเชื่อมต่อได้');
+      }
+    } finally {
+      setGeneratingLink(null);
+    }
+  };
 
   // Fetch department list for dropdown
   useEffect(() => {
@@ -167,7 +190,24 @@ export default function UserTab() {
       title: 'สถานะ', dataIndex: 'is_active', key: 'is_active', width: 100,
       render: (v) => <StatusBadge status={v ? 'ACTIVE' : 'INACTIVE'} />,
     },
-  ];
+    can('admin.user.update') && {
+      title: 'LINE', key: 'line_link', width: 120,
+      render: (_, record) => (
+        <Tooltip title="สร้างรหัสเชื่อมต่อ LINE">
+          <Button
+            type="text"
+            size="small"
+            icon={<Link2 size={14} />}
+            loading={generatingLink === record.id}
+            onClick={() => handleGenerateLinkCode(record.id, record.full_name)}
+            style={{ color: '#06C755' }}
+          >
+            Link Code
+          </Button>
+        </Tooltip>
+      ),
+    },
+  ].filter(Boolean);
 
   return (
     <div>
@@ -204,6 +244,47 @@ export default function UserTab() {
         onClose={() => setModalOpen(false)}
         onSuccess={() => { setModalOpen(false); fetchData(); }}
       />
+
+      {/* LINE Link Code Modal */}
+      <Modal
+        open={linkCodeModal.open}
+        title={<span><Link2 size={16} style={{ marginRight: 8, verticalAlign: 'middle', color: '#06C755' }} />รหัสเชื่อมต่อ LINE</span>}
+        onCancel={() => setLinkCodeModal({ ...linkCodeModal, open: false })}
+        footer={[
+          <Button key="close" onClick={() => setLinkCodeModal({ ...linkCodeModal, open: false })}>
+            ปิด
+          </Button>,
+        ]}
+        width={400}
+      >
+        <div style={{ textAlign: 'center', padding: '16px 0' }}>
+          <Typography.Text style={{ color: COLORS.textSecondary, display: 'block', marginBottom: 8 }}>
+            รหัสเชื่อมต่อสำหรับ <strong>{linkCodeModal.userName}</strong>
+          </Typography.Text>
+          <div
+            style={{
+              fontSize: 36,
+              fontFamily: 'monospace',
+              fontWeight: 700,
+              letterSpacing: 12,
+              color: '#06C755',
+              background: `${COLORS.bg}`,
+              border: `2px dashed #06C755`,
+              borderRadius: 12,
+              padding: '16px 24px',
+              margin: '12px 0',
+            }}
+          >
+            {linkCodeModal.code}
+          </div>
+          <Typography.Text style={{ color: COLORS.textMuted, fontSize: 12, display: 'block' }}>
+            รหัสนี้ใช้ได้ครั้งเดียว หมดอายุใน 24 ชั่วโมง
+          </Typography.Text>
+          <Typography.Text style={{ color: COLORS.textMuted, fontSize: 11, display: 'block', marginTop: 4 }}>
+            ให้พนักงานกด "เข้าสู่ระบบด้วย LINE" แล้วกรอกรหัสนี้
+          </Typography.Text>
+        </div>
+      </Modal>
     </div>
   );
 }

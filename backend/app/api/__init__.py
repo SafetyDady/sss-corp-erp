@@ -24,6 +24,7 @@ from app.api.asset import router as asset_router
 from app.api.notification import notification_router
 from app.api.performance import router as performance_router
 from app.api.stocktake import router as stocktake_router
+from app.api.line_auth import line_auth_router
 
 all_routers = [
     auth_router,
@@ -54,4 +55,5 @@ all_routers = [
     asset_router,
     notification_router,
     performance_router,
+    line_auth_router,
 ]

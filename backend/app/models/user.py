@@ -87,6 +87,13 @@ class User(Base, TimestampMixin):
     )
     backup_codes_hash: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
+    # LINE Login
+    line_user_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    line_link_code: Mapped[str | None] = mapped_column(String(6), nullable=True)
+    line_link_code_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     # Relationships
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     PERF_SLOW_QUERY_MS: int = 100
     PERF_RETENTION_DAYS: int = 30
 
+    # LINE Login (optional — disabled when empty)
+    LINE_CHANNEL_ID: str = ""
+    LINE_CHANNEL_SECRET: str = ""
+    LINE_CALLBACK_URL: str = ""  # e.g. https://erp.sss-corp.com/auth/line/callback
+
     # Email (Phase 4.6 — disabled by default)
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587

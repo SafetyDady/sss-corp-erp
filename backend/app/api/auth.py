@@ -82,7 +82,10 @@ def _get_client_info(request: Request) -> tuple[str | None, str | None]:
     return ip, user_agent
 
 
-def _create_tokens_and_refresh(user, ip: str | None = None, user_agent: str | None = None):
+def _create_tokens_and_refresh(
+    user, ip: str | None = None, user_agent: str | None = None,
+    login_method: str | None = None,
+):
     """Create access + refresh tokens for user with session metadata.
     Returns (access_token, refresh_token_str, db_refresh_obj, sid).
     """
@@ -93,6 +96,8 @@ def _create_tokens_and_refresh(user, ip: str | None = None, user_agent: str | No
         "email": user.email,
         "org_id": org_id_str,
     }
+    if login_method:
+        token_data["login_method"] = login_method
 
     # Pre-generate RefreshToken UUID for sid
     refresh_id = _uuid.uuid4()
@@ -551,6 +556,8 @@ async def get_me(
         org_address=org.address if org else None,
         org_tax_id=org.tax_id if org else None,
         is_2fa_enabled=user.is_2fa_enabled,
+        line_linked=bool(user.line_user_id),
+        login_method=token_payload.get("login_method"),
     )
 
 
